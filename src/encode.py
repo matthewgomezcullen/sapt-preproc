@@ -3,18 +3,32 @@ class EncodeProtein:
     #   reduced protein structure with poses for SAPT(VQE). Aims to generalise the SAPT(VQE) method 
     #   to any protein-ligand complex.
 
-    def __init__(self, protein_path: str, poses_paths: list[str], pH: float=7.4, cutoff: float=4.5):
-        self.protein_path = protein_path    # A
-        self.poses_paths = poses_paths      # {B}
-        self.reduced = None                 # A^{\cup}
-        self.protonation = None             # {site_id : {pka, state, tautomer}}
-        self.charge = None                  # q_{A^{\cup}}
-        self.num_electrons= None            # N_e
-        # Scope assumptions
-        self.spin = 0
-        self.multiplicity = 1 
+    def __init__(
+        self,
+        protein_path: str,
+        poses_paths: list[str],
+        pH: float = 7.4,
+        cutoff: float = 4.5,
+        retained_water_ids: list[str] | None = None,
+    ):
+        self.protein_path = protein_path        # A
+        self.poses_paths = poses_paths          # {B}
         self.pH = pH
         self.cutoff = cutoff
+        self.retained_water_ids = retained_water_ids  # Explicit source IDs; None retains no waters
+
+        self.prepared = None                    # Full repaired/protonated receptor
+        self.reduced = None                     # A^{\cup}
+        self.protonation = None                 # {site_id: {pka, state, tautomer}}
+        self.retained_residue_ids = None        # Source residue identifiers in A^{\cup}
+        self.source_to_reduced_index = None     # Source atom ID -> final PySCF atom index
+        self.reduced_atom_metadata = None       # Element, cap flag, source ID, min pose distance
+        self.charge = None                      # q_{A^{\cup}}
+        self.num_electrons = None               # N_e
+
+        # Scope assumptions
+        self.spin = 0                           # PySCF: N_alpha - N_beta = 2S
+        self.multiplicity = 1
 
     def encode(self):
         self._protonate()
@@ -50,11 +64,55 @@ class CompressProtein:
     # CompressProtein takes an encoded holo-protein structure and reduces it to a tractable 
     #   active space for VQE/CASCI experiments.
     
-    def __init__(self, encoding: EncodeProtein, name: str, basis: str="6-31g"):
+    def __init__(
+        self,
+        encoding: EncodeProtein,
+        name: str | None = None,
+        basis: str = "6-31g",
+        avas_threshold: float = 0.2,
+        avas_minao: str = "minao",
+        avas_with_iao: bool = False,
+        avas_canonicalize: bool = True,
+    ):
         self.encoding = encoding
-        self.encoding.xyz(f"{name}.xyz")
+        self.name = name
         self.basis = basis
+
+        # RHF/PySCF state. Construction must not write files or run a calculation.
+        self.mol = None
+        self.mf = None
         self.molecular_orbitals = None
+        self.mo_occupations = None
+        self.mo_energies = None
+
+        # AVAS inputs and outputs.
+        self.avas_threshold = avas_threshold
+        self.avas_minao = avas_minao
+        self.avas_with_iao = avas_with_iao
+        self.avas_canonicalize = avas_canonicalize
+        self.target_aos = None
+        self.avas_num_electrons = None
+        self.avas_num_orbitals = None
+        self.avas_molecular_orbitals = None
+
+        # SHCI natural-orbital selection state.
+        self.shci_solver = None
+        self.shci_result = None
+        self.shci_eps1 = None
+        self.occupation_window = None
+        self.one_rdm = None
+        self.natural_orbital_occupations = None
+        self.natural_orbital_coefficients = None
+        self.active_orbital_indices = None
+        self.active_num_electrons = None
+        self.active_num_orbitals = None
+        self.core_orbital_indices = None
+        self.virtual_orbital_indices = None
+
+        # Active-space Hamiltonian state.
+        self.core_energy = None
+        self.one_body_integrals = None
+        self.two_body_integrals = None
         self.ferm_hamiltonian = None        # H_f
         self.qubit_hamiltonian = None       # H_JW
         
@@ -62,21 +120,24 @@ class CompressProtein:
         # Solve Hartree-Fock equations with PySCF, populating the molecular orbits.
         ...
 
-    def AVAS(self, target_aos: list[str] | None=None):
+    def AVAS(self, target_aos: list[str] | None = None):
         # Run Atomic Valence Active Space over the MOs and a chosen set of atomic valence orbitals. 
         # If a chosen set is not provided, deterministically generate our own.
         if target_aos is None:
             target_aos = self._generate_target_orbitals()
+        self.target_aos = target_aos
         ...
 
-    def _generate_target_orbitals(self):
+    def _generate_target_orbitals(self) -> list[str]:
         # **NOVEL WORK**: Generate AVAS target set based on which atoms count as chemically 
         #   relevant.
         ...
 
-    def SHCI(self, eps=1e-4, lo=0.02, hi=1.97):
+    def SHCI(self, eps1: float = 1e-4, lo: float = 0.02, hi: float = 1.97):
         # Run Semistochastic Heat-Bath Configuration Interaction. Use Dice as the CI solver in the 
         # AVAS CASCI SPACE, then keep only orbitals satisfying lo \le n_i \le hi.
+        self.shci_eps1 = eps1
+        self.occupation_window = (lo, hi)
         ...
 
     def H_fermionic(self):

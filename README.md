@@ -55,10 +55,28 @@ The following deviations apply relative to the KDM5A workflow in the original [S
 - **Protein preparation:** the original used MOE to repair missing side chains and a chain break, add ACE/NME caps, run Protonate3D, and perform tethered minimizations. This work aims to use an open-source, deterministic preparation pipeline based on PROPKA and additional capping/preparation tooling.
 - **Pruning:** the original manually removed residues and individual side-chain or backbone atoms after the distance cut. This work retains complete selected residues and does not perform subjective manual pruning.
 - **Coordinates across candidates:** the original performed ligand-specific relaxation and, for one ligand, reran Protonate3D to optimize the hydrogen-bond network. This work constructs and freezes one $A^{\cup}$ across all poses; input heavy-atom pose coordinates are not changed by the encoding/compression MVP.
-- **Waters:** the original retained three manually selected crystallographic waters. This work does not attempt to reproduce that system-specific manual choice; any retained-water policy must instead be deterministic and fixed before scoring.
+- **Waters:** the original retained three manually selected crystallographic waters. The general workflow requires the retained-water set to be declared explicitly. The KDM5A validation below keeps only the two metal-coordinating waters, A/714 and A/726, and therefore does not reproduce the original third-water choice.
 - **AVAS targets:** the original selected Fe $3d$ orbitals and particular O $2p$ and N $2p$ orbitals from the metal centre, two waters, glutamate, and histidines. The automatic MVP instead targets atom-specific N $2p$, O $2p$, and S $3p$ shells using the distance rule above and requires an explicit override for metalloproteins.
 - **Electronic-structure software:** the original used TeraChem/Lightspeed for classical SCF and integral generation, Gaussian for structural calculations, and in-house quantum code. This implementation substitutes PySCF and Dice where possible.
 - **Final active-space size:** the original SHCI natural-orbital occupation window $0.02\le n_i\le1.97$ produced $(8e,8o)$ for KDM5A. The same window is retained here, but its output size is system-dependent; no automatic truncation to eight orbitals is attributed to the original method.
 
 ### KDM5A Reproduction
 
+This is a validation of the encoding and compression procedure, not an attempt to reproduce the paper's coordinates, energies, or SAPT(VQE) results. The goal is to determine whether the open-source pipeline reduces a related KDM5A model to the same *scale* of active space as the paper. The paper's $(36e,27o)$ AVAS space and $(8e,8o)$ SHCI-selected space are reference points, not required exact outputs.
+
+1. Use [`src/data/6BH4_KDM5A.pdb`](src/data/6BH4_KDM5A.pdb), the deposited [RCSB 6BH4 structure](https://www.rcsb.org/structure/6BH4), as the immutable source structure. It contains KDM5A, crystallographic ligand DQS in chain A residue 601, Mn in chain A residue 602, and crystallographic waters.
+1. Obtain the crystallographic DQS coordinates as an SDF from the [RCSB ligand model endpoint](https://models.rcsb.org/v1/6bh4/ligand?auth_asym_id=A&auth_seq_id=601&encoding=sdf). Use this single crystallographic pose in place of a DiffDock pose ensemble when defining the validation cutout.
+1. Work on a prepared copy rather than editing the deposited PDB. Replace Mn A/602 with Fe(III) for the quantum-chemistry model, as in the paper, and pass the coordinating waters as `retained_water_ids=["A/714", "A/726"]`. Discard the remaining crystallographic waters for this MVP and record that choice.
+1. Repair and protonate the full receptor at the fixed pH, then select complete protein residues with a heavy atom within 4.5 Å of DQS. Retain the Fe centre and the two declared waters, add ACE/NME caps at peptide cuts, and do not apply the paper's additional manual atom/residue pruning.
+1. Remove DQS from the protein monomer before RHF. Export the final atom order, coordinates, charge, spin, multiplicity, retained source residue IDs, cap flags, retained water IDs, and source-to-final atom-index map. The index map is required because AVAS labels refer to the final zero-based PySCF atom indices, not PDB serial numbers.
+1. Run singlet RHF/6-31G in PySCF and retain the `Mole` and converged SCF objects, MO coefficients, occupations, and orbital energies.
+1. Supply an explicit, atom-specific KDM5A AVAS target list after preparation:
+   - Fe A/602: $3d$;
+   - O atoms of HOH A/714 and HOH A/726: $2p$;
+   - coordinating O of GLU A/485: $2p$;
+   - coordinating N atoms of HIS A/483 and HIS A/571: $2p$.
+
+   Resolve each source atom through the final index map and verify every generated PySCF label before AVAS. Do not use the generic nonmetallated target generator for this model.
+1. Run AVAS with the fixed recorded settings (`threshold=0.2`, `minao="minao"`, `with_iao=False`, and `canonicalize=True`) and report the resulting active electrons and spatial orbitals. A result different from $(36e,27o)$ is expected because the preparation and coordinates differ.
+1. Run Dice SHCI in the complete AVAS space with `eps1=1e-4`, construct the spin-summed one-particle RDM, diagonalize it to obtain natural orbitals and occupations, and select orbitals satisfying $0.02\le n_i\le1.97$. Report the selected electron and spatial-orbital counts without manually truncating them to eight.
+1. Treat a final space in the same small-space regime as $(8e,8o)$—roughly 6–12 spatial orbitals—as a successful MVP validation. If it is substantially larger, diagnose the preparation, explicit target resolution, AVAS settings, SHCI convergence, and occupation spectrum; do not change the occupation window after seeing the result merely to force a match.

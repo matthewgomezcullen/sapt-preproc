@@ -3,7 +3,7 @@ class EncodeProtein:
     #   reduced protein structure with poses for SAPT(VQE). Aims to generalise the SAPT(VQE) method 
     #   to any protein-ligand complex.
 
-    def __init__(self, protein_path: str, poses_paths: list[str]):
+    def __init__(self, protein_path: str, poses_paths: list[str], pH: float=7.4, cutoff: float=4.5):
         self.protein_path = protein_path    # A
         self.poses_paths = poses_paths      # {B}
         self.reduced = None                 # A^{\cup}
@@ -13,7 +13,8 @@ class EncodeProtein:
         # Scope assumptions
         self.spin = 0
         self.multiplicity = 1 
-        self.pH = 
+        self.pH = pH
+        self.cutoff = cutoff
 
     def encode(self):
         self._protonate()

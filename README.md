@@ -59,3 +59,6 @@ The following deviations apply relative to the KDM5A workflow in the original [S
 - **AVAS targets:** the original selected Fe $3d$ orbitals and particular O $2p$ and N $2p$ orbitals from the metal centre, two waters, glutamate, and histidines. The automatic MVP instead targets atom-specific N $2p$, O $2p$, and S $3p$ shells using the distance rule above and requires an explicit override for metalloproteins.
 - **Electronic-structure software:** the original used TeraChem/Lightspeed for classical SCF and integral generation, Gaussian for structural calculations, and in-house quantum code. This implementation substitutes PySCF and Dice where possible.
 - **Final active-space size:** the original SHCI natural-orbital occupation window $0.02\le n_i\le1.97$ produced $(8e,8o)$ for KDM5A. The same window is retained here, but its output size is system-dependent; no automatic truncation to eight orbitals is attributed to the original method.
+
+### KDM5A Reproduction
+

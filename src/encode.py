@@ -1,12 +1,33 @@
 from pdbfixer import PDBFixer
 import gemmi
 from rdkit import Chem
+from enum import Enum
+
+
+class OutOfScopeErrorType(Enum):
+    """
+    One member per eligibility rule   
+    """
+    METAL = "metal in the retained region"
+    COFACTOR = "biological cofactor within the cutoff of a pose"
+    HETEROGEN = "non-cofactor heterogen within the cutoff of a pose"
+    UNSUPPORTED_ELEMENT = "element with no 6-31G basis"
+    SPLIT_METAL_COORDINATION = "metal coordination sphere split by the cutout"
+    CHARGED_LIGAND = "ligand with a non-zero formal charge"
+    SIZE_CAP = "cutout exceeds the heavy-atom cap"
+    INCOMPLETE_RESIDUE = "incomplete residue in the cutout"
+    SPLIT_DISULFIDE = "disulfide split by the cutout"
 
 
 class OutOfScopeError(RuntimeError):
     """
     Reject protein because it is outside of scope.
     """
+
+    def __init__(self, error_type: OutOfScopeErrorType, message: str | None = None):
+        super().__init__(message or error_type.value)
+        self.error_type = error_type
+
 
 class EncodingError(RuntimeError):
     pass
@@ -68,8 +89,12 @@ class EncodeProtein:
 
     def _verify(self):
         """
-        Take a 
+        Take a provisional cutout, reject/adjust the complex according to the scope, then fix 
+            missing residues, atoms, terminals, etc.
+
+        `PDBFixer.findMissingResidues` may not work due to lack of SEQRES records.
         """
+        ...
 
     def _protonate(self):
         """

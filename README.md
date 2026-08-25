@@ -43,7 +43,7 @@ Practical considerations/exclusions:
 
 Ligand restrictions:
 
-- Closed-shell with an even electron counts.
+- Closed-shell with an even electron counts. Satisfied implicitly by all ligands in the PoseBusters Benchmark set.
 - Composed of basis-supported elements.
 - Drop `rank*_confidence-1000.00.sdf` files.
 

@@ -8,7 +8,7 @@ Background reading is under `literature`. The most relevant papers are SAPT_VQE_
 
 ## Pre-processing
 
-Given a protein structure and candidate poses, `encode.py` encodes the protein, then `compress.py` reduces the problem to a tractable active space for SAPT with VQE/CASCI. The implementation aims to map as closely as possible to the original SAPT(VQE) paper, while remaining applicable to any protein-ligand complex and across several candidate poses.
+Given a protein structure and candidate poses, `encode.py` encodes the protein, then `compress.py` reduces the problem to a tractable active space for SAPT with VQE/CASCI. The implementation aims to map as closely as possible to the original [SAPT(VQE) paper](https://arxiv.org/abs/2110.01589), while remaining applicable to any protein-ligand complex and across several candidate poses.
 
 An extended list of these deviations from the original paper are detailed in a section below.
 
@@ -16,12 +16,22 @@ An extended list of these deviations from the original paper are detailed in a s
 
 Some proteins require adjustments that either: A) Add too much complexity to the code, B) Currently require manual overrides to overcome their problems, or C) Are incompatible with the assumptions underlying this method. These proteins are out-of-scope for this project, and the PoseBusters Benchmark dataset is filtered accordingly (see `filter.py`). For example, the paper's target complex, KDM5A, is unsupported because it contains an open-shell metal ion.
 
-Examples filtered out and why:
+#### Concerns
 
-- .pdb files with ALTLOCs. These don't appear in the PoseBusters Benchmark set.
-- Proteins with open-shell metals. _Why?_
-- Proteins of size ... _Why?_
-- ...
+Breaking exclusions:
+
+- **Open-shell metals**. Encoding assumes spin, $S = 0$, and multiplicity, $M = 1$, and Compression solves RHF, which forces every electron into a doubly-occupied spatial orbital. Open-shell metals (`Fe, Mn, Co, Cu, Ni`) have unpaired $d$ electrons, so a closed-shell singlet reference is the wrong state. These centres are also frequently high-spin/low-spin ambiguous, so the user must choose a spin state per complex. This exclusion rejects the original paper's own target.
+- **Elements with no 6-31G basis**. Raise on `mol.build()`.
+- **Biological cofactors**. SAPT partitions the system into two monomers, $A$ and $B$. When FAD, FMFN, NADP, SAM, ATP/UDP, PLP, or acetyl-CoA sit inside the 4.5 Å shell, the program must choose if it belongs to $A$. Deleting usually creates a large charge error; keeping it requires protonating and charge-assigning a non-amino-acid molecule.
+    - Note: Cofactors are distinguished from crystallization additives, which are simply deleted.
+- **Covalent ligands**. A covalent adduct has no meaningful monomer partition. There are zero covalent ligands in the dataset. 
+
+Practical considerations/exclusions:
+
+- **Incomplete residues in the cutout**. Can be repaired by PDBFixer.
+- **Disulfides split by cutout**. If the cutout catches one Cys and not its S-S partner, we either cap a covalent bond or drag in a distant residue.
+- Metal coordination spheres split by cutout**. Either pull in the complete first shell, or ewxclude metal-containing sites.
+- **Ambiguous protonation**. Charged/phosphorylated ligands and tritable residues with $pK_{a} \approx 7.4$.
 
 ### Encoding
 
@@ -70,7 +80,7 @@ The following deviations apply relative to the KDM5A workflow in the original pa
 - **Protein preparation:** the original used MOE to repair missing side chains and a chain break, add ACE/NME caps, run Protonate3D, and perform tethered minimizations. This work aims to use an open-source, deterministic preparation pipeline and additional capping/preparation tooling.
 - **Pruning:** the original manually removed residues and individual side-chain or backbone atoms after the distance cut. This work retains complete selected residues and does not perform subjective manual pruning.
 - **Coordinates across candidates:** the original performed ligand-specific relaxation and, for one ligand, reran Protonate3D to optimize the hydrogen-bond network. This work constructs and freezes one $A^{\cup}$ across all poses; input heavy-atom pose coordinates are not changed by the encoding/compression MVP.
-- **Waters:** the original retained three manually selected crystallographic waters. _How do we handle waters?_ 
+- **Waters:** the original retained three manually selected crystallographic waters. The PoseBusters Benchmark set does not contain waters.
 - **AVAS targets:** the original selected Fe $3d$ orbitals and particular O $2p$ and N $2p$ orbitals from the metal centre, two waters, glutamate, and histidines. The automatic MVP instead targets chemically nontrivial protein atoms using the distance rule above.
 - **Electronic-structure software:** the original used TeraChem/Lightspeed for classical SCF and integral generation, Gaussian for structural calculations, and in-house quantum code. This implementation substitutes PySCF and Dice where possible.
 - **Final active-space size:** the original SHCI natural-orbital occupation window $0.02\le n_i\le1.97$ produced $(8e,8o)$ for KDM5A. The same window is retained here (_maybe?_), but its output size is system-dependent; no automatic truncation to eight orbitals is attributed to the original method.

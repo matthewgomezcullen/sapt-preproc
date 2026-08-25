@@ -5,3 +5,5 @@ Follow test-driven development. After planning, write tests first. Wait for me t
 We want to reduce the amount of bespoke code as much as possible, relying on established open-source libraries instead.
 
 The experiment will run on HPC clusters that only I have access to. Save large end-to-end tests for the cluster. My local computer (that you have access to) runs on macOS.
+
+In chat, use escaped parentheses and fenced math blocks to delimit your equations, so they render correctly.

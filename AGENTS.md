@@ -1,0 +1,7 @@
+Read background literature from the `md` files, not the original `pdf`s.
+
+Follow test-driven development. After planning, write tests first. Wait for me to review the tests before developing.
+
+We want to reduce the amount of bespoke code as much as possible, relying on established open-source libraries instead.
+
+The experiment will run on HPC clusters that only I have access to. Save large end-to-end tests for the cluster. My local computer (that you have access to) runs on macOS.

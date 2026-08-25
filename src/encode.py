@@ -1,3 +1,15 @@
+from pdbfixer import PDBFixer
+import gemmi
+
+
+class EncodingError(RuntimeError):
+    pass
+
+
+class CompressionError(RuntimeError):
+    pass
+
+
 class EncodeProtein:
     # EncodeProtein takes a holo-protein structure (.pdb) and candidate poses (.sdf) and encodes a 
     #   reduced protein structure with poses for SAPT(VQE). Aims to generalise the SAPT(VQE) method 
@@ -9,43 +21,45 @@ class EncodeProtein:
         poses_paths: list[str],
         pH: float = 7.4,
         cutoff: float = 4.5,
-        retained_water_ids: list[str] | None = None,
     ):
-        self.protein_path = protein_path        # A
-        self.poses_paths = poses_paths          # {B}
+        self.protein_path = protein_path
+        self.poses_paths = poses_paths
         self.pH = pH
         self.cutoff = cutoff
-        self.retained_water_ids = retained_water_ids  # Explicit source IDs; None retains no waters
-
-        self.prepared = None                    # Full repaired/protonated receptor
-        self.reduced = None                     # A^{\cup}
-        self.protonation = None                 # {site_id: {pka, state, tautomer}}
-        self.retained_residue_ids = None        # Source residue identifiers in A^{\cup}
-        self.source_to_reduced_index = None     # Source atom ID -> final PySCF atom index
-        self.reduced_atom_metadata = None       # Element, cap flag, source ID, min pose distance
-        self.charge = None                      # q_{A^{\cup}}
-        self.num_electrons = None               # N_e
+        self.whole = None
+        self.reduced = None
 
         # Scope assumptions
         self.spin = 0                           # PySCF: N_alpha - N_beta = 2S
         self.multiplicity = 1
 
     def encode(self):
+        self._fetch()
         self._protonate()
         self._reduce()
         self._calculate_charge()
         self._verify_num_electrons()
 
-    def _reduce(self):
-        # Takes union of complete residues with at least one heavy atom within 4.5 Å of the 
-        #   nearest pose heavy atom, then caps the truncated protein with ACE/NME.
-        if self.protonation is None:
-            raise RuntimeError("Must protonate protein before reducing the complex.")
-        ...
+    def _fetch(self):
+        proteins = gemmi.read_pdb(self.protein_path)
+        if not len(proteins):
+            raise EncodingError(f"No model found in {self.protein_path}")
+        protein = proteins[0]
+
+        protein.remove_alternative_conformations()
+        protein.remove_empty_strings().make_pdb_string()
+
+        fixer = PDBFixer()
+        self.whole = protein
 
     def _protonate(self):
         # Protonate the full receptor once with PROPKA. The result maps sites (pK_a) to their 
         # protonation state.
+        ...
+
+    def _reduce(self):
+        # Takes union of complete residues with at least one heavy atom within 4.5 Å of the 
+        #   nearest pose heavy atom, then caps the truncated protein with ACE/NME.
         ...
 
     def _calculate_charge(self):

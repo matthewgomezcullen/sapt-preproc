@@ -1,6 +1,12 @@
 from pdbfixer import PDBFixer
 import gemmi
+import io
 
+
+class OutOfScopeError(RuntimeError):
+    """
+    Reject protein because it is outside of scope.
+    """
 
 class EncodingError(RuntimeError):
     pass
@@ -11,67 +17,72 @@ class CompressionError(RuntimeError):
 
 
 class EncodeProtein:
-    # EncodeProtein takes a holo-protein structure (.pdb) and candidate poses (.sdf) and encodes a 
-    #   reduced protein structure with poses for SAPT(VQE). Aims to generalise the SAPT(VQE) method 
-    #   to any protein-ligand complex.
+    """
+    EncodeProtein takes a holo-protein structure (.pdb) and candidate poses (.sdf) and encodes a 
+        reduced protein structure with poses for SAPT(VQE). Aims to generalise the SAPT(VQE) method 
+        to any protein-ligand complex.
+    """
 
     def __init__(
         self,
         protein_path: str,
         poses_paths: list[str],
-        pH: float = 7.4,
-        cutoff: float = 4.5,
     ):
         self.protein_path = protein_path
         self.poses_paths = poses_paths
-        self.pH = pH
-        self.cutoff = cutoff
         self.whole = None
         self.reduced = None
 
         # Scope assumptions
-        self.spin = 0                           # PySCF: N_alpha - N_beta = 2S
+        self.pH = 7.4
+        self.cutoff = 4.5
+        self.spin = 0
         self.multiplicity = 1
 
     def encode(self):
         self._fetch()
+        self._verify()
         self._protonate()
         self._reduce()
         self._calculate_charge()
         self._verify_num_electrons()
 
     def _fetch(self):
-        proteins = gemmi.read_pdb(self.protein_path)
+        proteins = gemmi.read_pdb(self.protein_path) # pyright: ignore[reportAttributeAccessIssue]
         if not len(proteins):
             raise EncodingError(f"No model found in {self.protein_path}")
         protein = proteins[0]
-
-        protein.remove_alternative_conformations()
-        protein.remove_empty_strings().make_pdb_string()
-
-        fixer = PDBFixer()
         self.whole = protein
 
     def _protonate(self):
-        # Protonate the full receptor once with PROPKA. The result maps sites (pK_a) to their 
-        # protonation state.
+        """
+        Protonates the entire protein.
+        """
         ...
 
     def _reduce(self):
-        # Takes union of complete residues with at least one heavy atom within 4.5 Å of the 
-        #   nearest pose heavy atom, then caps the truncated protein with ACE/NME.
+        """
+        Takes union of complete residues with at least one heavy atom within 4.5 Å of the nearest 
+            pose heavy atom, then caps the truncated protein with ACE/NME.
+        """
         ...
 
     def _calculate_charge(self):
-        # Calculates total charge. Requires protonation.
+        """
+        Calculates total charge. Requires protonation.
+        """
         ...
 
     def _verify_num_electrons(self):
-        # N_e = \sum_I Z_I - q_A. Ensure N_e is even.
+        """
+        N_e = \\sum_I Z_I - q_A. Ensure N_e is even.
+        """
         ...
 
     def xyz(self, path: str):
-        # Store element and coordinates in a .xyz file
+        """
+        Store element and coordinates in a .xyz file
+        """
         ...
 
 class CompressProtein:

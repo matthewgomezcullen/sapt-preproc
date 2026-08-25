@@ -1,6 +1,6 @@
 from pdbfixer import PDBFixer
 import gemmi
-import io
+from rdkit import Chem
 
 
 class OutOfScopeError(RuntimeError):
@@ -32,6 +32,7 @@ class EncodeProtein:
         self.poses_paths = poses_paths
         self.whole = None
         self.reduced = None
+        self.poses = None
 
         # Scope assumptions
         self.pH = 7.4
@@ -48,11 +49,27 @@ class EncodeProtein:
         self._verify_num_electrons()
 
     def _fetch(self):
+        """
+        Fetch the protein and candidate poses. Does not fix the protein, as the protein msut be 
+            verified first.
+        """
         proteins = gemmi.read_pdb(self.protein_path) # pyright: ignore[reportAttributeAccessIssue]
         if not len(proteins):
             raise EncodingError(f"No model found in {self.protein_path}")
         protein = proteins[0]
+        poses = []
+        for path in self.poses_paths:
+            pose = Chem.MolFromMolFile(path, sanitize=True, removeHs=False) # pyright: ignore[reportAttributeAccessIssue]
+            if pose is None:
+                raise EncodingError(f"Could not parse pose {path}")
+            poses.append(pose)
         self.whole = protein
+        self.poses = poses
+
+    def _verify(self):
+        """
+        Take a 
+        """
 
     def _protonate(self):
         """

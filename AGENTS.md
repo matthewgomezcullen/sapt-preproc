@@ -6,4 +6,4 @@ We want to reduce the amount of bespoke code as much as possible, relying on est
 
 The experiment will run on HPC clusters that only I have access to. Save large end-to-end tests for the cluster. My local computer (that you have access to) runs on macOS.
 
-In chat, use escaped parentheses and fenced math blocks to delimit your equations, so they render correctly.
+In chat, write equations following TeX syntax (\mu instead of μ) and use escaped parentheses and fenced math blocks to delimit your equations, so they render correctly.

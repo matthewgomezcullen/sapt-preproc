@@ -14,33 +14,47 @@ An extended list of these deviations from the original paper are detailed in a s
 
 ### Scope
 
-Some proteins require adjustments that either: A) Add too much complexity to the code, B) Currently require manual overrides to overcome their problems, or C) Are incompatible with the assumptions underlying this method. These proteins are out-of-scope for this project, and the PoseBusters Benchmark dataset is filtered accordingly (see `filter.py`). For example, the paper's target complex, KDM5A, is unsupported because it contains an open-shell metal ion.
+Some complexes require adjustments that either: A) Add too much complexity to the code, B) Currently require manual overrides to overcome their problems, or C) Are incompatible with the assumptions underlying this method. These proteins are out-of-scope for this project, and the PoseBusters Benchmark dataset is filtered accordingly (see `filter.py`). For example, the paper's target complex, KDM5A, is unsupported because it contains an open-shell metal ion.
 
-#### Concerns
+#### Eligibility Rules
 
 Breaking exclusions:
 
-- **Open-shell metals**. Encoding assumes spin, $S = 0$, and multiplicity, $M = 1$, and Compression solves RHF, which forces every electron into a doubly-occupied spatial orbital. Open-shell metals (`Fe, Mn, Co, Cu, Ni`) have unpaired $d$ electrons, so a closed-shell singlet reference is the wrong state. These centres are also frequently high-spin/low-spin ambiguous, so the user must choose a spin state per complex. This exclusion rejects the original paper's own target.
-- **Elements with no 6-31G basis**. Raise on `mol.build()`.
-- **Biological cofactors**. SAPT partitions the system into two monomers, $A$ and $B$. When FAD, FMFN, NADP, SAM, ATP/UDP, PLP, or acetyl-CoA sit inside the 4.5 Å shell, the program must choose if it belongs to $A$. Deleting usually creates a large charge error; keeping it requires protonating and charge-assigning a non-amino-acid molecule.
-    - Note: Cofactors are distinguished from crystallization additives, which are simply deleted.
+- ~XXX **Open-shell metals**. Encoding assumes spin, $S = 0$, and multiplicity, $M = 2S + 1$, and Compression solves RHF, which forces every electron into a doubly-occupied spatial orbital. Open-shell metals (`Fe, Mn, Co, Cu, Ni`) have unpaired $d$ electrons, so a closed-shell singlet reference is the wrong state. These centres are also frequently high-spin/low-spin ambiguous, so the user must choose a spin state per complex. This exclusion rejects the original paper's own target.~
+    - ~XXX **All metals in the quantum region**: For v1, we reject complexes with `Zn, Mg, Ca, Na, K` or other nominally closed-shell metals within 4.5 Å of any pose.~
+- **Metals**. Any metal atom or metal-containing cofactor in the retained region is out of scope.
+- **Elements with no 6-31G basis**. Will raise on `mol.build()`, so rejected during encoding.
+- **Biological cofactors**. SAPT partitions the system into two monomers, $A$ and $B$. When FAD, FMN, NADP, SAM, ATP/UDP, PLP, or acetyl-CoA sit inside the 4.5 Å shell, the program must choose if it belongs to $A$. Deleting usually creates a large charge error; keeping it requires protonating and charge-assigning a non-amino-acid molecule.
+    - Note: Cofactors are distinguished from crystallization additives, which are simply deleted. If other heterogens are detected within 4.5 Å, the complex is rejected.
 - **Covalent ligands**. A covalent adduct has no meaningful monomer partition. There are zero covalent ligands in the dataset. 
+- **Metal coordination spheres split by cutout**. Deleting a coordinating residue results in nonsensical geometry and protonation. Reject if any residue in $A^{\cup}$ has a heavy atom within 2.8 Å of any metal.
+- **Size cap**: TBD. Provisional cap is 400 heavy atoms in $A^{\cup}$. **Note**: this biases the dataset towards complexes where poses are closer together, which are intuitively less complex.
 
 Practical considerations/exclusions:
 
 - **Incomplete residues in the cutout**. Can be repaired by PDBFixer.
+    - For v1: reject.
 - **Disulfides split by cutout**. If the cutout catches one Cys and not its S-S partner, we either cap a covalent bond or drag in a distant residue.
-- Metal coordination spheres split by cutout**. Either pull in the complete first shell, or ewxclude metal-containing sites.
-- **Ambiguous protonation**. Charged/phosphorylated ligands and tritable residues with $pK_{a} \approx 7.4$.
+- **Ambiguous protonation**. Charged/phosphorylated ligands (if SDF file does not supply a sanitised bond graph and fix the formal charge and protonation state) and titratable residues with $pK_{a} \approx 7.4$.
+    - For v1: do not worry about simlar $pK_{a}$s.
+
+Ligand restrictions:
+
+- Closed-shell with an even electron counts.
+- Composed of basis-supported elements.
+- ~XXX Physically valid, according to PoseBusters.~
+- Drop `rank*_confidence-1000.00.sdf` files.
 
 ### Encoding
 
 Protein structure is given by $A = \set{\text{element}_I, R_I}^{N_{A}}_{I=1}$.
 
-1. Protonate the entire protein, mapping sites to their protonation state.
-    1. (*) The original paper used Protonate3D, which is commercial.
+1. Load the full protein. None of the proteins in the PoseBusters Benchmark set require fixes.
 1. Given a protein, $A$, and candidate poses, $\set{B_i}$, truncate $A$ to complete residues which contain at least one atom within 4.5 Å of a pose $\rightarrow A'^{\cup}$
     1. (*) The original paper uses a native ligand, instead of a union over candidate poses.
+1. Reject/adjust the complex according to scope.
+1. Protonate the entire protein, mapping sites to their protonation state.
+    1. (*) The original paper used Protonate3D, which is commercial.
 1. Cap the truncated protein with ACE/NME caps $\rightarrow A^{\cup}$.
     1. (*) The original paper uses MOE, which is commercial, along with manual pruning.
 1. Given $A^{\cup}$ and the protonation, calculate the net charge $\rightarrow q_{A}$. 
@@ -70,7 +84,7 @@ The default rule is:
 1. Generate an atom-specific PySCF AVAS label for each retained atom using its final, fixed, zero-based PySCF atom index.
 1. Run AVAS with fixed and recorded settings.
 
-This MVP deliberately does not infer ... _defined by scope (what types of orbitals require manual overrides?)_
+Encoding assumes spin, $S = 0$, and multiplicity, $M = 2S + 1$, and Compression solves RHF, which forces every electron into a doubly-occupied spatial orbital. This MVP deliberately does not infer $d$-orbital targets, metal oxidation states, and ligand-field splittings.
 
 ### Deviations from SAPT(VQE) Original Paper
 

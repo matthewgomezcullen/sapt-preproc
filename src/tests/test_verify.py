@@ -112,12 +112,10 @@ def test_verify_rejects_element_without_631g_basis():
     """
     README: elements with no 6-31G basis raise on mol.build(), so reject during encoding.
 
-    7UTW_NAI has a Cd ion, which lies outside 6-31G's H-Zn coverage.
+    7UTW_NAI has a Cd ion, which lies outside 6-31G's H-Zn coverage. Cd is also a metal, and
+        metals are checked first, so the rejection is reported as METAL.
     """
-    assert rejection("7UTW_NAI") in {
-        OutOfScopeErrorType.UNSUPPORTED_ELEMENT,
-        OutOfScopeErrorType.METAL,
-    }
+    assert rejection("7UTW_NAI") is OutOfScopeErrorType.METAL
 
 
 def test_verify_rejects_split_metal_coordination_sphere():

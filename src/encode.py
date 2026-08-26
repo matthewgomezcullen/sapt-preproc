@@ -1,7 +1,23 @@
 from pdbfixer import PDBFixer
 import gemmi
+import numpy as np
 from rdkit import Chem
+from pyscf.gto.basis import load as load_basis
+from pyscf.lib.exceptions import BasisNotFoundError
+from scipy.spatial import cKDTree
 from enum import Enum
+
+
+# PDB chemical component IDs for the biological cofactors. Decides which rejection is reported. 
+# Any heterogen in the shell is out of scope either way.
+COFACTORS = frozenset({
+    "FAD", "FMN",                                   # flavins
+    "NAD", "NAI", "NAJ", "NAP", "NDP",              # NAD(P)(H)
+    "SAM", "SAH",                                   # S-adenosyl methionine/homocysteine
+    "ATP", "ADP", "AMP", "UDP", "UTP", "UMP",       # nucleotides
+    "PLP",                                          # pyridoxal phosphate
+    "ACO", "COA",                                   # acetyl-CoA and coenzyme A
+})
 
 
 class OutOfScopeErrorType(Enum):
@@ -37,6 +53,16 @@ class CompressionError(RuntimeError):
     pass
 
 
+def _is_amino_acid(name):
+    info = gemmi.find_tabulated_residue(name)
+    return bool(info) and info.is_amino_acid()
+
+
+def _is_water(name):
+    info = gemmi.find_tabulated_residue(name)
+    return bool(info) and info.is_water()
+
+
 class EncodeProtein:
     """
     EncodeProtein takes a holo-protein structure (.pdb) and candidate poses (.sdf) and encodes a 
@@ -60,6 +86,12 @@ class EncodeProtein:
         self.cutoff = 4.5
         self.spin = 0
         self.multiplicity = 1
+
+        # Eligibility thresholds
+        self.basis = "6-31g"
+        self.metal_coordination_cutoff = 2.8
+        self.disulfide_cutoff = 2.5
+        self.size_cap = 400
 
     def encode(self):
         self._fetch()
@@ -87,14 +119,179 @@ class EncodeProtein:
         self.whole = protein
         self.poses = poses
 
+    def _pose_coordinates(self):
+        """
+        Heavy-atom coordinates of every candidate pose stacked into one array.
+        """
+        return np.vstack([
+            pose.GetConformer().GetPositions()[
+                [atom.GetIdx() for atom in pose.GetAtoms() if atom.GetAtomicNum() > 1]
+            ]
+            for pose in self.poses
+        ])
+
+    def _cutout(self):
+        """
+        Every residue holding at least one heavy atom within `cutoff` of a heavy atom of any 
+            candidate pose. Returns (chain, residue, heavy atoms, coordinates).
+        """
+        poses = cKDTree(self._pose_coordinates())
+        retained = []
+        for chain in self.whole:
+            for residue in chain:
+                heavy = [atom for atom in residue if not atom.element.is_hydrogen]
+                if not heavy:
+                    continue
+                coordinates = np.array([[a.pos.x, a.pos.y, a.pos.z] for a in heavy])
+                if poses.query_ball_point(coordinates, self.cutoff, return_length=True).any():
+                    retained.append((chain, residue, heavy, coordinates))
+        return retained
+
+    def _metals(self):
+        """
+        Every metal atom in the whole structure. A metal outside the cutout can still coordinate a 
+            retained residue.
+        """
+        return [
+            (atom, np.array([atom.pos.x, atom.pos.y, atom.pos.z]))
+            for chain in self.whole
+            for residue in chain
+            for atom in residue
+            if atom.element.is_metal
+        ]
+
     def _verify(self):
         """
-        Take a provisional cutout, reject/adjust the complex according to the scope, then fix 
-            missing residues, atoms, terminals, etc.
+        Take a provisional cutout and reject the complex according to the scope.
 
-        `PDBFixer.findMissingResidues` may not work due to lack of SEQRES records.
+        Repairing the structure is deferred; `PDBFixer.findMissingResidues` may not work due to
+            lack of SEQRES records, so chain breaks are not detected here.
         """
-        ...
+        retained = self._cutout()
+        residues = [(chain, residue) for chain, residue, _, _ in retained]
+
+        metals = self._metals()
+        for _, residue, heavy, _ in retained:
+            for atom in heavy:
+                if atom.element.is_metal:
+                    raise OutOfScopeError(
+                        OutOfScopeErrorType.METAL,
+                        f"{atom.element.name} in retained residue {residue.name}",
+                    )
+
+        elements = {atom.element.name for _, _, heavy, _ in retained for atom in heavy}
+        elements |= {atom.GetSymbol() for pose in self.poses for atom in pose.GetAtoms()}
+        for element in sorted(elements):
+            try:
+                load_basis(self.basis, element)
+            except BasisNotFoundError:
+                raise OutOfScopeError(
+                    OutOfScopeErrorType.UNSUPPORTED_ELEMENT,
+                    f"{element} has no {self.basis} basis",
+                )
+
+        heterogens = {
+            residue.name
+            for _, residue in residues
+            if not _is_amino_acid(residue.name) and not _is_water(residue.name)
+        }
+        cofactors = heterogens & COFACTORS
+        if cofactors:
+            raise OutOfScopeError(
+                OutOfScopeErrorType.COFACTOR,
+                f"cofactor(s) {sorted(cofactors)} within {self.cutoff} A of a pose",
+            )
+        if heterogens:
+            raise OutOfScopeError(
+                OutOfScopeErrorType.HETEROGEN,
+                f"heterogen(s) {sorted(heterogens)} within {self.cutoff} A of a pose",
+            )
+
+        if metals:
+            coordinates = np.vstack([c for _, _, _, c in retained])
+            distances, _ = cKDTree(coordinates).query([position for _, position in metals])
+            if distances.min() < self.metal_coordination_cutoff:
+                raise OutOfScopeError(
+                    OutOfScopeErrorType.SPLIT_METAL_COORDINATION,
+                    f"metal {distances.min():.2f} A from a retained residue",
+                )
+
+        for path, pose in zip(self.poses_paths, self.poses):
+            charge = Chem.GetFormalCharge(pose) # pyright: ignore[reportAttributeAccessIssue]
+            if charge:
+                raise OutOfScopeError(
+                    OutOfScopeErrorType.CHARGED_LIGAND,
+                    f"pose {path} carries formal charge {charge:+d}",
+                )
+
+        incomplete = self._incomplete_residues() & {
+            (chain.name, residue.seqid.num) for chain, residue in residues
+        }
+        if incomplete:
+            raise OutOfScopeError(
+                OutOfScopeErrorType.INCOMPLETE_RESIDUE,
+                f"{len(incomplete)} incomplete residue(s) in the cutout, e.g. {min(incomplete)}",
+            )
+
+        partner = self._split_disulfide(residues)
+        if partner:
+            raise OutOfScopeError(
+                OutOfScopeErrorType.SPLIT_DISULFIDE,
+                f"cutout splits the disulfide to CYS {partner}",
+            )
+
+        heavy_atoms = sum(len(heavy) for _, _, heavy, _ in retained)
+        if heavy_atoms > self.size_cap:
+            raise OutOfScopeError(
+                OutOfScopeErrorType.SIZE_CAP,
+                f"cutout holds {heavy_atoms} heavy atoms, over the cap of {self.size_cap}",
+            )
+
+    def _incomplete_residues(self):
+        """
+        Residues PDBFixer reports as missing heavy atoms, keyed by (chain, sequence number).
+
+        Missing terminal atoms are ignored; the cutout is capped with ACE/NME regardless.
+        """
+        fixer = PDBFixer(filename=self.protein_path)
+        fixer.findMissingResidues()
+        fixer.findMissingAtoms()
+        return {
+            (residue.chain.id, int(residue.id))
+            for residue in fixer.missingAtoms
+        }
+
+    def _split_disulfide(self, residues):
+        """
+        Return the retained half of a disulfide whose partner falls outside the cutout, if any.
+
+        Bonding is taken from SG-SG distance rather than SSBOND records, which the PoseBusters
+            structures do not reliably provide.
+        """
+        sulfurs = []
+        for chain in self.whole:
+            for residue in chain:
+                if residue.name != "CYS":
+                    continue
+                for atom in residue:
+                    if atom.name == "SG":
+                        sulfurs.append((
+                            (chain.name, residue.seqid.num),
+                            np.array([atom.pos.x, atom.pos.y, atom.pos.z]),
+                        ))
+        if not sulfurs:
+            return None
+
+        kept = {(chain.name, residue.seqid.num) for chain, residue in residues}
+        for identifier, position in sulfurs:
+            if identifier not in kept:
+                continue
+            for other, other_position in sulfurs:
+                if other == identifier or other in kept:
+                    continue
+                if np.linalg.norm(position - other_position) < self.disulfide_cutoff:
+                    return identifier
+        return None
 
     def _protonate(self):
         """

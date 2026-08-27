@@ -32,6 +32,7 @@ class OutOfScopeErrorType(Enum):
     CHARGED_LIGAND = "ligand with a non-zero formal charge"
     SIZE_CAP = "cutout exceeds the heavy-atom cap"
     INCOMPLETE_RESIDUE = "incomplete residue in the cutout"
+    ZERO_OCCUPANCY = "zero-occupancy heavy atom in the cutout"
     CHAIN_BREAK = "chain break in the cutout"
     SPLIT_DISULFIDE = "disulfide split by the cutout"
 
@@ -98,6 +99,7 @@ class EncodeProtein:
         self._fetch()
         self._verify()
         self._fix()
+        self._clean()
         self._protonate()
         self._reduce()
         self._calculate_charge()
@@ -216,6 +218,12 @@ class EncodeProtein:
         if not len(repaired):
             raise EncodingError(f"Repairing {self.protein_path} left no model")
         self.whole = repaired[0]
+
+    def _clean(self):
+        """
+        Clean out-of-scope molecules that exist outside the cutout.
+        """
+        ...
 
     def _pose_coordinates(self):
         """

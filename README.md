@@ -36,6 +36,8 @@ Practical considerations/exclusions:
 
 - **Incomplete residues or missing atoms in the cutout**. Could be repaired by PDBFixer. Missing terminal atoms do not matter.
     - For v1: reject.
+- **Zero-occupancy atoms**: Zero occupancy means the coordinates up to the crystallographers. Creates epistemic uncertainty that can be treated.
+    - For v1: reject.
 - **Disulfides split by cutout**. If the cutout catches one Cys and not its S-S partner, we either cap a covalent bond or drag in a distant residue.
     - For v1: reject.
 - **Ambiguous protonation**. Charged/phosphorylated ligands (if SDF file does not supply a sanitised bond graph and fix the formal charge and protonation state) and titratable residues with $pK_{a} \approx 7.4$.
@@ -52,7 +54,7 @@ Ligand restrictions:
 Protein structure is given by $A = \{\text{element}_I, R_I\}^{N_{A}}_{I=1}$.
 
 1. Load the full protein and poses.
-1. Provisional cutout (see step 4) and reject/adjust the complex according to scope. If accept, fix missing residues, atoms, and terminal atoms.
+1. Provisional cutout (see step 4) and reject/adjust the complex according to scope. If accept, fix missing residues, atoms, and terminal atoms, and remove problematic molecules (heterogens that exist outside the cutout).
 1. Protonate the entire protein, mapping sites to their protonation state.
     1. (*) The original paper used Protonate3D, which is commercial.
 1. Given a protein, $A$, and candidate poses, $\{B_i\}$, truncate $A$ to complete residues which contain at least one atom within 4.5 Å of a pose $\rightarrow A'^{\cup}$
@@ -104,6 +106,14 @@ The following deviations apply relative to the KDM5A workflow in the original pa
 ## Notes on Implementation
 
 PoseBusters Benchmark set does not contain SEQRES records, so `PDBFixer.FindMissingResidues` cannot find missing residues. For v1, this is ignored. Thus, missing residues may be contained in the cutout.
+
+`_fix` writes heterogens into separate chains that reuse the polymer names. Residues are stored by `(chain.name, seqid.num)`, leading to ambiguity; after deleted the heterogens, these duplicates must be removed.
+
+Some protein PDBs contain crystal copies of the docked ligand. These should also be removed.
+
+Some complexes contain zero-occupancy atoms inside the cutout.
+
+Some complexes have zero poses after dropping `confidence-1000.00`. These are flagged by `_fetch`.
 
 ### Setup
 

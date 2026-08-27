@@ -4,6 +4,7 @@ import pytest
 from rdkit import Chem
 from rdkit.Chem import rdMolDescriptors
 
+from conftest import paths
 from encode import EncodeProtein, EncodingError
 
 DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
@@ -70,3 +71,16 @@ def test_fetch_raises_on_unparseable_pose(tmp_path, poses_paths):
 
     with pytest.raises(EncodingError):
         encoding._fetch()
+
+
+@pytest.mark.parametrize("name", ["7OPG_06N", "7R9N_F97", "7UQ3_O2U", "6M73_FNR", "7SCW_GSP"])
+def test_positive_confidence_poses_are_not_dropped(name):
+    """
+    DiffDock writes its confidence unsigned when it is positive, so a pattern that assumes a leading
+        minus silently discards the highest-confidence poses, and every pose of these three.
+    """
+    _, poses = paths(name)
+
+    assert poses
+    assert any("confidence-" not in os.path.basename(pose) for pose in poses)
+    assert not any(pose.endswith("confidence-1000.00.sdf") for pose in poses)

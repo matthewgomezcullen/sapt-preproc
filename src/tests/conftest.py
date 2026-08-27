@@ -8,7 +8,7 @@ DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
 POSEBUSTERS = os.path.join(DATA, "posebusters")
 DIFFDOCK = os.path.join(DATA, "diffdock")
 
-POSE_PATTERN = re.compile(r"rank\d+_confidence-[-\d.]+\.sdf")
+POSE_PATTERN = re.compile(r"rank\d+_confidence-?[\d.]+\.sdf")
 DROPPED_CONFIDENCE = "confidence-1000.00.sdf"
 
 

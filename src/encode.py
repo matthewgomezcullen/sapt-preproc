@@ -5,7 +5,7 @@ from pyscf.gto.basis import load as load_basis
 from pyscf.lib.exceptions import BasisNotFoundError
 from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 from enum import Enum
-from utils import verify
+from utils import fix, verify
 
 
 # PDB chemical component IDs for the biological cofactors. Decides which rejection is reported. 
@@ -32,6 +32,7 @@ class OutOfScopeErrorType(Enum):
     CHARGED_LIGAND = "ligand with a non-zero formal charge"
     SIZE_CAP = "cutout exceeds the heavy-atom cap"
     INCOMPLETE_RESIDUE = "incomplete residue in the cutout"
+    CHAIN_BREAK = "chain break in the cutout"
     SPLIT_DISULFIDE = "disulfide split by the cutout"
 
 
@@ -96,6 +97,7 @@ class EncodeProtein:
     def encode(self):
         self._fetch()
         self._verify()
+        self._fix()
         self._protonate()
         self._reduce()
         self._calculate_charge()
@@ -205,6 +207,15 @@ class EncodeProtein:
                 OutOfScopeErrorType.SIZE_CAP,
                 f"cutout holds {heavy_atoms} heavy atoms, over the cap of {self.size_cap}",
             )
+
+    def _fix(self):
+        """
+        Fix missing atoms, residues, and terminal atoms.
+        """
+        repaired = fix.repair(self.protein_path)
+        if not len(repaired):
+            raise EncodingError(f"Repairing {self.protein_path} left no model")
+        self.whole = repaired[0]
 
     def _pose_coordinates(self):
         """

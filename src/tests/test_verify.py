@@ -8,47 +8,17 @@ Two README rules have no test because the dataset contains no case that violates
     ligands, and ligands that are not closed-shell singlets.
 """
 
-import os
-import re
-
 import pytest
 
+from conftest import paths
 from encode import EncodeProtein, OutOfScopeError, OutOfScopeErrorType
-
-SRC = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA = os.path.join(SRC, "data")
-POSEBUSTERS = os.path.join(DATA, "posebusters")
-DIFFDOCK = os.path.join(DATA, "diffdock")
-
-POSE_PATTERN = re.compile(r"rank\d+_confidence-[-\d.]+\.sdf")
-DROPPED_CONFIDENCE = "confidence-1000.00.sdf"
-
-
-def _paths(name):
-    """
-    Resolve a complex to its protein PDB and its candidate poses, dropping the failed-confidence
-        poses that README excludes.
-    """
-    standalone = os.path.join(DATA, name)
-    if os.path.isdir(os.path.join(standalone, "poses")):
-        protein = os.path.join(standalone, f"{name}_protein.pdb")
-        poses_dir = os.path.join(standalone, "poses")
-    else:
-        protein = os.path.join(POSEBUSTERS, name, f"{name}_protein.pdb")
-        poses_dir = os.path.join(DIFFDOCK, name)
-    poses = sorted(
-        os.path.join(poses_dir, f)
-        for f in os.listdir(poses_dir)
-        if POSE_PATTERN.fullmatch(f) and not f.endswith(DROPPED_CONFIDENCE)
-    )
-    return protein, poses
 
 
 def rejection(name):
     """
     Verify a complex expected to be out of scope, returning the error type it was rejected with.
     """
-    encode = EncodeProtein(*_paths(name))
+    encode = EncodeProtein(*paths(name))
     encode._fetch()
 
     with pytest.raises(OutOfScopeError) as rejected:
@@ -67,7 +37,7 @@ def test_verify_accepts_in_scope_complex(name):
     """
     A complex violating no eligibility rule passes verification and keeps its structure usable.
     """
-    encode = EncodeProtein(*_paths(name))
+    encode = EncodeProtein(*paths(name))
     encode._fetch()
     encode._verify()
 
@@ -162,3 +132,23 @@ def test_verify_rejects_disulfide_split_by_cutout():
     8FO5_Y4U retains one half of a disulfide bond.
     """
     assert rejection("8FO5_Y4U") is OutOfScopeErrorType.SPLIT_DISULFIDE
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "TODO: chain breaks go undetected. PDBFixer.findMissingResidues needs SEQRES records to "
+        "know the full sequence, and no PoseBusters PDB carries them, so _verify cannot yet see "
+        "that residues are missing from the cutout."
+    ),
+)
+def test_verify_rejects_chain_break_in_cutout():
+    """
+    A cutout spanning absent residues is out of scope for the same reason an incomplete residue
+        is: the retained region is not the region the poses were docked against, and capping it
+        with ACE/NME would close a gap that is not really there.
+
+    8A2D_KXY retains a residue flanking a break where five residues (A860-A864) are absent,
+        leaving a C-N distance of 16.1 Å against a peptide bond of roughly 1.33 Å.
+    """
+    assert rejection("8A2D_KXY") is OutOfScopeErrorType.CHAIN_BREAK

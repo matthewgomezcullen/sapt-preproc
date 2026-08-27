@@ -51,8 +51,8 @@ Ligand restrictions:
 
 Protein structure is given by $A = \{\text{element}_I, R_I\}^{N_{A}}_{I=1}$.
 
-1. Load the full protein, fix missing atoms and chain breaks.
-1. Provisional cutout and reject/adjust the complex according to scope.
+1. Load the full protein and poses.
+1. Provisional cutout (see step 4) and reject/adjust the complex according to scope. If accept, fix missing residues, atoms, and terminal atoms.
 1. Protonate the entire protein, mapping sites to their protonation state.
     1. (*) The original paper used Protonate3D, which is commercial.
 1. Given a protein, $A$, and candidate poses, $\{B_i\}$, truncate $A$ to complete residues which contain at least one atom within 4.5 Å of a pose $\rightarrow A'^{\cup}$
@@ -103,4 +103,13 @@ The following deviations apply relative to the KDM5A workflow in the original pa
 
 ## Notes on Implementation
 
-PoseBusters Benchmark set does not contain SEQRES records, so `PDBFixer.FindMissingResidues` cannot find missing residues. For v1, this is ignored.
+PoseBusters Benchmark set does not contain SEQRES records, so `PDBFixer.FindMissingResidues` cannot find missing residues. For v1, this is ignored. Thus, missing residues may be contained in the cutout.
+
+### Setup
+
+```bash
+cd src
+conda env create -f environment.yml
+conda activate sapt-preproc
+pytest tests
+```

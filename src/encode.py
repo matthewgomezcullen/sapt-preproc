@@ -1,11 +1,11 @@
-from pdbfixer import PDBFixer
 import gemmi
 import numpy as np
 from rdkit import Chem
 from pyscf.gto.basis import load as load_basis
 from pyscf.lib.exceptions import BasisNotFoundError
-from scipy.spatial import cKDTree
+from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 from enum import Enum
+from utils import verify
 
 
 # PDB chemical component IDs for the biological cofactors. Decides which rejection is reported. 
@@ -119,47 +119,6 @@ class EncodeProtein:
         self.whole = protein
         self.poses = poses
 
-    def _pose_coordinates(self):
-        """
-        Heavy-atom coordinates of every candidate pose stacked into one array.
-        """
-        return np.vstack([
-            pose.GetConformer().GetPositions()[
-                [atom.GetIdx() for atom in pose.GetAtoms() if atom.GetAtomicNum() > 1]
-            ]
-            for pose in self.poses
-        ])
-
-    def _cutout(self):
-        """
-        Every residue holding at least one heavy atom within `cutoff` of a heavy atom of any 
-            candidate pose. Returns (chain, residue, heavy atoms, coordinates).
-        """
-        poses = cKDTree(self._pose_coordinates())
-        retained = []
-        for chain in self.whole:
-            for residue in chain:
-                heavy = [atom for atom in residue if not atom.element.is_hydrogen]
-                if not heavy:
-                    continue
-                coordinates = np.array([[a.pos.x, a.pos.y, a.pos.z] for a in heavy])
-                if poses.query_ball_point(coordinates, self.cutoff, return_length=True).any():
-                    retained.append((chain, residue, heavy, coordinates))
-        return retained
-
-    def _metals(self):
-        """
-        Every metal atom in the whole structure. A metal outside the cutout can still coordinate a 
-            retained residue.
-        """
-        return [
-            (atom, np.array([atom.pos.x, atom.pos.y, atom.pos.z]))
-            for chain in self.whole
-            for residue in chain
-            for atom in residue
-            if atom.element.is_metal
-        ]
-
     def _verify(self):
         """
         Take a provisional cutout and reject the complex according to the scope.
@@ -167,10 +126,10 @@ class EncodeProtein:
         Repairing the structure is deferred; `PDBFixer.findMissingResidues` may not work due to
             lack of SEQRES records, so chain breaks are not detected here.
         """
-        retained = self._cutout()
+        retained = verify.cutout(self.whole, self._pose_coordinates(), self.cutoff)
         residues = [(chain, residue) for chain, residue, _, _ in retained]
 
-        metals = self._metals()
+        metals = verify.metals(self.whole)
         for _, residue, heavy, _ in retained:
             for atom in heavy:
                 if atom.element.is_metal:
@@ -224,7 +183,7 @@ class EncodeProtein:
                     f"pose {path} carries formal charge {charge:+d}",
                 )
 
-        incomplete = self._incomplete_residues() & {
+        incomplete = verify.incomplete_residues(self.protein_path) & {
             (chain.name, residue.seqid.num) for chain, residue in residues
         }
         if incomplete:
@@ -233,7 +192,7 @@ class EncodeProtein:
                 f"{len(incomplete)} incomplete residue(s) in the cutout, e.g. {min(incomplete)}",
             )
 
-        partner = self._split_disulfide(residues)
+        partner = verify.split_disulfide(self.whole, residues, self.disulfide_cutoff)
         if partner:
             raise OutOfScopeError(
                 OutOfScopeErrorType.SPLIT_DISULFIDE,
@@ -247,51 +206,17 @@ class EncodeProtein:
                 f"cutout holds {heavy_atoms} heavy atoms, over the cap of {self.size_cap}",
             )
 
-    def _incomplete_residues(self):
+    def _pose_coordinates(self):
         """
-        Residues PDBFixer reports as missing heavy atoms, keyed by (chain, sequence number).
-
-        Missing terminal atoms are ignored; the cutout is capped with ACE/NME regardless.
+        Heavy-atom coordinates of every candidate pose stacked into one array.
         """
-        fixer = PDBFixer(filename=self.protein_path)
-        fixer.findMissingResidues()
-        fixer.findMissingAtoms()
-        return {
-            (residue.chain.id, int(residue.id))
-            for residue in fixer.missingAtoms
-        }
-
-    def _split_disulfide(self, residues):
-        """
-        Return the retained half of a disulfide whose partner falls outside the cutout, if any.
-
-        Bonding is taken from SG-SG distance rather than SSBOND records, which the PoseBusters
-            structures do not reliably provide.
-        """
-        sulfurs = []
-        for chain in self.whole:
-            for residue in chain:
-                if residue.name != "CYS":
-                    continue
-                for atom in residue:
-                    if atom.name == "SG":
-                        sulfurs.append((
-                            (chain.name, residue.seqid.num),
-                            np.array([atom.pos.x, atom.pos.y, atom.pos.z]),
-                        ))
-        if not sulfurs:
-            return None
-
-        kept = {(chain.name, residue.seqid.num) for chain, residue in residues}
-        for identifier, position in sulfurs:
-            if identifier not in kept:
-                continue
-            for other, other_position in sulfurs:
-                if other == identifier or other in kept:
-                    continue
-                if np.linalg.norm(position - other_position) < self.disulfide_cutoff:
-                    return identifier
-        return None
+        assert self.poses
+        return np.vstack([
+            pose.GetConformer().GetPositions()[
+                [atom.GetIdx() for atom in pose.GetAtoms() if atom.GetAtomicNum() > 1]
+            ]
+            for pose in self.poses
+        ])
 
     def _protonate(self):
         """

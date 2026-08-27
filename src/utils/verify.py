@@ -2,6 +2,13 @@ import numpy as np
 from pdbfixer import PDBFixer
 from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 
+def identifier(chain, residue):
+    """
+    A residue's full PDB identity.
+    """
+    return (chain.name, residue.seqid.num, residue.seqid.icode)
+
+
 def cutout(protein, pose_coordinates, cutoff):
     """
     Every residue holding at least one heavy atom within `cutoff` of a heavy atom of any 
@@ -34,7 +41,7 @@ def metals(protein):
 
 def incomplete_residues(protein_path):
     """
-    Residues PDBFixer reports as missing heavy atoms, keyed by (chain, sequence number).
+    Residues PDBFixer reports as missing heavy atoms.
 
     Missing terminal atoms are ignored; the cutout is capped with ACE/NME regardless.
 
@@ -44,7 +51,7 @@ def incomplete_residues(protein_path):
     fixer.findMissingResidues()
     fixer.findMissingAtoms()
     return {
-        (residue.chain.id, int(residue.id))
+        (residue.chain.id, int(residue.id), residue.insertionCode)
         for residue in fixer.missingAtoms
     }
 
@@ -63,21 +70,21 @@ def split_disulfide(protein, residues, cutoff):
             for atom in residue:
                 if atom.name == "SG":
                     sulfurs.append((
-                        (chain.name, residue.seqid.num),
+                        identifier(chain, residue),
                         np.array([atom.pos.x, atom.pos.y, atom.pos.z]),
                     ))
     if not sulfurs:
         return None
 
-    kept = {(chain.name, residue.seqid.num) for chain, residue in residues}
-    for identifier, position in sulfurs:
-        if identifier not in kept:
+    kept = {identifier(chain, residue) for chain, residue in residues}
+    for half, position in sulfurs:
+        if half not in kept:
             continue
         for other, other_position in sulfurs:
-            if other == identifier or other in kept:
+            if other == half or other in kept:
                 continue
             if np.linalg.norm(position - other_position) < cutoff:
-                return identifier
+                return half
     return None
 
 

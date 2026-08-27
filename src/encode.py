@@ -5,7 +5,7 @@ from pyscf.gto.basis import load as load_basis
 from pyscf.lib.exceptions import BasisNotFoundError
 from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 from enum import Enum
-from utils import fix, verify
+from utils import clean, fix, verify
 
 
 # PDB chemical component IDs for the biological cofactors. Decides which rejection is reported. 
@@ -188,7 +188,7 @@ class EncodeProtein:
                 )
 
         incomplete = verify.incomplete_residues(self.protein_path) & {
-            (chain.name, residue.seqid.num) for chain, residue in residues
+            verify.identifier(chain, residue) for chain, residue in residues
         }
         if incomplete:
             raise OutOfScopeError(
@@ -196,11 +196,26 @@ class EncodeProtein:
                 f"{len(incomplete)} incomplete residue(s) in the cutout, e.g. {min(incomplete)}",
             )
 
-        partner = verify.split_disulfide(self.whole, residues, self.disulfide_cutoff)
-        if partner:
+        # Hydrogens are exempt because _clean deletes every deposited one before _protonate assigns
+        # its own, so a zero-occupancy hydrogen never reaches the QM region.
+        unoccupied = [
+            (verify.identifier(chain, residue), atom.name)
+            for chain, residue, heavy, _ in retained
+            for atom in heavy
+            if not atom.occ
+        ]
+        if unoccupied:
+            raise OutOfScopeError(
+                OutOfScopeErrorType.ZERO_OCCUPANCY,
+                f"{len(unoccupied)} zero-occupancy heavy atom(s) in the cutout, "
+                f"e.g. {unoccupied[0][1]} of {unoccupied[0][0]}",
+            )
+
+        half = verify.split_disulfide(self.whole, residues, self.disulfide_cutoff)
+        if half:
             raise OutOfScopeError(
                 OutOfScopeErrorType.SPLIT_DISULFIDE,
-                f"cutout splits the disulfide to CYS {partner}",
+                f"cutout retains CYS {half} without its disulfide partner",
             )
 
         heavy_atoms = sum(len(heavy) for _, _, heavy, _ in retained)
@@ -221,9 +236,9 @@ class EncodeProtein:
 
     def _clean(self):
         """
-        Clean out-of-scope molecules that exist outside the cutout.
+        Delete out-of-scope molecules.
         """
-        ...
+        self.whole = clean.strip(self.whole)
 
     def _pose_coordinates(self):
         """

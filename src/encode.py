@@ -287,15 +287,27 @@ class EncodeProtein:
         Takes union of complete residues with at least one heavy atom within 4.5 Å of the nearest
             pose heavy atom, then caps the truncated protein with ACE/NME.
 
-        Every cut is capped, including one that falls on a chain terminus. Protonation gives a
-            terminus a charged NH3+ or COO- group, which is right only where the protein genuinely
-            ends and wrong where the deposited model cuts off. Four cutouts in the dataset have a
-            terminus, and in three of them the chain is numbered from 27, 181, or 222, so the
-            terminus is likely an experimental inaccuracy; capping restores the residue that should have
-            been there. Only 7LMO_NYO chain B starts at residue 1, where the charged terminus is 
-            real and the cap costs a genuine +1.
+        Runs of retained residues separated by a single residue are bridged rather than capped
+            around: capping both sides would take that residue's backbone into an ACE on one side
+            and an NME on the other, placing the same atoms twice. 289 such gaps occur across 91 of
+            the 110 accepted complexes, so this is the ordinary case.
 
-        TODO: Distinguish these with SEQRES records the PoseBusters structures do not carry.
+        A cut is capped; a chain end is not. A cap stands in for a residue the truncation removed
+            and takes its backbone coordinates from the structure, and at a chain end there is no
+            such residue to take them from. Inventing an acetyl group there would be the one thing
+            this pipeline otherwise refuses to do, to the point of rejecting a complex whose side
+            chain was rebuilt into the cutout. The terminus keeps the charged NH3+ or COO- that
+            protonation gave it.
+
+        That costs a charge. Four cutouts reach a terminus, and in three the chain is numbered from
+            27, 181, or 222, so the charge is an artefact of where the deposited model stops rather
+            than a real free terminus, and q_A carries a +-1 it should not. Only 7LMO_NYO chain B,
+            numbered from 1, is genuinely charged. Separating the cases needs the SEQRES records the
+            PoseBusters structures do not carry -- the same gap that stops chain breaks being
+            detected.
+
+        A residue whose side chain _fix rebuilt into the cutout is rejected here. _verify runs
+            before the repair and cannot see it.
         """
         ...
 

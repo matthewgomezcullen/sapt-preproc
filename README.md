@@ -120,9 +120,13 @@ PDBFixer does not return protonation state. Either count hydrogens manually, or 
 
 Non-standard residues are poorly handled by `PDBFixer`. For v1, these are replaced with `replaceNonstandardResidues`.
 
-`_reduce` caps unconditionally. `7LMO_NYO` as a real terminal that is capped. Distinguishing real from broken residues requires SEQRES; for v1, real termini are unfairly capped.
+`_reduce` caps unconditionally. `7LMO_NYO` has a real terminal that is capped. Distinguishing real from broken residues requires SEQRES; for v1, terminal ends are not capped. Broken residues incur extra charge, instead.
 
 Histidines with $pK_{a} \approx 6.5$ are set to neutral in protonation by default. Disulfides are also handled by `PDBFixer`.
+
+Single-residue gaps create two atoms at teh same coordinates from capping. Two nuclei at one position give a divergent repulsion and a linearly dependent basis.
+
+Capping adds many heavy atoms, so the size cutoff must be verified again after.
 
 ### Setup
 

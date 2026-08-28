@@ -5,7 +5,7 @@ from pyscf.gto.basis import load as load_basis
 from pyscf.lib.exceptions import BasisNotFoundError
 from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 from enum import Enum
-from utils import clean, fix, verify
+from utils import clean, fix, protonate, verify
 
 
 # PDB chemical component IDs for the biological cofactors. Decides which rejection is reported. 
@@ -82,6 +82,7 @@ class EncodeProtein:
         self.whole = None
         self.reduced = None
         self.poses = None
+        self.protonation = None
 
         # Scope assumptions
         self.pH = 7.4
@@ -254,14 +255,24 @@ class EncodeProtein:
 
     def _protonate(self):
         """
-        Protonates the entire protein.
+        Protonates the entire protein, recording the state chosen for each residue.
         """
-        ...
+        self.whole, self.protonation = protonate.hydrogens(self.whole, self.pH)
 
     def _reduce(self):
         """
-        Takes union of complete residues with at least one heavy atom within 4.5 Å of the nearest 
+        Takes union of complete residues with at least one heavy atom within 4.5 Å of the nearest
             pose heavy atom, then caps the truncated protein with ACE/NME.
+
+        Every cut is capped, including one that falls on a chain terminus. Protonation gives a
+            terminus a charged NH3+ or COO- group, which is right only where the protein genuinely
+            ends and wrong where the deposited model cuts off. Four cutouts in the dataset have a
+            terminus, and in three of them the chain is numbered from 27, 181, or 222, so the
+            terminus is likely an experimental inaccuracy; capping restores the residue that should have
+            been there. Only 7LMO_NYO chain B starts at residue 1, where the charged terminus is 
+            real and the cap costs a genuine +1.
+
+        TODO: Distinguish these with SEQRES records the PoseBusters structures do not carry.
         """
         ...
 

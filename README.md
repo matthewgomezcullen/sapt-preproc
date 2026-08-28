@@ -55,7 +55,7 @@ Protein structure is given by $A = \{\text{element}_I, R_I\}^{N_{A}}_{I=1}$.
 
 1. Load the full protein and poses.
 1. Provisional cutout (see step 4) and reject/adjust the complex according to scope. If accept, fix missing residues, atoms, and terminal atoms, and remove problematic molecules (heterogens that exist outside the cutout).
-1. Protonate the entire protein, mapping sites to their protonation state.
+1. Protonate the entire protein (default plasma/extracellular, `pH=7.4`), mapping sites to their protonation state.
     1. (*) The original paper used Protonate3D, which is commercial.
 1. Given a protein, $A$, and candidate poses, $\{B_i\}$, truncate $A$ to complete residues which contain at least one atom within 4.5 Å of a pose $\rightarrow A'^{\cup}$
     1. (*) The original paper uses a native ligand, instead of a union over candidate poses.
@@ -96,6 +96,7 @@ The following deviations apply relative to the KDM5A workflow in the original pa
 
 - **Binding-site definition:** the original was cut at 4.5 Å from crystallographic ligand 5 in PDB 6BH4. This work takes the union of complete residues within 4.5 Å of every candidate pose so that one fixed protein cutout can be used across the pose ensemble.
 - **Protein preparation:** the original used MOE to repair missing side chains and a chain break, add ACE/NME caps, run Protonate3D, and perform tethered minimizations. This work aims to use an open-source, deterministic preparation pipeline and additional capping/preparation tooling.
+    - Protonation is pose-dependent in the original paper. As we take the union-of-poses, we sacrifice on this dependency for, e.g., binding-site histidines. May be worth skipping for consistency.
 - **Pruning:** the original manually removed residues and individual side-chain or backbone atoms after the distance cut. This work retains complete selected residues and does not perform subjective manual pruning.
 - **Coordinates across candidates:** the original performed ligand-specific relaxation and, for one ligand, reran Protonate3D to optimize the hydrogen-bond network. This work constructs and freezes one $A^{\cup}$ across all poses; input heavy-atom pose coordinates are not changed by the encoding/compression MVP.
 - **Waters:** the original retained three manually selected crystallographic waters. The PoseBusters Benchmark set does not contain waters.
@@ -114,6 +115,14 @@ Some protein PDBs contain crystal copies of the docked ligand. These should also
 Some complexes contain zero-occupancy atoms inside the cutout.
 
 Some complexes have zero poses after dropping `confidence-1000.00`. These are flagged by `_fetch`.
+
+PDBFixer does not return protonation state. Either count hydrogens manually, or call Modeller.addHydrogens directly.
+
+Non-standard residues are poorly handled by `PDBFixer`. For v1, these are replaced with `replaceNonstandardResidues`.
+
+`_reduce` caps unconditionally. `7LMO_NYO` as a real terminal that is capped. Distinguishing real from broken residues requires SEQRES; for v1, real termini are unfairly capped.
+
+Histidines with $pK_{a} \approx 6.5$ are set to neutral in protonation by default. Disulfides are also handled by `PDBFixer`.
 
 ### Setup
 

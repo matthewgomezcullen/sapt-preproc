@@ -113,3 +113,40 @@ def test_fix_adds_missing_residues(encoding):
 
     for chain, seqid in MISSING_RESIDUES:
         assert atom_names(encoding.whole, chain, seqid), f"chain break at {chain}{seqid} unrepaired"
+
+
+MODIFIED = "7W06_ITN"
+SELENOMETHIONINES = [("A", 161), ("A", 167), ("A", 168), ("A", 171), ("A", 239), ("A", 248)]
+
+
+def test_fix_replaces_modified_residues_with_their_standard_form():
+    """
+    Selenomethionine is substituted for methionine, taking its selenium with it.
+
+    Leaving MSE in place breaks two later steps. Selenium has no 6-31G basis, so a cutout reaching
+        one would be rejected outright; and Modeller has no hydrogen definitions for MSE, so it
+        would come out of _protonate either bare or filled in from a definition for the free amino
+        acid, which carries a second backbone amide hydrogen a mid-chain residue must not have.
+    """
+    encode = EncodeProtein(*paths(MODIFIED))
+    encode._fetch()
+    assert all(atom_names(encode.whole, chain, seqid) for chain, seqid in SELENOMETHIONINES)
+    assert any(
+        atom.element.name == "Se"
+        for chain in encode.whole
+        for residue in chain
+        for atom in residue
+    )
+
+    encode._fix()
+
+    for chain_name, seqid in SELENOMETHIONINES:
+        names = atom_names(encode.whole, chain_name, seqid)
+        assert "SD" in names, f"{chain_name}{seqid} kept its selenium rather than becoming MET"
+        assert "SE" not in names
+    assert not any(
+        atom.element.name == "Se"
+        for chain in encode.whole
+        for residue in chain
+        for atom in residue
+    )

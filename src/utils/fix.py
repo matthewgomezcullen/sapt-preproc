@@ -16,6 +16,8 @@ def repair(protein_path):
         detected as neither missing nor repaired. Fix.
     """
     fixer = PDBFixer(filename=protein_path)
+    fixer.findNonstandardResidues()
+    fixer.replaceNonstandardResidues()
     fixer.findMissingResidues()
     fixer.findMissingAtoms()
     fixer.addMissingAtoms()

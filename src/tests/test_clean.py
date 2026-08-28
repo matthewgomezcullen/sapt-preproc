@@ -100,7 +100,7 @@ def amino_acids(model):
     ]
 
 
-def cutout_residues(encode):
+def cutout_residues(encode, amino_acids_only=False):
     """
     The residues the 4.5 Å cutout selects, keyed so they survive deletion elsewhere in the model.
     """
@@ -109,6 +109,7 @@ def cutout_residues(encode):
         for chain, residue, _, _ in verify.cutout(
             encode.whole, encode._pose_coordinates(), encode.cutoff
         )
+        if _is_amino_acid(residue.name) or not amino_acids_only
     }
 
 
@@ -218,14 +219,17 @@ def test_clean_preserves_every_amino_acid(name):
 @pytest.mark.parametrize("name", COMPLEXES)
 def test_clean_preserves_the_cutout(name):
     """
-    The cutout _verify accepted is the cutout _reduce later takes.
+    Every protein residue _verify accepted is preserved.
+
+    This only applies to amino acids because crystallisation additives are allowed into
+        the cutout and deleted here.
     """
     encode = encoding(name)
-    before = cutout_residues(encode)
+    before = cutout_residues(encode, amino_acids_only=True)
 
     encode._clean()
 
-    assert cutout_residues(encode) == before
+    assert cutout_residues(encode, amino_acids_only=True) == before
 
 
 def test_clean_leaves_no_empty_chains():
@@ -255,3 +259,29 @@ def test_clean_is_idempotent(name):
     encode._clean()
 
     assert amino_acids(encode.whole) == once
+
+
+ADDITIVE_IN_CUTOUT = "7USH_82V"
+CUTOUT_ADDITIVE = ("A", 504, "EDO")
+CUTOUT_PROTEIN_RESIDUES = 12
+
+
+def test_clean_deletes_an_additive_from_inside_the_cutout():
+    """
+    _clean removes crystallisation additives without disturbing the protein around it.
+
+    7USH_82V retains an ethylene glycol at A504 among twelve amino acids. After cleaning the twelve
+        are still there and the EDO is not.
+    """
+    encode = encoding(ADDITIVE_IN_CUTOUT)
+    chain_name, seqid, name = CUTOUT_ADDITIVE
+    before = cutout_residues(encode)
+    assert (chain_name, seqid, " ", name) in before
+    assert len(cutout_residues(encode, amino_acids_only=True)) == CUTOUT_PROTEIN_RESIDUES
+
+    encode._clean()
+
+    after = cutout_residues(encode)
+    assert (chain_name, seqid, " ", name) not in after
+    assert after == cutout_residues(encode, amino_acids_only=True)
+    assert len(after) == CUTOUT_PROTEIN_RESIDUES

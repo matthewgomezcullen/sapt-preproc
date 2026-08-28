@@ -20,6 +20,21 @@ COFACTORS = frozenset({
 })
 
 
+# PDB chemical component IDs for crystallisation additives: cryoprotectants, precipitants, buffers,
+# and simple non-metal ions. None of these is part of the biology of the site, and nothing is bonded
+# to them, so one inside the shell is deleted by _clean rather than rejected. Metal-ion additives are
+# absent because a metal in the retained region is out of scope whatever put it there.
+ADDITIVES = frozenset({
+    "GOL", "EDO", "MPD",                            # cryoprotectants
+    "PEG", "PG4", "PGE", "P6G", "1PE", "2PE",       # polyethylene glycols
+    "SO4", "PO4", "NO3", "SCN", "IOD", "CL", "BR",  # simple non-metal ions
+    "ACT", "FMT", "ACY", "LAC", "OXL",              # short-chain carboxylates
+    "CIT", "FLC", "MLI", "TLA",                     # di- and tricarboxylates
+    "TRS", "MES", "EPE", "IMD", "BTB", "B3P",       # buffers
+    "DMS", "BME",                                   # solvent and reducing agent
+})
+
+
 class OutOfScopeErrorType(Enum):
     """
     One member per eligibility rule   
@@ -134,6 +149,13 @@ class EncodeProtein:
         retained = verify.cutout(self.whole, self._pose_coordinates(), self.cutoff)
         residues = [(chain, residue) for chain, residue, _, _ in retained]
 
+        # An additive inside the shell is deleted by _clean, so it never reaches the QM region and
+        # takes no part in the checks that describe that region: its elements need no basis, its
+        # atoms cannot split a coordination sphere, and its size does not count against the cap.
+        # The heterogen check below still reads the full cutout, since it is what decides whether an
+        # additive is all that is in there.
+        encoded = [entry for entry in retained if entry[1].name not in ADDITIVES]
+
         metals = verify.metals(self.whole)
         for _, residue, heavy, _ in retained:
             for atom in heavy:
@@ -143,7 +165,7 @@ class EncodeProtein:
                         f"{atom.element.name} in retained residue {residue.name}",
                     )
 
-        elements = {atom.element.name for _, _, heavy, _ in retained for atom in heavy}
+        elements = {atom.element.name for _, _, heavy, _ in encoded for atom in heavy}
         elements |= {atom.GetSymbol() for pose in self.poses for atom in pose.GetAtoms()}
         for element in sorted(elements):
             try:
@@ -159,6 +181,7 @@ class EncodeProtein:
             for _, residue in residues
             if not _is_amino_acid(residue.name) and not _is_water(residue.name)
         }
+        heterogens -= ADDITIVES
         cofactors = heterogens & COFACTORS
         if cofactors:
             raise OutOfScopeError(
@@ -172,7 +195,7 @@ class EncodeProtein:
             )
 
         if metals:
-            coordinates = np.vstack([c for _, _, _, c in retained])
+            coordinates = np.vstack([c for _, _, _, c in encoded])
             distances, _ = cKDTree(coordinates).query([position for _, position in metals])
             if distances.min() < self.metal_coordination_cutoff:
                 raise OutOfScopeError(
@@ -201,7 +224,7 @@ class EncodeProtein:
         # its own, so a zero-occupancy hydrogen never reaches the QM region.
         unoccupied = [
             (verify.identifier(chain, residue), atom.name)
-            for chain, residue, heavy, _ in retained
+            for chain, residue, heavy, _ in encoded
             for atom in heavy
             if not atom.occ
         ]
@@ -219,7 +242,7 @@ class EncodeProtein:
                 f"cutout retains CYS {half} without its disulfide partner",
             )
 
-        heavy_atoms = sum(len(heavy) for _, _, heavy, _ in retained)
+        heavy_atoms = sum(len(heavy) for _, _, heavy, _ in encoded)
         if heavy_atoms > self.size_cap:
             raise OutOfScopeError(
                 OutOfScopeErrorType.SIZE_CAP,

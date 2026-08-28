@@ -68,14 +68,48 @@ def test_verify_rejects_biological_cofactor(name):
     assert rejection(name) is OutOfScopeErrorType.COFACTOR
 
 
-def test_verify_rejects_other_heterogen_in_shell():
+@pytest.mark.parametrize(
+    "name",
+    [
+        "7TM6_GPJ",     # S3P, shikimate-3-phosphate, the enzyme's own substrate
+        "7ES1_UDP",     # JDF, 34 heavy atoms
+        "6TW7_NZB",     # MYA, a myristoyl chain of 63 heavy atoms
+        "7QE4_NGA",     # A2G, two N-acetylgalactosamines of a glycan
+    ],
+)
+def test_verify_rejects_other_heterogen_in_shell(name):
     """
-    Heterogens other than cofactors inside the 4.5 Å shell reject the complex, though 
-        crystallisation additives outside the shell are simply deleted.
+    Heterogens other than cofactors inside the 4.5 Å shell reject the complex.
+    """
+    assert rejection(name) is OutOfScopeErrorType.HETEROGEN
 
-    5SAK_ZRY has a DMS molecule inside the shell.
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "7USH_82V",     # one ethylene glycol, EDO A504, in a 13-residue cutout
+        "7OPG_06N",     # two glycerols, GOL A502 and A503
+        "7QF4_RBF",     # a chloride ion, CL A203
+        "7FB7_8NF",     # MPD, a cryoprotectant of 8 heavy atoms
+        "7TBU_S3P",     # TRS, Tris buffer
+    ],
+)
+def test_verify_accepts_crystallisation_additive_in_shell(name):
     """
-    assert rejection("5SAK_ZRY") is OutOfScopeErrorType.HETEROGEN
+    A cryoprotectant, precipitant, buffer, or simple ion inside the shell is deleted by _clean
+        rather than rejected here.
+    """
+    encode = EncodeProtein(*paths(name))
+    encode._fetch()
+    encode._verify()
+
+
+def test_verify_rejects_a_heterogen_sharing_the_shell_with_an_additive():
+    """
+    The additive exemption applies per residue, not per complex. 7D5C_GV6 holds GVU, a 47 heavy-atom
+        ligand, alongside an ethylene glycol; excusing the EDO must not excuse the GVU with it.
+    """
+    assert rejection("7D5C_GV6") is OutOfScopeErrorType.HETEROGEN
 
 
 def test_verify_rejects_element_without_631g_basis():

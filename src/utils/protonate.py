@@ -1,10 +1,32 @@
 import io
+import random
 
 import gemmi
+import openmm
 from openmm.app import Modeller, PDBFile
 
+from utils.fix import PLATFORM
 
-def hydrogens(model, pH):
+
+def add(modeller, pH, seed, variants=None):
+    """
+    `Modeller.addHydrogens`, made reproducible, returning the state chosen for each residue.
+
+    Modeller starts every hydrogen it adds at a random offset from its parent and minimises from
+        there, drawing on the global random module. Left unseeded it places the hydrogens
+        differently on every run.
+
+    The generator's state is put back afterwards.
+    """
+    state = random.getstate()
+    random.seed(seed)
+    try:
+        return modeller.addHydrogens(pH=pH, variants=variants, platform=PLATFORM)
+    finally:
+        random.setstate(state)
+
+
+def hydrogens(model, pH, seed):
     """
     Add hydrogens to every residue at `pH`, returning the protonated model and the protonation state
         Modeller chose for each residue.
@@ -23,7 +45,7 @@ def hydrogens(model, pH):
     # addHydrogens replaces the modeller's topology, so residues() is read off the original.
     residues = list(pdb.topology.residues())
     modeller = Modeller(pdb.topology, pdb.positions)
-    variants = modeller.addHydrogens(pH=pH)
+    variants = add(modeller, pH, seed)
     states = {
         (residue.chain.id, int(residue.id), residue.insertionCode): variant
         for residue, variant in zip(residues, variants)

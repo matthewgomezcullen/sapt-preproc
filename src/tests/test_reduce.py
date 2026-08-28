@@ -1,24 +1,26 @@
 """
 Truncation and capping for EncodeProtein._reduce
 
+The median complex breaks into many runs of residues, so most need a cap on both sides. A run 
+    separated from the next by exactly one residue would have that residue's backbone claimed by
+    an NME on one side and an ACE on the other, placing the same atom twice at the same coordinates.
 
-The median complex breaks into separate runs of residues and many runs across the dataset are a 
-    single residue, so many need a cap on both sides. A run separated from the next by exactly one 
-    residue would have that residue's backbone claimed by an NME on one side and an ACE on the 
-    other, placing the same atom twice at the same coordinates. These gaps exist across most of 
-    the accepted complexes. `_reduce must keeping the residue whole by bridging the cap.
+Caps are heavy atoms that affect the complexes tractability for RHF, so the size limit must be 
+    checked after capping.
 
 _fix rebuilds side chains, and a rebuilt side chain can reach a pose that the deposited one did
     not. The residue then enters the cutout carrying invented coordinates, having escaped the
     incomplete-residue rule because it was outside the provisional cutout when _verify ran.
 
-Four real complexes cover these, all accepted by _verify:
+Five real complexes cover these, all accepted by _verify:
 
     5S8I_2LY    12 residues in 9 runs and no single-residue gap, the clean baseline
-    7MWN_WI5    11 single-residue gaps, the most in the dataset
-    7LMO_NYO    chain B is retained from residue 1, where the chain ends and there is nothing to
+    7WPW_F15    eight single-residue gaps, the most of any complex that stays inside the cap
+    6TW5_9M2    chain C is retained to residue 410, where the chain ends and there is nothing to
                     build a cap out of
-    6ZCY_QF8    PHE A382 is deposited without its ring; rebuilt, it closes to 4.07 Å of a pose
+    8FLV_ZB9    GLN A412 is deposited without the end of its side chain; rebuilt, it closes from
+                    4.52 Å of a pose to 3.34 Å
+    7VBU_6I4    47 residues holding 422 heavy atoms, which 42 caps push to 527
 """
 
 import numpy as np
@@ -26,35 +28,37 @@ import pytest
 from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 
 from conftest import paths
-from encode import EncodeProtein, OutOfScopeError, OutOfScopeErrorType, _is_amino_acid
+from encode import EncodeProtein, OutOfScopeError, OutOfScopeErrorType
 from utils import verify
 
 SIMPLE = "5S8I_2LY"
-GAPPED = "7MWN_WI5"
-TERMINUS = "7LMO_NYO"
-DRIFTED = "6ZCY_QF8"
+GAPPED = "7WPW_F15"
+TERMINUS = "6TW5_9M2"
+DRIFTED = "8FLV_ZB9"
+OVERSIZED = "7VBU_6I4"
 
 COMPLEXES = [SIMPLE, GAPPED, TERMINUS]
 
 CAPS = frozenset({"ACE", "NME"})
 ACE_ATOMS = {"C", "O", "CH3"}
-NME_ATOMS = {"N", "CH3"}
+# OpenMM names an NME's methyl carbon "C", not "CH3", and places its hydrogens off that name.
+NME_ATOMS = {"N", "C"}
 
-# Every residue that sits alone between two retained runs in 7MWN_WI5. Each is one peptide bond from
+# Every residue that sits alone between two retained runs in 7WPW_F15. Each is one peptide bond from
 # retained residues on both sides, so capping around it would duplicate its backbone.
 BRIDGED = [
-    ("A", 65), ("A", 84), ("A", 86), ("A", 94), ("A", 97), ("A", 111),
-    ("A", 113), ("A", 120), ("A", 125), ("A", 167), ("B", 390),
+    ("A", 24), ("A", 39), ("A", 54), ("A", 56),
+    ("A", 77), ("A", 105), ("A", 116), ("A", 127),
 ]
 
-# 7LMO_NYO chain B begins at residue 1 and the cutout reaches it. Protonation has given it H, H2
-# and H3, the charged NH3+ of a free N-terminus.
-CHAIN_TERMINUS = ("B", 1)
-TERMINAL_PROTONS = {"H", "H2", "H3"}
+# 6TW5_9M2 chain C ends at residue 410 and the cutout reaches it. Protonation has given it the OXT
+# of a free C-terminus and left the carboxylate charged.
+CHAIN_TERMINUS = ("C", 410)
+TERMINAL_ATOMS = {"OXT"}
 
-# PHE A382 of 6ZCY_QF8 is deposited as backbone plus CB. PDBFixer rebuilds the whole ring.
-REBUILT_RESIDUE = ("A", 382)
-REBUILT_ATOMS = {"CG", "CD1", "CD2", "CE1", "CE2", "CZ"}
+# GLN A412 of 8FLV_ZB9 is deposited as backbone plus CB. PDBFixer rebuilds the rest of the side chain.
+REBUILT_RESIDUE = ("A", 412)
+REBUILT_ATOMS = {"CG", "CD", "OE1", "NE2"}
 
 # No two atoms in a real structure sit this close. A shared backbone would put two at zero.
 CLASH = 0.5
@@ -207,7 +211,7 @@ def test_reduce_bridges_a_single_residue_gap():
     A residue alone between two retained runs is kept whole rather than capped around.
 
     Capping both sides would take its N and CA into an ACE and its C, O and CA into an NME, placing
-        CA twice at one position. 7MWN_WI5 has eleven such residues, more than any other complex.
+        CA twice at one position.
     """
     encode = encoding(GAPPED)
 
@@ -303,7 +307,8 @@ def test_reduce_leaves_a_chain_terminus_uncapped():
         structure. At a chain end there is no such residue and no such coordinates, so capping would
         mean inventing an acetyl group.
 
-    The cost is a charge. Separating the cases needs the SEQRES records.
+    The cost is a charge, and the deposited model stopping short is indistinguishable from the chain
+        really ending. Separating the cases needs the SEQRES records.
     """
     encode = encoding(TERMINUS)
 
@@ -315,17 +320,47 @@ def test_reduce_leaves_a_chain_terminus_uncapped():
         for position, residue in enumerate(residues):
             if (chain.name, residue.seqid.num) != (chain_name, seqid):
                 continue
-            assert position == 0 or residues[position - 1].name != "ACE"
-            assert TERMINAL_PROTONS <= {atom.name for atom in residue}
+            names = {atom.name for atom in residue}
+            assert position == len(residues) - 1, "the chain end was capped"
+            assert TERMINAL_ATOMS <= names
+            assert "HXT" not in names, "the terminal carboxylate should carry the charge"
             return
     pytest.fail(f"{chain_name}{seqid} was not retained")
+
+
+@pytest.mark.parametrize("name", COMPLEXES)
+def test_reduce_keeps_the_capped_cutout_within_the_size_cap(name):
+    """
+    Ensure the capped cutout stays in the size cap.
+    """
+    encode = encoding(name)
+
+    encode._reduce()
+
+    heavy = [
+        atom
+        for chain in encode.reduced
+        for residue in chain
+        for atom in residue
+        if not atom.element.is_hydrogen
+    ]
+    assert len(heavy) <= encode.size_cap
+
+
+def test_reduce_rejects_a_cutout_the_caps_push_over_the_size_cap():
+    """
+    Reject a cutout that grows beyond the size limit from capping.
+    """
+    encode = encoding(OVERSIZED)
+
+    with pytest.raises(OutOfScopeError) as rejected:
+        encode._reduce()
+    assert rejected.value.error_type is OutOfScopeErrorType.SIZE_CAP
 
 
 def test_reduce_rejects_a_residue_repaired_into_the_cutout():
     """
     A residue whose rebuilt side chain reaches a pose is out of scope.
-
-    _verify cannot catch these, as it runs before _fix,
     """
     encode = encoding(DRIFTED)
     chain_name, seqid = REBUILT_RESIDUE

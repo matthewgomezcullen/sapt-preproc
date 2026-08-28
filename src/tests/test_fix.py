@@ -9,8 +9,13 @@ import pytest
 
 from conftest import paths
 from encode import EncodeProtein
+from utils import fix
 
 COMPLEX = "5S8I_2LY"
+
+# PDBFixer rebuilds the ring of PHE A382 into a pocket it does not fit, and falls back to Langevin
+# dynamics to push it clear. That path amplifies any wobble in the forces into whole angstroms.
+CHAOTIC = "6ZCY_QF8"
 
 INCOMPLETE_RESIDUE = ("A", 1323)                # LYS, modelled without CE and NZ
 MISSING_SIDE_CHAIN_ATOMS = {"CE", "NZ"}
@@ -150,3 +155,22 @@ def test_fix_replaces_modified_residues_with_their_standard_form():
         for residue in chain
         for atom in residue
     )
+
+
+def test_repair_places_rebuilt_atoms_in_the_same_position_every_run():
+    """
+    Two repairs of one structure agree exactly.
+
+    `addMissingAtoms` minimises each rebuilt atom, and where the minimum still leaves atoms on top
+        of each other it runs Langevin dynamics to separate them. Unpinned, the integrator draws its
+        own seed and the forces are summed in whatever order the CPU platform's threads finish, and
+        the side chain of PHE A382 lands up to 6 Å apart between two runs of the same input. That is
+        enough to carry it across the 4.5 Å cutoff on one run and not the next, which decides both
+        whether the residue is in the cutout and whether the complex is rejected for holding it.
+    """
+    encode = EncodeProtein(*paths(CHAOTIC))
+
+    first = fix.repair(encode.protein_path, encode.seed)[0]
+    second = fix.repair(encode.protein_path, encode.seed)[0]
+
+    assert heavy_atom_coordinates(first) == heavy_atom_coordinates(second)

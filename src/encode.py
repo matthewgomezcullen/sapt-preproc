@@ -5,7 +5,7 @@ from pyscf.gto.basis import load as load_basis
 from pyscf.lib.exceptions import BasisNotFoundError
 from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 from enum import Enum
-from utils import clean, fix, protonate, verify
+from utils import clean, fix, protonate, reduce, verify
 
 
 # PDB chemical component IDs for the biological cofactors. Decides which rejection is reported. 
@@ -110,6 +110,10 @@ class EncodeProtein:
         self.metal_coordination_cutoff = 2.8
         self.disulfide_cutoff = 2.5
         self.size_cap = 400
+
+        # Seeds the minimisations that place rebuilt atoms and new hydrogens, so that both land in
+        # the same place every run. Not zero: OpenMM reads a zero seed as a request for a random one.
+        self.seed = 1
 
     def encode(self):
         self._fetch()
@@ -248,7 +252,7 @@ class EncodeProtein:
         """
         Fix missing atoms, residues, and terminal atoms.
         """
-        repaired = fix.repair(self.protein_path)
+        repaired = fix.repair(self.protein_path, self.seed)
         if not len(repaired):
             raise EncodingError(f"Repairing {self.protein_path} left no model")
         self.whole = repaired[0]
@@ -275,7 +279,7 @@ class EncodeProtein:
         """
         Protonates the entire protein, recording the state chosen for each residue.
         """
-        self.whole, self.protonation = protonate.hydrogens(self.whole, self.pH)
+        self.whole, self.protonation = protonate.hydrogens(self.whole, self.pH, self.seed)
 
     def _reduce(self):
         """
@@ -293,9 +297,38 @@ class EncodeProtein:
         TODO: Separate the cases with the SEQRES records
 
         A residue whose side chain _fix rebuilt into the cutout is rejected here. _verify runs
-            before the repair and cannot see it.
+            before the repair and cannot see it. The size cap is applied again
         """
-        ...
+        keep = {
+            verify.identifier(chain, residue)
+            for chain, residue, _, _ in verify.cutout(
+                self.whole, self._pose_coordinates(), self.cutoff
+            )
+        }
+
+        repaired = verify.incomplete_residues(self.protein_path) & keep
+        if repaired:
+            raise OutOfScopeError(
+                OutOfScopeErrorType.INCOMPLETE_RESIDUE,
+                f"{len(repaired)} residue(s) repaired into the cutout, e.g. {min(repaired)}",
+            )
+
+        self.reduced = reduce.truncate(
+            self.whole, keep, self.protonation, self.pH, self.seed
+        )
+
+        heavy_atoms = sum(
+            1
+            for chain in self.reduced
+            for residue in chain
+            for atom in residue
+            if not atom.element.is_hydrogen
+        )
+        if heavy_atoms > self.size_cap:
+            raise OutOfScopeError(
+                OutOfScopeErrorType.SIZE_CAP,
+                f"capped cutout holds {heavy_atoms} heavy atoms, over the cap of {self.size_cap}",
+            )
 
     def _calculate_charge(self):
         """

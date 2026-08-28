@@ -149,11 +149,6 @@ class EncodeProtein:
         retained = verify.cutout(self.whole, self._pose_coordinates(), self.cutoff)
         residues = [(chain, residue) for chain, residue, _, _ in retained]
 
-        # An additive inside the shell is deleted by _clean, so it never reaches the QM region and
-        # takes no part in the checks that describe that region: its elements need no basis, its
-        # atoms cannot split a coordination sphere, and its size does not count against the cap.
-        # The heterogen check below still reads the full cutout, since it is what decides whether an
-        # additive is all that is in there.
         encoded = [entry for entry in retained if entry[1].name not in ADDITIVES]
 
         metals = verify.metals(self.whole)
@@ -289,22 +284,13 @@ class EncodeProtein:
 
         Runs of retained residues separated by a single residue are bridged rather than capped
             around: capping both sides would take that residue's backbone into an ACE on one side
-            and an NME on the other, placing the same atoms twice. 289 such gaps occur across 91 of
-            the 110 accepted complexes, so this is the ordinary case.
+            and an NME on the other, placing the same atoms twice.
 
         A cut is capped; a chain end is not. A cap stands in for a residue the truncation removed
             and takes its backbone coordinates from the structure, and at a chain end there is no
-            such residue to take them from. Inventing an acetyl group there would be the one thing
-            this pipeline otherwise refuses to do, to the point of rejecting a complex whose side
-            chain was rebuilt into the cutout. The terminus keeps the charged NH3+ or COO- that
-            protonation gave it.
+            such residue to take them from. However, that costs a charge.
 
-        That costs a charge. Four cutouts reach a terminus, and in three the chain is numbered from
-            27, 181, or 222, so the charge is an artefact of where the deposited model stops rather
-            than a real free terminus, and q_A carries a +-1 it should not. Only 7LMO_NYO chain B,
-            numbered from 1, is genuinely charged. Separating the cases needs the SEQRES records the
-            PoseBusters structures do not carry -- the same gap that stops chain breaks being
-            detected.
+        TODO: Separate the cases with the SEQRES records
 
         A residue whose side chain _fix rebuilt into the cutout is rejected here. _verify runs
             before the repair and cannot see it.

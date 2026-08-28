@@ -61,7 +61,8 @@ Protein structure is given by $A = \{\text{element}_I, R_I\}^{N_{A}}_{I=1}$.
     1. (*) The original paper uses a native ligand, instead of a union over candidate poses.
 1. Cap the truncated protein with ACE/NME caps $\rightarrow A^{\cup}$.
     1. (*) The original paper uses MOE, which is commercial, along with manual pruning.
-1. Given $A^{\cup}$ and the protonation, calculate the net charge $\rightarrow q_{A}$. 
+1. Reverify the size limits and inclusion of incomplete residues in the cutout.
+1. Given $A^{\cup}$ and hydrogens, calculate the net charge $\rightarrow q_{A}$. 
 1. Verify that the number of electrons $N_{e} = \sum_{I} Z_{I} - q_{A}$ is even, so that RHF has $N_{\alpha} = N_{\beta} = N_{e}/2$.
     1. Spin and multiplicity are assumed ($S = 0, M = 1$), so the number of electrons must be even ($N_{\alpha} = N_{\beta} = N_{e}/2$).
 

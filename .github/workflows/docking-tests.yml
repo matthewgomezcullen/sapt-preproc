@@ -1,20 +1,15 @@
 # Runs the SAPT preprocessing test suite. The environment is the same conda specification the work
 # is developed against, so a failure here means the code moved, not the toolchain.
-name: docking tests
+name: tests
 
 on:
   push:
-    paths:
-      - "research/docking/**"
-      - ".github/workflows/docking-tests.yml"
+    branches: [main]
   pull_request:
-    paths:
-      - "research/docking/**"
-      - ".github/workflows/docking-tests.yml"
   workflow_dispatch:
 
 concurrency:
-  group: docking-tests-${{ github.ref }}
+  group: tests-${{ github.ref }}
   cancel-in-progress: true
 
 defaults:
@@ -24,30 +19,33 @@ defaults:
 
 jobs:
   pytest:
-    runs-on: ubuntu-latest
+    # arm64 macOS, not linux. conda-forge has no linux-64 build of pyscf 2.14.0 for Python 3.11, and
+    # the two it does have are compiled for x86_64_v4, which the AMD runners cannot execute. The
+    # solve also trips over the `__archspec 1.*^$` constraint that reaches it through
+    # _x86_64-microarch-level, which micromamba 2 refuses to parse. Neither exists off x86.
+    runs-on: macos-latest
     # The suite runs in about two minutes on a developer machine. Solving the environment on a cold
     # cache is the slower half.
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Create the sapt-preproc environment
         uses: mamba-org/setup-micromamba@v2
         with:
-          environment-file: research/docking/src/environment.yml
+          environment-file: src/environment.yml
           # Keyed on the environment file, so this only re-solves when the dependencies change.
           cache-environment: true
 
       - name: Check the fixtures are present
-        working-directory: research/docking/src
+        working-directory: src
         run: |
           if [ ! -d data/posebusters ] || [ ! -d data/diffdock ]; then
-            echo "::error::research/docking/src/data is not in the repository, so every test that "\
-                 "loads a complex will fail to collect. See research/docking/README.md."
+            echo "::error::src/data is missing, so every test that loads a complex will fail to collect."
             exit 1
           fi
 
       - name: Run the test suite
-        working-directory: research/docking/src
+        working-directory: src
         run: pytest tests

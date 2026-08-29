@@ -1,0 +1,9 @@
+**/.DS_Store
+**/__pycache__
+**/.pytest_cache
+**/README.pdf
+**/temp.md
+
+# The complexes the tests need are tracked already. This keeps the rest of the benchmark set, some
+# 225 MB of it, from being added by accident.
+data/

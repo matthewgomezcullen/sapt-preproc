@@ -11,14 +11,10 @@ POSEBUSTERS = os.path.join(DATA, "posebusters")
 
 # DiffDock names each pose it kept rank<N>_confidence<X>.sdf. Alongside those it writes a bare
 # rank1.sdf copy of the top-ranked pose and, for some complexes, an energy-minimised
-# rank<N>_confidence<X>_ensemble_relaxed.sdf. Screening the canonical name alone leaves out the
-# duplicate and the relaxed variant, so each rank contributes exactly one pose.
+# rank<N>_confidence<X>_ensemble_relaxed.sdf.
 POSE = re.compile(r"^rank\d+_confidence-?\d+\.\d+\.sdf$")
 
-# DiffDock scores a pose it failed to generate at -1000 and writes nan coordinates for every atom,
-# which RDKit cannot read. The sentinel says the pose does not exist, not that the complex is out
-# of scope, so it is dropped before the complex is screened.
-SENTINEL = "confidence-1000"
+FAIL = "confidence-1000"
 
 
 def _protein(name):
@@ -41,7 +37,7 @@ def _poses(name):
     return [
         os.path.join(directory, f)
         for f in sorted(os.listdir(directory))
-        if POSE.match(f) and SENTINEL not in f
+        if POSE.match(f) and FAIL not in f
     ]
 
 

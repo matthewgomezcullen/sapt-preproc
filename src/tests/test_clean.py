@@ -1,5 +1,5 @@
 """
-Deletion of out-of-scope molecules for EncodeProtein._clean.
+Deletion of out-of-scope molecules for PrepareComplex._clean.
 
 _clean runs after _fix and before _protonate. It drops anything that protonation, the cutout, or RHF
      should not see. Everything it deletes has already been cleared by _verify as outside the cutout.
@@ -16,7 +16,7 @@ Three real complexes cover the cases, all of them accepted by _verify:
 import pytest
 
 from conftest import paths
-from encode import EncodeProtein, _is_amino_acid, _is_water
+from prepare import PrepareComplex, _is_amino_acid, _is_water
 from utils import verify
 
 # Acetyl and amide caps terminate a polypeptide chain. They are not amino acids, so a name test 
@@ -38,15 +38,15 @@ NATIVE_LIGAND_COPIES = 2
 COMPLEXES = [ADDITIVES, HYDROGENATED, CRYSTALLOGRAPHIC_LIGAND]
 
 
-def encoding(name):
+def prepare(name):
     """
     A complex carried up to the point _clean is called.
     """
-    encode = EncodeProtein(*paths(name))
-    encode._fetch()
-    encode._verify()
-    encode._fix()
-    return encode
+    _prepare = PrepareComplex(*paths(name))
+    _prepare._fetch()
+    _prepare._verify()
+    _prepare._fix()
+    return _prepare
 
 
 def residue_names(model):
@@ -100,14 +100,14 @@ def amino_acids(model):
     ]
 
 
-def cutout_residues(encode, amino_acids_only=False):
+def cutout_residues(prepared, amino_acids_only=False):
     """
     The residues the 4.5 Å cutout selects, keyed so they survive deletion elsewhere in the model.
     """
     return {
         (chain.name, residue.seqid.num, residue.seqid.icode, residue.name)
         for chain, residue, _, _ in verify.cutout(
-            encode.whole, encode._pose_coordinates(), encode.cutoff
+            prepared.whole, prepared._pose_coordinates(), prepared.cutoff
         )
         if _is_amino_acid(residue.name) or not amino_acids_only
     }
@@ -120,25 +120,25 @@ def test_clean_deletes_heterogens(name):
         carry no interaction energy with the poses and would otherwise have to be protonated and
         charge-assigned as non-amino-acid molecules.
     """
-    encode = encoding(name)
-    assert heterogens(encode.whole)
+    prepared = prepare(name)
+    assert heterogens(prepared.whole)
 
-    encode._clean()
+    prepared._clean()
 
-    assert not heterogens(encode.whole)
+    assert not heterogens(prepared.whole)
 
 
 def test_clean_deletes_named_additives():
     """
     Every additive in a structure is deleted.
     """
-    encode = encoding(ADDITIVES)
-    before = residue_names(encode.whole)
+    prepared = prepare(ADDITIVES)
+    before = residue_names(prepared.whole)
     assert {name: before.get(name) for name in ADDITIVE_HETEROGENS} == ADDITIVE_HETEROGENS
 
-    encode._clean()
+    prepared._clean()
 
-    after = residue_names(encode.whole)
+    after = residue_names(prepared.whole)
     assert not [name for name in ADDITIVE_HETEROGENS if name in after]
 
 
@@ -147,16 +147,16 @@ def test_clean_deletes_metals(name):
     """
     Loose ions are deleted along with everything else outside the cutout.
     """
-    encode = encoding(name)
-    assert encode.whole
+    prepared = prepare(name)
+    assert prepared.whole
     assert any(
-        atom.element.is_metal for chain in encode.whole for residue in chain for atom in residue
+        atom.element.is_metal for chain in prepared.whole for residue in chain for atom in residue
     )
 
-    encode._clean()
+    prepared._clean()
 
     assert not any(
-        atom.element.is_metal for chain in encode.whole for residue in chain for atom in residue
+        atom.element.is_metal for chain in prepared.whole for residue in chain for atom in residue
     )
 
 
@@ -165,39 +165,39 @@ def test_clean_deletes_the_crystallographic_ligand():
     A deposited copy of the ligand being docked is also a heterogen. 7WUX_6OI keeps two copies of 
         6OI in a second binding site. Leaving them in would put the answer inside the structure.
     """
-    encode = encoding(CRYSTALLOGRAPHIC_LIGAND)
-    assert residue_names(encode.whole).get(NATIVE_LIGAND) == NATIVE_LIGAND_COPIES
+    prepared = prepare(CRYSTALLOGRAPHIC_LIGAND)
+    assert residue_names(prepared.whole).get(NATIVE_LIGAND) == NATIVE_LIGAND_COPIES
 
-    encode._clean()
+    prepared._clean()
 
-    assert NATIVE_LIGAND not in residue_names(encode.whole)
+    assert NATIVE_LIGAND not in residue_names(prepared.whole)
 
 
 def test_clean_keeps_peptide_caps():
     """
     An ACE or NME already capping a chain terminus is part of the polypeptide, not a heterogen.
     """
-    encode = encoding(HYDROGENATED)
-    assert residue_names(encode.whole).get(CAP_RESIDUE)
+    prepared = prepare(HYDROGENATED)
+    assert residue_names(prepared.whole).get(CAP_RESIDUE)
 
-    encode._clean()
+    prepared._clean()
 
-    assert residue_names(encode.whole).get(CAP_RESIDUE)
+    assert residue_names(prepared.whole).get(CAP_RESIDUE)
 
 
 def test_clean_strips_deposited_hydrogens():
     """
     Hydrogens that came with the deposited structure are removed. _protonate owns every hydrogen.
     """
-    encode = encoding(HYDROGENATED)
+    prepared = prepare(HYDROGENATED)
     hydrogens = lambda model: sum(
         atom.element.is_hydrogen for chain in model for residue in chain for atom in residue
     )
-    assert hydrogens(encode.whole) == DEPOSITED_HYDROGENS
+    assert hydrogens(prepared.whole) == DEPOSITED_HYDROGENS
 
-    encode._clean()
+    prepared._clean()
 
-    assert hydrogens(encode.whole) == 0
+    assert hydrogens(prepared.whole) == 0
 
 
 @pytest.mark.parametrize("name", COMPLEXES)
@@ -205,12 +205,12 @@ def test_clean_preserves_every_amino_acid(name):
     """
     Cleaning only deletes. Every amino-acid atom stays constant.
     """
-    encode = encoding(name)
-    before = amino_acids(encode.whole)
+    prepared = prepare(name)
+    before = amino_acids(prepared.whole)
 
-    encode._clean()
+    prepared._clean()
 
-    after = amino_acids(encode.whole)
+    after = amino_acids(prepared.whole)
     assert [entry[:5] for entry in after] == [entry[:5] for entry in before]
     for cleaned, repaired in zip(after, before):
         assert cleaned[5] == pytest.approx(repaired[5], abs=1e-3)
@@ -224,12 +224,12 @@ def test_clean_preserves_the_cutout(name):
     This only applies to amino acids because crystallisation additives are allowed into
         the cutout and deleted here.
     """
-    encode = encoding(name)
-    before = cutout_residues(encode, amino_acids_only=True)
+    prepared = prepare(name)
+    before = cutout_residues(prepared, amino_acids_only=True)
 
-    encode._clean()
+    prepared._clean()
 
-    assert cutout_residues(encode, amino_acids_only=True) == before
+    assert cutout_residues(prepared, amino_acids_only=True) == before
 
 
 def test_clean_leaves_no_empty_chains():
@@ -237,13 +237,13 @@ def test_clean_leaves_no_empty_chains():
     Repair splits heterogens into chains that reuse the polymer chain names, so deleting them leaves
         duplicate empty chains behind. The cutout keys residues by chain name, causing ambiguity.
     """
-    encode = encoding(ADDITIVES)
+    prepared = prepare(ADDITIVES)
 
-    encode._clean()
+    prepared._clean()
 
-    assert encode.whole
-    chains = [chain.name for chain in encode.whole]
-    assert all(len(chain) for chain in encode.whole)
+    assert prepared.whole
+    chains = [chain.name for chain in prepared.whole]
+    assert all(len(chain) for chain in prepared.whole)
     assert len(chains) == len(set(chains))
 
 
@@ -252,13 +252,13 @@ def test_clean_is_idempotent(name):
     """
     Idempotency.
     """
-    encode = encoding(name)
-    encode._clean()
-    once = amino_acids(encode.whole)
+    prepared = prepare(name)
+    prepared._clean()
+    once = amino_acids(prepared.whole)
 
-    encode._clean()
+    prepared._clean()
 
-    assert amino_acids(encode.whole) == once
+    assert amino_acids(prepared.whole) == once
 
 
 ADDITIVE_IN_CUTOUT = "7USH_82V"
@@ -273,15 +273,15 @@ def test_clean_deletes_an_additive_from_inside_the_cutout():
     7USH_82V retains an ethylene glycol at A504 among twelve amino acids. After cleaning the twelve
         are still there and the EDO is not.
     """
-    encode = encoding(ADDITIVE_IN_CUTOUT)
+    prepared = prepare(ADDITIVE_IN_CUTOUT)
     chain_name, seqid, name = CUTOUT_ADDITIVE
-    before = cutout_residues(encode)
+    before = cutout_residues(prepared)
     assert (chain_name, seqid, " ", name) in before
-    assert len(cutout_residues(encode, amino_acids_only=True)) == CUTOUT_PROTEIN_RESIDUES
+    assert len(cutout_residues(prepared, amino_acids_only=True)) == CUTOUT_PROTEIN_RESIDUES
 
-    encode._clean()
+    prepared._clean()
 
-    after = cutout_residues(encode)
+    after = cutout_residues(prepared)
     assert (chain_name, seqid, " ", name) not in after
-    assert after == cutout_residues(encode, amino_acids_only=True)
+    assert after == cutout_residues(prepared, amino_acids_only=True)
     assert len(after) == CUTOUT_PROTEIN_RESIDUES

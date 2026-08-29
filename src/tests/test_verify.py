@@ -1,5 +1,5 @@
 """
-Scope enforcement for EncodeProtein._verify, per the Eligibility Rules in README.md.
+Scope enforcement for PrepareComplex._verify, per the Eligibility Rules in README.md.
 
 Each rejection test uses a real complex chosen so that it violates exactly one rule.
 
@@ -10,18 +10,18 @@ The following aren't tested because the dataset contains no case that violates t
 import pytest
 
 from conftest import paths
-from encode import EncodeProtein, OutOfScopeError, OutOfScopeErrorType
+from prepare import PrepareComplex, OutOfScopeError, OutOfScopeErrorType
 
 
 def rejection(name):
     """
     Verify a complex expected to be out of scope, returning the error type it was rejected with.
     """
-    encode = EncodeProtein(*paths(name))
-    encode._fetch()
+    prepared = PrepareComplex(*paths(name))
+    prepared._fetch()
 
     with pytest.raises(OutOfScopeError) as rejected:
-        encode._verify()
+        prepared._verify()
     return rejected.value.error_type
 
 
@@ -36,13 +36,13 @@ def test_verify_accepts_in_scope_complex(name):
     """
     A complex violating no eligibility rule passes verification.
     """
-    encode = EncodeProtein(*paths(name))
-    encode._fetch()
-    encode._verify()
+    prepared = PrepareComplex(*paths(name))
+    prepared._fetch()
+    prepared._verify()
 
-    assert encode.whole
-    assert sum(len(chain) for chain in encode.whole) > 0
-    assert len(encode.poses) == len(encode.poses_paths)
+    assert prepared.whole
+    assert sum(len(chain) for chain in prepared.whole) > 0
+    assert len(prepared.poses) == len(prepared.poses_paths)
 
 
 def test_verify_rejects_metal_in_retained_region():
@@ -99,9 +99,9 @@ def test_verify_accepts_crystallisation_additive_in_shell(name):
     A cryoprotectant, precipitant, buffer, or simple ion inside the shell is deleted by _clean
         rather than rejected here.
     """
-    encode = EncodeProtein(*paths(name))
-    encode._fetch()
-    encode._verify()
+    prepared = PrepareComplex(*paths(name))
+    prepared._fetch()
+    prepared._verify()
 
 
 def test_verify_rejects_a_heterogen_sharing_the_shell_with_an_additive():
@@ -201,6 +201,6 @@ def test_verify_accepts_zero_occupancy_hydrogens_in_cutout():
 
     7YZU_DO7 retains eight zero-occupancy atoms, all of them hydroxyl or imidazole hydrogens.
     """
-    encode = EncodeProtein(*paths("7YZU_DO7"))
-    encode._fetch()
-    encode._verify()
+    prepared = PrepareComplex(*paths("7YZU_DO7"))
+    prepared._fetch()
+    prepared._verify()

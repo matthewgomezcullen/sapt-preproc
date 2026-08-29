@@ -1,5 +1,5 @@
 """
-Hydrogen assignment for EncodeProtein._protonate.
+Hydrogen assignment for PrepareComplex._protonate.
 
 _protonate runs on the whole cleaned protein rather than on the cutout
 
@@ -17,7 +17,7 @@ Three real complexes cover the cases, all accepted by _verify:
 import pytest
 
 from conftest import paths
-from encode import EncodeProtein
+from prepare import PrepareComplex
 from utils import verify
 
 SMALL = "5S8I_2LY"
@@ -42,16 +42,16 @@ LYSINE_PROTONS = {"HZ1", "HZ2", "HZ3"}
 HISTIDINE_PROTONS = ("HD1", "HE2")
 
 
-def encoding(name):
+def prepare(name):
     """
     A complex carried up to the point _protonate is called.
     """
-    encode = EncodeProtein(*paths(name))
-    encode._fetch()
-    encode._verify()
-    encode._fix()
-    encode._clean()
-    return encode
+    _prepare = PrepareComplex(*paths(name))
+    _prepare._fetch()
+    _prepare._verify()
+    _prepare._fix()
+    _prepare._clean()
+    return _prepare
 
 
 def hydrogens(model, chain_name, seqid):
@@ -94,11 +94,11 @@ def count_hydrogens(model):
     )
 
 
-def cutout_residues(encode):
+def cutout_residues(prepared):
     return {
         verify.identifier(chain, residue)
         for chain, residue, _, _ in verify.cutout(
-            encode.whole, encode._pose_coordinates(), encode.cutoff
+            prepared.whole, prepared._pose_coordinates(), prepared.cutoff
         )
     }
 
@@ -108,12 +108,12 @@ def test_protonate_adds_hydrogens(name):
     """
     Protonation adds hydrogens.
     """
-    encode = encoding(name)
-    assert count_hydrogens(encode.whole) == 0
+    prepared = prepare(name)
+    assert count_hydrogens(prepared.whole) == 0
 
-    encode._protonate()
+    prepared._protonate()
 
-    assert count_hydrogens(encode.whole) > 0
+    assert count_hydrogens(prepared.whole) > 0
 
 
 @pytest.mark.parametrize("name", COMPLEXES)
@@ -121,12 +121,12 @@ def test_protonate_preserves_heavy_atoms(name):
     """
     Protonation only adds hydrogens.
     """
-    encode = encoding(name)
-    before = heavy_atoms(encode.whole)
+    prepared = prepare(name)
+    before = heavy_atoms(prepared.whole)
 
-    encode._protonate()
+    prepared._protonate()
 
-    after = heavy_atoms(encode.whole)
+    after = heavy_atoms(prepared.whole)
     assert [entry[:5] for entry in after] == [entry[:5] for entry in before]
     for protonated, cleaned in zip(after, before):
         assert protonated[5] == pytest.approx(cleaned[5], abs=1e-3)
@@ -137,12 +137,12 @@ def test_protonate_preserves_the_cutout(name):
     """
     Adding hydrogens must not change which residues the cutout selects.
     """
-    encode = encoding(name)
-    before = cutout_residues(encode)
+    prepared = prepare(name)
+    before = cutout_residues(prepared)
 
-    encode._protonate()
+    prepared._protonate()
 
-    assert cutout_residues(encode) == before
+    assert cutout_residues(prepared) == before
 
 
 @pytest.mark.parametrize("name", COMPLEXES)
@@ -150,12 +150,12 @@ def test_protonate_leaves_no_retained_residue_bare(name):
     """
     Every residue in the cutout receives at least one hydrogen.
     """
-    encode = encoding(name)
+    prepared = prepare(name)
 
-    encode._protonate()
+    prepared._protonate()
 
     for chain, residue, _, _ in verify.cutout(
-        encode.whole, encode._pose_coordinates(), encode.cutoff
+        prepared.whole, prepared._pose_coordinates(), prepared.cutoff
     ):
         assert any(atom.element.is_hydrogen for atom in residue), (
             f"{residue.name} {verify.identifier(chain, residue)} received no hydrogens"
@@ -171,26 +171,26 @@ def test_protonate_leaves_disulfide_cysteines_without_a_thiol_hydrogen():
         inside the retained region or wholly outside it. Both halves must still be assigned
         correctly, because the pair inside is part of the QM region.
     """
-    encode = encoding(DISULFIDE)
+    prepared = prepare(DISULFIDE)
 
-    encode._protonate()
+    prepared._protonate()
 
     for chain, seqid in BONDED_CYSTEINES:
-        assert "HG" not in hydrogens(encode.whole, chain, seqid), f"CYS {chain}{seqid} is bonded"
+        assert "HG" not in hydrogens(prepared.whole, chain, seqid), f"CYS {chain}{seqid} is bonded"
     for chain, seqid in FREE_CYSTEINES:
-        assert "HG" in hydrogens(encode.whole, chain, seqid), f"CYS {chain}{seqid} is free"
+        assert "HG" in hydrogens(prepared.whole, chain, seqid), f"CYS {chain}{seqid} is free"
 
 
 def test_protonate_charges_acidic_and_basic_side_chains():
     """
     At pH 7.4 aspartate and glutamate are deprotonated and lysine and arginine are protonated.
     """
-    encode = encoding(TITRATABLE)
-    assert encode.whole
+    prepared = prepare(TITRATABLE)
+    assert prepared.whole
 
-    encode._protonate()
+    prepared._protonate()
 
-    for chain in encode.whole:
+    for chain in prepared.whole:
         for residue in chain:
             names = {atom.name for atom in residue if atom.element.is_hydrogen}
             if residue.name == "ASP":
@@ -208,12 +208,12 @@ def test_protonate_leaves_histidine_neutral(name):
         doubly protonated at that pH. A HIS carrying both HD1 and HE2 is HIP, a +1 that would show
         up in q_A, so the tautomer choice must stay between HID and HIE.
     """
-    encode = encoding(name)
-    assert encode.whole
+    prepared = prepare(name)
+    assert prepared.whole
 
-    encode._protonate()
+    prepared._protonate()
 
-    for chain in encode.whole:
+    for chain in prepared.whole:
         for residue in chain:
             if residue.name != "HIS":
                 continue
@@ -233,19 +233,19 @@ def test_protonate_uses_the_configured_pH():
 
     Below aspartate's pKa the side chain takes HD2 and histidine becomes doubly protonated.
     """
-    physiological = encoding(SMALL)
+    physiological = prepare(SMALL)
     physiological._protonate()
 
-    acidic = encoding(SMALL)
+    acidic = prepare(SMALL)
     acidic.pH = ACIDIC_pH
     acidic._protonate()
 
     assert count_hydrogens(acidic.whole) > count_hydrogens(physiological.whole)
 
-    def aspartates(encode):
+    def aspartates(prepared):
         return [
             {atom.name for atom in residue if atom.element.is_hydrogen}
-            for chain in encode.whole
+            for chain in prepared.whole
             for residue in chain
             if residue.name == "ASP"
         ]

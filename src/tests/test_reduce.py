@@ -1,5 +1,5 @@
 """
-Truncation and capping for EncodeProtein._reduce
+Truncation and capping for PrepareComplex._reduce
 
 The median complex breaks into many runs of residues, so most need a cap on both sides. A run 
     separated from the next by exactly one residue would have that residue's backbone claimed by
@@ -30,7 +30,7 @@ import pytest
 from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 
 from conftest import paths
-from encode import EncodeProtein, OutOfScopeError, OutOfScopeErrorType
+from prepare import PrepareComplex, OutOfScopeError, OutOfScopeErrorType
 from utils import verify
 
 # Every test here runs the preparation pipeline over several complexes. --fast drops them.
@@ -70,7 +70,7 @@ CLASH = 0.5
 
 
 @functools.lru_cache(maxsize=None)
-def encoding(name):
+def prepare(name):
     """
     A complex carried up to the point _reduce is called.
 
@@ -78,23 +78,23 @@ def encoding(name):
         finds. It writes to `reduced` and leaves `whole` alone, so one object serves every test that
         asks for the same complex.
     """
-    encode = EncodeProtein(*paths(name))
-    encode._fetch()
-    encode._verify()
-    encode._fix()
-    encode._clean()
-    encode._protonate()
-    return encode
+    _prepare = PrepareComplex(*paths(name))
+    _prepare._fetch()
+    _prepare._verify()
+    _prepare._fix()
+    _prepare._clean()
+    _prepare._protonate()
+    return _prepare
 
 
-def within_cutoff(encode):
+def within_cutoff(prepared):
     """
     The residues the distance rule selects, before any bridging or capping.
     """
     return {
         verify.identifier(chain, residue)
         for chain, residue, _, _ in verify.cutout(
-            encode.whole, encode._pose_coordinates(), encode.cutoff
+            prepared.whole, prepared._pose_coordinates(), prepared.cutoff
         )
     }
 
@@ -142,13 +142,13 @@ def test_reduce_keeps_every_residue_within_the_cutoff(name):
     """
     Nothing the distance rule selects is dropped.
     """
-    encode = encoding(name)
-    expected = within_cutoff(encode)
+    prepared = prepare(name)
+    expected = within_cutoff(prepared)
 
-    encode._reduce()
+    prepared._reduce()
 
     assert expected <= {
-        verify.identifier(chain, residue) for chain, residue in protein_residues(encode.reduced)
+        verify.identifier(chain, residue) for chain, residue in protein_residues(prepared.reduced)
     }
 
 
@@ -157,13 +157,13 @@ def test_reduce_keeps_nothing_but_the_site(name):
     """
     Every protein residue kept is either within the cutoff itself or bridges two that are.
     """
-    encode = encoding(name)
-    selected = within_cutoff(encode)
-    order = sequence_index(encode.whole)
+    prepared = prepare(name)
+    selected = within_cutoff(prepared)
+    order = sequence_index(prepared.whole)
 
-    encode._reduce()
+    prepared._reduce()
 
-    for chain, residue in protein_residues(encode.reduced):
+    for chain, residue in protein_residues(prepared.reduced):
         key = verify.identifier(chain, residue)
         if key in selected:
             continue
@@ -181,19 +181,19 @@ def test_reduce_preserves_heavy_atom_coordinates(name):
     """
     Truncation moves nothing.
     """
-    encode = encoding(name)
-    assert encode.whole
+    prepared = prepare(name)
+    assert prepared.whole
     before = {
         (verify.identifier(chain, residue), atom.name): (atom.pos.x, atom.pos.y, atom.pos.z)
-        for chain in encode.whole
+        for chain in prepared.whole
         for residue in chain
         for atom in residue
         if not atom.element.is_hydrogen
     }
 
-    encode._reduce()
+    prepared._reduce()
 
-    for chain, residue in protein_residues(encode.reduced):
+    for chain, residue in protein_residues(prepared.reduced):
         for atom in residue:
             if atom.element.is_hydrogen:
                 continue
@@ -207,12 +207,12 @@ def test_reduce_preserves_protonation(name):
     """
     The hydrogens _protonate placed are unchanged.
     """
-    encode = encoding(name)
-    before = atoms_by_residue(encode.whole)
+    prepared = prepare(name)
+    before = atoms_by_residue(prepared.whole)
 
-    encode._reduce()
+    prepared._reduce()
 
-    for chain, residue in protein_residues(encode.reduced):
+    for chain, residue in protein_residues(prepared.reduced):
         key = verify.identifier(chain, residue)
         assert {atom.name for atom in residue} == before[key]
 
@@ -224,13 +224,13 @@ def test_reduce_bridges_a_single_residue_gap():
     Capping both sides would take its N and CA into an ACE and its C, O and CA into an NME, placing
         CA twice at one position.
     """
-    encode = encoding(GAPPED)
+    prepared = prepare(GAPPED)
 
-    encode._reduce()
+    prepared._reduce()
 
     kept = {
         (chain.name, residue.seqid.num)
-        for chain, residue in protein_residues(encode.reduced)
+        for chain, residue in protein_residues(prepared.reduced)
     }
     for key in BRIDGED:
         assert key in kept, f"{key} sits alone between two retained runs and must be bridged"
@@ -241,11 +241,11 @@ def test_reduce_places_no_duplicate_atoms(name):
     """
     No two atoms occupy the same point.
     """
-    encode = encoding(name)
+    prepared = prepare(name)
 
-    encode._reduce()
+    prepared._reduce()
 
-    coordinates = positions(encode.reduced)
+    coordinates = positions(prepared.reduced)
     pairs = cKDTree(coordinates).query_pairs(CLASH)
     assert not pairs, f"{len(pairs)} atom pair(s) closer than {CLASH} Å"
 
@@ -259,14 +259,14 @@ def test_reduce_caps_every_cut(name):
     A chain terminus is not a break: nothing was removed there, so there is nothing to cap and no
         neighbouring backbone to build a cap out of.
     """
-    encode = encoding(name)
-    assert encode.whole and encode.reduced
-    order = sequence_index(encode.whole)
-    length = {chain.name: len(chain) for chain in encode.whole}
+    prepared = prepare(name)
+    assert prepared.whole and prepared.reduced
+    order = sequence_index(prepared.whole)
+    length = {chain.name: len(chain) for chain in prepared.whole}
 
-    encode._reduce()
+    prepared._reduce()
 
-    for chain in encode.reduced:
+    for chain in prepared.reduced:
         residues = list(chain)
         for position, residue in enumerate(residues):
             if residue.name in CAPS:
@@ -293,14 +293,14 @@ def test_reduce_builds_complete_caps(name):
     A cap is a whole acetyl or N-methyl group, hydrogens included. A cap missing its methyl
         hydrogens induces the same open valence the cap should close.
     """
-    encode = encoding(name)
-    assert encode.reduced
+    prepared = prepare(name)
+    assert prepared.reduced
 
-    encode._reduce()
+    prepared._reduce()
 
     caps = [
         residue
-        for chain in encode.reduced
+        for chain in prepared.reduced
         for residue in chain
         if residue.name in CAPS
     ]
@@ -323,13 +323,13 @@ def test_reduce_leaves_a_chain_terminus_uncapped():
     The cost is a charge, and the deposited model stopping short is indistinguishable from the chain
         really ending. Separating the cases needs the SEQRES records.
     """
-    encode = encoding(TERMINUS)
-    assert encode.reduced
+    prepared = prepare(TERMINUS)
+    assert prepared.reduced
 
-    encode._reduce()
+    prepared._reduce()
 
     chain_name, seqid = CHAIN_TERMINUS
-    for chain in encode.reduced:
+    for chain in prepared.reduced:
         residues = list(chain)
         for position, residue in enumerate(residues):
             if (chain.name, residue.seqid.num) != (chain_name, seqid):
@@ -347,29 +347,29 @@ def test_reduce_keeps_the_capped_cutout_within_the_size_cap(name):
     """
     Ensure the capped cutout stays in the size cap.
     """
-    encode = encoding(name)
-    assert encode.reduced
+    prepared = prepare(name)
+    assert prepared.reduced
 
-    encode._reduce()
+    prepared._reduce()
 
     heavy = [
         atom
-        for chain in encode.reduced
+        for chain in prepared.reduced
         for residue in chain
         for atom in residue
         if not atom.element.is_hydrogen
     ]
-    assert len(heavy) <= encode.size_cap
+    assert len(heavy) <= prepared.size_cap
 
 
 def test_reduce_rejects_a_cutout_the_caps_push_over_the_size_cap():
     """
     Reject a cutout that grows beyond the size limit from capping.
     """
-    encode = encoding(OVERSIZED)
+    prepared = prepare(OVERSIZED)
 
     with pytest.raises(OutOfScopeError) as rejected:
-        encode._reduce()
+        prepared._reduce()
     assert rejected.value.error_type is OutOfScopeErrorType.SIZE_CAP
 
 
@@ -377,10 +377,10 @@ def test_reduce_rejects_a_residue_repaired_into_the_cutout():
     """
     A residue whose rebuilt side chain reaches a pose is out of scope.
     """
-    encode = encoding(DRIFTED)
+    prepared = prepare(DRIFTED)
     chain_name, seqid = REBUILT_RESIDUE
-    assert REBUILT_ATOMS <= atoms_by_residue(encode.whole)[(chain_name, seqid, " ")]
+    assert REBUILT_ATOMS <= atoms_by_residue(prepared.whole)[(chain_name, seqid, " ")]
 
     with pytest.raises(OutOfScopeError) as rejected:
-        encode._reduce()
+        prepared._reduce()
     assert rejected.value.error_type is OutOfScopeErrorType.INCOMPLETE_RESIDUE

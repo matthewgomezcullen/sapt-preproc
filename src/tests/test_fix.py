@@ -1,5 +1,5 @@
 """
-Structure repair for EncodeProtein._fix.
+Structure repair for PrepareComplex._fix.
 
 All three cases are exercised on 5S8I_2LY, which is missing side-chain atoms (LYS A1323 lacks CE
     and NZ), a terminal atom (ARG A1434 lacks OXT), and four single-residue chain breaks.
@@ -8,7 +8,7 @@ All three cases are exercised on 5S8I_2LY, which is missing side-chain atoms (LY
 import pytest
 
 from conftest import paths
-from encode import EncodeProtein
+from prepare import PrepareComplex
 from utils import fix
 
 COMPLEX = "5S8I_2LY"
@@ -55,46 +55,46 @@ def heavy_atom_coordinates(model):
 
 
 @pytest.fixture
-def encoding():
-    encode = EncodeProtein(*paths(COMPLEX))
-    encode._fetch()
-    return encode
+def prepared():
+    _prepare = PrepareComplex(*paths(COMPLEX))
+    _prepare._fetch()
+    return _prepare
 
 
-def test_fix_adds_missing_side_chain_atoms(encoding):
+def test_fix_adds_missing_side_chain_atoms(prepared):
     """
     Heavy atoms absent from a modelled residue are built back onto it.
     """
     chain, seqid = INCOMPLETE_RESIDUE
-    assert not atom_names(encoding.whole, chain, seqid) & MISSING_SIDE_CHAIN_ATOMS
+    assert not atom_names(prepared.whole, chain, seqid) & MISSING_SIDE_CHAIN_ATOMS
 
-    encoding._fix()
+    prepared._fix()
 
-    assert MISSING_SIDE_CHAIN_ATOMS <= atom_names(encoding.whole, chain, seqid)
+    assert MISSING_SIDE_CHAIN_ATOMS <= atom_names(prepared.whole, chain, seqid)
 
 
-def test_fix_adds_missing_terminal_atoms(encoding):
+def test_fix_adds_missing_terminal_atoms(prepared):
     """
     A chain terminus missing its OXT is completed.
     """
     chain, seqid = TERMINAL_RESIDUE
-    assert MISSING_TERMINAL_ATOM not in atom_names(encoding.whole, chain, seqid)
+    assert MISSING_TERMINAL_ATOM not in atom_names(prepared.whole, chain, seqid)
 
-    encoding._fix()
+    prepared._fix()
 
-    assert MISSING_TERMINAL_ATOM in atom_names(encoding.whole, chain, seqid)
+    assert MISSING_TERMINAL_ATOM in atom_names(prepared.whole, chain, seqid)
 
 
-def test_fix_preserves_existing_heavy_atom_coordinates(encoding):
+def test_fix_preserves_existing_heavy_atom_coordinates(prepared):
     """
     Repair only adds atoms. Every heavy atom already present keeps its input coordinates, so the
         cutout taken later is the one the poses were docked against.
     """
-    before = heavy_atom_coordinates(encoding.whole)
+    before = heavy_atom_coordinates(prepared.whole)
 
-    encoding._fix()
+    prepared._fix()
 
-    after = heavy_atom_coordinates(encoding.whole)
+    after = heavy_atom_coordinates(prepared.whole)
     assert before.keys() <= after.keys()
     for key, position in before.items():
         assert after[key] == pytest.approx(position, abs=1e-3)
@@ -107,17 +107,17 @@ def test_fix_preserves_existing_heavy_atom_coordinates(encoding):
         "no PoseBusters PDB carries them, so chain breaks go undetected and unrepaired."
     ),
 )
-def test_fix_adds_missing_residues(encoding):
+def test_fix_adds_missing_residues(prepared):
     """
     Residues absent from the model entirely are rebuilt, closing the chain breaks.
     """
     for chain, seqid in MISSING_RESIDUES:
-        assert not atom_names(encoding.whole, chain, seqid)
+        assert not atom_names(prepared.whole, chain, seqid)
 
-    encoding._fix()
+    prepared._fix()
 
     for chain, seqid in MISSING_RESIDUES:
-        assert atom_names(encoding.whole, chain, seqid), f"chain break at {chain}{seqid} unrepaired"
+        assert atom_names(prepared.whole, chain, seqid), f"chain break at {chain}{seqid} unrepaired"
 
 
 MODIFIED = "7W06_ITN"
@@ -133,25 +133,25 @@ def test_fix_replaces_modified_residues_with_their_standard_form():
         would come out of _protonate either bare or filled in from a definition for the free amino
         acid, which carries a second backbone amide hydrogen a mid-chain residue must not have.
     """
-    encode = EncodeProtein(*paths(MODIFIED))
-    encode._fetch()
-    assert all(atom_names(encode.whole, chain, seqid) for chain, seqid in SELENOMETHIONINES)
+    prepared = PrepareComplex(*paths(MODIFIED))
+    prepared._fetch()
+    assert all(atom_names(prepared.whole, chain, seqid) for chain, seqid in SELENOMETHIONINES)
     assert any(
         atom.element.name == "Se"
-        for chain in encode.whole
+        for chain in prepared.whole
         for residue in chain
         for atom in residue
     )
 
-    encode._fix()
+    prepared._fix()
 
     for chain_name, seqid in SELENOMETHIONINES:
-        names = atom_names(encode.whole, chain_name, seqid)
+        names = atom_names(prepared.whole, chain_name, seqid)
         assert "SD" in names, f"{chain_name}{seqid} kept its selenium rather than becoming MET"
         assert "SE" not in names
     assert not any(
         atom.element.name == "Se"
-        for chain in encode.whole
+        for chain in prepared.whole
         for residue in chain
         for atom in residue
     )
@@ -168,9 +168,9 @@ def test_repair_places_rebuilt_atoms_in_the_same_position_every_run():
         enough to carry it across the 4.5 Å cutoff on one run and not the next, which decides both
         whether the residue is in the cutout and whether the complex is rejected for holding it.
     """
-    encode = EncodeProtein(*paths(CHAOTIC))
+    prepared = PrepareComplex(*paths(CHAOTIC))
 
-    first = fix.repair(encode.protein_path, encode.seed)[0]
-    second = fix.repair(encode.protein_path, encode.seed)[0]
+    first = fix.repair(prepared.protein_path, prepared.seed)[0]
+    second = fix.repair(prepared.protein_path, prepared.seed)[0]
 
     assert heavy_atom_coordinates(first) == heavy_atom_coordinates(second)

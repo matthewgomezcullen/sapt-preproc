@@ -1,5 +1,5 @@
 import os
-from encode import EncodeProtein, OutOfScopeError
+from prepare import PrepareComplex, OutOfScopeError
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 print(ROOT)
@@ -30,10 +30,10 @@ eligible = []
 rejected = []
 
 for i, pdb_file in enumerate(pdb_files):
-    encoding = EncodeProtein(pdb_file, pose_files)
+    prepared = PrepareComplex(pdb_file, pose_files)
     try:
-        encoding._fetch()
-        encoding._verify()
+        prepared._fetch()
+        prepared._verify()
         eligible.append(pdb_file)
     except OutOfScopeError:
         rejected.append(pdb_file)

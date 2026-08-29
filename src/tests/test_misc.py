@@ -1,5 +1,5 @@
 """
-Net charge, electron count, and geometry export for EncodeProtein.
+Net charge, electron count, and geometry export for PrepareComplex.
 
 _calculate_charge, _verify_num_electrons and xyz write nothing back into the cutout.
 
@@ -22,7 +22,7 @@ import pytest
 from pyscf import gto
 
 from conftest import paths
-from encode import EncodeProtein, EncodingError
+from prepare import PrepareComplex, PrepareError
 
 SIMPLE = "5S8I_2LY"
 CHARGED = "7WPW_F15"
@@ -42,21 +42,21 @@ FREE_TERMINUS = ("C", 410)
 
 
 @functools.lru_cache(maxsize=None)
-def encoding(name):
+def prepare(name):
     """
     A complex carried to the end of _reduce.
 
     Cached because the pipeline is far slower than the three methods under test, and none of them
         changes the structure they read.
     """
-    encode = EncodeProtein(*paths(name))
-    encode._fetch()
-    encode._verify()
-    encode._fix()
-    encode._clean()
-    encode._protonate()
-    encode._reduce()
-    return encode
+    _prepare = PrepareComplex(*paths(name))
+    _prepare._fetch()
+    _prepare._verify()
+    _prepare._fix()
+    _prepare._clean()
+    _prepare._protonate()
+    _prepare._reduce()
+    return _prepare
 
 
 def formal_charge(model, termini=True):
@@ -129,32 +129,32 @@ def test_calculate_charge_counts_every_charged_residue(name):
     """
     q_A is the sum of the formal charges of what the cutout holds.
     """
-    encode = encoding(name)
+    prepared = prepare(name)
 
-    encode._calculate_charge()
+    prepared._calculate_charge()
 
-    assert encode.charge == formal_charge(encode.reduced)
-    assert encode.charge == NET_CHARGE[name]
+    assert prepared.charge == formal_charge(prepared.reduced)
+    assert prepared.charge == NET_CHARGE[name]
 
 
 def test_calculate_charge_counts_a_free_terminus():
     """
     An uncapped chain end brings its charge into q_A.
     """
-    encode = encoding(TERMINUS)
+    prepared = prepare(TERMINUS)
     chain_name, seqid = FREE_TERMINUS
     terminus = [
         residue
-        for chain in encode.reduced
+        for chain in prepared.reduced
         for residue in chain
         if (chain.name, residue.seqid.num) == (chain_name, seqid)
     ]
     assert terminus and "OXT" in {atom.name for atom in terminus[0]}
 
-    encode._calculate_charge()
+    prepared._calculate_charge()
 
-    assert formal_charge(encode.reduced, termini=False) == -1
-    assert encode.charge == -2
+    assert formal_charge(prepared.reduced, termini=False) == -1
+    assert prepared.charge == -2
 
 
 @pytest.mark.parametrize("name", COMPLEXES)
@@ -162,25 +162,25 @@ def test_verify_num_electrons_accepts_an_even_count(name):
     """
     N_e = sum_I Z_I - q_A, over every atom of the cutout, hydrogens included.
     """
-    encode = encoding(name)
-    encode._calculate_charge()
+    prepared = prepare(name)
+    prepared._calculate_charge()
 
-    encode._verify_num_electrons()
+    prepared._verify_num_electrons()
 
-    assert encode.electrons == nuclear_charge(encode.reduced) - encode.charge
-    assert not encode.electrons % 2
+    assert prepared.electrons == nuclear_charge(prepared.reduced) - prepared.charge
+    assert not prepared.electrons % 2
 
 
 def test_verify_num_electrons_rejects_an_odd_count():
     """
-    An odd count means the encoding is wrong.
+    An odd count means the preparation is wrong.
     """
-    encode = encoding(SIMPLE)
-    encode._calculate_charge()
-    encode.charge += 1
+    prepared = prepare(SIMPLE)
+    prepared._calculate_charge()
+    prepared.charge += 1
 
-    with pytest.raises(EncodingError):
-        encode._verify_num_electrons()
+    with pytest.raises(PrepareError):
+        prepared._verify_num_electrons()
 
 
 @pytest.mark.parametrize("name", COMPLEXES)
@@ -188,14 +188,14 @@ def test_xyz_writes_every_atom_of_the_cutout(name, tmp_path):
     """
     The file holds the whole cutout and nothing else, hydrogens included.
     """
-    encode = encoding(name)
-    encode._calculate_charge()
+    prepared = prepare(name)
+    prepared._calculate_charge()
     path = tmp_path / "cutout.xyz"
 
-    encode.xyz(str(path))
+    prepared.xyz(str(path))
 
     lines = path.read_text().splitlines()
-    expected = atoms(encode.reduced)
+    expected = atoms(prepared.reduced)
     assert int(lines[0].split()[0]) == len(expected)
     assert len(lines) == len(expected) + 2
 
@@ -205,13 +205,13 @@ def test_xyz_keeps_the_order_of_the_cutout(name, tmp_path):
     """
     The file is written in the order `self.reduced` iterates, and the coordinates are unchanged.
     """
-    encode = encoding(name)
-    encode._calculate_charge()
+    prepared = prepare(name)
+    prepared._calculate_charge()
     path = tmp_path / "cutout.xyz"
 
-    ordered = encode.xyz(str(path))
+    ordered = prepared.xyz(str(path))
 
-    expected = atoms(encode.reduced)
+    expected = atoms(prepared.reduced)
     assert len(ordered) == len(expected)
     for (element, coordinates), (symbol, position), (_, _, atom) in zip(
         written(path), expected, ordered
@@ -224,31 +224,31 @@ def test_xyz_records_the_charge_and_multiplicity(tmp_path):
     """
     An .xyz carries no charge of its own. The comment line fills this gap.
     """
-    encode = encoding(TERMINUS)
-    encode._calculate_charge()
+    prepared = prepare(TERMINUS)
+    prepared._calculate_charge()
     path = tmp_path / "cutout.xyz"
 
-    encode.xyz(str(path))
+    prepared.xyz(str(path))
 
     comment = path.read_text().splitlines()[1]
-    assert f"charge={encode.charge}" in comment
-    assert f"multiplicity={encode.multiplicity}" in comment
+    assert f"charge={prepared.charge}" in comment
+    assert f"multiplicity={prepared.multiplicity}" in comment
 
 
 def test_xyz_is_read_back_by_pyscf(tmp_path):
     """
     What is written is what compression is handed.
     """
-    encode = encoding(SIMPLE)
-    encode._calculate_charge()
-    encode._verify_num_electrons()
+    prepared = prepare(SIMPLE)
+    prepared._calculate_charge()
+    prepared._verify_num_electrons()
     path = tmp_path / "cutout.xyz"
 
-    ordered = encode.xyz(str(path))
+    ordered = prepared.xyz(str(path))
 
-    mol = gto.M(atom=str(path), charge=encode.charge, spin=encode.spin, basis=encode.basis)
+    mol = gto.M(atom=str(path), charge=prepared.charge, spin=prepared.spin, basis=prepared.basis)
     assert mol.natm == len(ordered)
-    assert mol.nelectron == encode.electrons
+    assert mol.nelectron == prepared.electrons
     assert [mol.atom_symbol(i) for i in range(mol.natm)] == [a.element.name for _, _, a in ordered]
 
 
@@ -256,7 +256,7 @@ def test_xyz_refuses_a_structure_that_was_never_reduced():
     """
     Writing the whole protein where the cutout was meant would only show in the cost of the SCF.
     """
-    encode = EncodeProtein(*paths(SIMPLE))
+    prepared = PrepareComplex(*paths(SIMPLE))
 
-    with pytest.raises(EncodingError):
-        encode.xyz("cutout.xyz")
+    with pytest.raises(PrepareError):
+        prepared.xyz("cutout.xyz")

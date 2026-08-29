@@ -23,6 +23,8 @@ Five real complexes cover these, all accepted by _verify:
     7VBU_6I4    47 residues holding 422 heavy atoms, which 42 caps push to 527
 """
 
+import functools
+
 import numpy as np
 import pytest
 from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
@@ -30,6 +32,9 @@ from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 from conftest import paths
 from encode import EncodeProtein, OutOfScopeError, OutOfScopeErrorType
 from utils import verify
+
+# Every test here runs the preparation pipeline over several complexes. --fast drops them.
+pytestmark = pytest.mark.slow
 
 SIMPLE = "5S8I_2LY"
 GAPPED = "7WPW_F15"
@@ -64,9 +69,14 @@ REBUILT_ATOMS = {"CG", "CD", "OE1", "NE2"}
 CLASH = 0.5
 
 
+@functools.lru_cache(maxsize=None)
 def encoding(name):
     """
     A complex carried up to the point _reduce is called.
+
+    Cached, because getting here costs far more than _reduce does and _reduce only reads what it
+        finds. It writes to `reduced` and leaves `whole` alone, so one object serves every test that
+        asks for the same complex.
     """
     encode = EncodeProtein(*paths(name))
     encode._fetch()
@@ -172,6 +182,7 @@ def test_reduce_preserves_heavy_atom_coordinates(name):
     Truncation moves nothing.
     """
     encode = encoding(name)
+    assert encode.whole
     before = {
         (verify.identifier(chain, residue), atom.name): (atom.pos.x, atom.pos.y, atom.pos.z)
         for chain in encode.whole
@@ -249,6 +260,7 @@ def test_reduce_caps_every_cut(name):
         neighbouring backbone to build a cap out of.
     """
     encode = encoding(name)
+    assert encode.whole and encode.reduced
     order = sequence_index(encode.whole)
     length = {chain.name: len(chain) for chain in encode.whole}
 
@@ -282,6 +294,7 @@ def test_reduce_builds_complete_caps(name):
         hydrogens induces the same open valence the cap should close.
     """
     encode = encoding(name)
+    assert encode.reduced
 
     encode._reduce()
 
@@ -311,6 +324,7 @@ def test_reduce_leaves_a_chain_terminus_uncapped():
         really ending. Separating the cases needs the SEQRES records.
     """
     encode = encoding(TERMINUS)
+    assert encode.reduced
 
     encode._reduce()
 
@@ -334,6 +348,7 @@ def test_reduce_keeps_the_capped_cutout_within_the_size_cap(name):
     Ensure the capped cutout stays in the size cap.
     """
     encode = encoding(name)
+    assert encode.reduced
 
     encode._reduce()
 

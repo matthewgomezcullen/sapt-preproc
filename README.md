@@ -111,6 +111,8 @@ PoseBusters Benchmark set does not contain SEQRES records, so `PDBFixer.FindMiss
 
 `_fix` writes heterogens into separate chains that reuse the polymer names. Residues are stored by `(chain.name, seqid.num)`, leading to ambiguity; after deleted the heterogens, these duplicates must be removed.
 
+`_fix` destroys occupancy information, so zero-occupancy checks must happen before.
+
 Some protein PDBs contain crystal copies of the docked ligand. These should also be removed.
 
 Some complexes contain zero-occupancy atoms inside the cutout.
@@ -136,6 +138,14 @@ Capping adds many heavy atoms, so the size cutoff must be verified again after.
 To provide a deterministic pipeline, we provide `seed = 1` to OpenMM and use a reference platform. The CPU platform followed thread/lane completion order, and the dynamics path amplifies that into whole angstroms.
 
 However, this drastically reduces the performance of `_protonate`, so this can be reversed.
+
+### Tests
+
+Run `pytest tests --fast` to avoid testing `-protonate`, which is very slow.
+
+### Charges
+
+Among accepted complexes, many cutouts are highly charged, as counter-charges that neutralise these sites in the real protein are truncated away. Large charges make electrostatics and induction dominate the SAPT decomposition, and those terms are large and basis-sensitive. Interaction energies may not be comparable across complexes even if they rank poses fine within one, and may lead to difficult SCF cases. May be worth implementing a charge cap, `|q_A| < Q`.
 
 ### Setup
 

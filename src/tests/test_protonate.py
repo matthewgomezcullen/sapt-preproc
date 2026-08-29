@@ -22,6 +22,9 @@ from utils import verify
 
 SMALL = "5S8I_2LY"
 DISULFIDE = "6YT6_PKE"
+# Every test here runs the preparation pipeline over several complexes. --fast drops them.
+pytestmark = pytest.mark.slow
+
 TITRATABLE = "6TW5_9M2"
 
 COMPLEXES = [SMALL, DISULFIDE, TITRATABLE]
@@ -183,6 +186,7 @@ def test_protonate_charges_acidic_and_basic_side_chains():
     At pH 7.4 aspartate and glutamate are deprotonated and lysine and arginine are protonated.
     """
     encode = encoding(TITRATABLE)
+    assert encode.whole
 
     encode._protonate()
 
@@ -205,6 +209,7 @@ def test_protonate_leaves_histidine_neutral(name):
         up in q_A, so the tautomer choice must stay between HID and HIE.
     """
     encode = encoding(name)
+    assert encode.whole
 
     encode._protonate()
 

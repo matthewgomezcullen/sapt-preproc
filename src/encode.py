@@ -5,7 +5,7 @@ from pyscf.gto.basis import load as load_basis
 from pyscf.lib.exceptions import BasisNotFoundError
 from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 from enum import Enum
-from utils import clean, fix, protonate, reduce, verify
+from utils import charge, clean, fix, protonate, reduce, verify
 
 
 # PDB chemical component IDs for the biological cofactors. Decides which rejection is reported. 
@@ -71,12 +71,12 @@ class CompressionError(RuntimeError):
 
 
 def _is_amino_acid(name):
-    info = gemmi.find_tabulated_residue(name)
+    info = gemmi.find_tabulated_residue(name) # pyright: ignore[reportAttributeAccessIssue]
     return bool(info) and info.is_amino_acid()
 
 
 def _is_water(name):
-    info = gemmi.find_tabulated_residue(name)
+    info = gemmi.find_tabulated_residue(name) # pyright: ignore[reportAttributeAccessIssue]
     return bool(info) and info.is_water()
 
 
@@ -98,6 +98,8 @@ class EncodeProtein:
         self.reduced = None
         self.poses = None
         self.protonation = None
+        self.charge = None
+        self.electrons = None
 
         # Scope assumptions
         self.pH = 7.4
@@ -150,6 +152,8 @@ class EncodeProtein:
         Repairing the structure is deferred; `PDBFixer.findMissingResidues` may not work due to
             lack of SEQRES records, so chain breaks are not detected here.
         """
+        if self.poses is None:
+            raise EncodingError("Cannot verify the complex without poses")
         retained = verify.cutout(self.whole, self._pose_coordinates(), self.cutoff)
         residues = [(chain, residue) for chain, residue, _, _ in retained]
 
@@ -296,8 +300,8 @@ class EncodeProtein:
 
         TODO: Separate the cases with the SEQRES records
 
-        A residue whose side chain _fix rebuilt into the cutout is rejected here. _verify runs
-            before the repair and cannot see it. The size cap is applied again
+        A residue whose side chain _fix rebuilt into the cutout is rejected here. The size cap is 
+            applied again
         """
         keep = {
             verify.identifier(chain, residue)
@@ -332,21 +336,63 @@ class EncodeProtein:
 
     def _calculate_charge(self):
         """
-        Calculates total charge. Requires protonation.
+        Calculates total charge.
         """
-        ...
+        self.charge = charge.net(self.reduced)
 
     def _verify_num_electrons(self):
         """
         N_e = \\sum_I Z_I - q_A. Ensure N_e is even.
+
+        Every residue and cap the pipeline keeps is closed-shell, so the parity of \\sum_I Z_I fixes
+            the parity q_A must have and an odd N_e means the encoding is wrong rather than the
+            complex being out of scope. It checks if q_A is out by one and rejects an RHF that
+            cannot be solved as a closed-shell singlet.
         """
-        ...
+        if self.reduced is None or self.charge is None:
+            raise EncodingError("Cannot verify number of electrons before the protein is encoded")
+        nuclear = sum(
+            atom.element.atomic_number
+            for chain in self.reduced
+            for residue in chain
+            for atom in residue
+        )
+        self.electrons = nuclear - self.charge
+        if self.electrons % 2:
+            raise EncodingError(
+                f"cutout of {nuclear} nuclear charge at q_A = {self.charge:+d} holds "
+                f"{self.electrons} electrons, which no closed-shell singlet can hold"
+            )
 
     def xyz(self, path: str):
         """
-        Store element and coordinates in a .xyz file
+        Store element and coordinates in a .xyz file, returning the atoms in the order written.
+
+        PySCF numbers its atoms in file order and the AVAS addresses target orbitals by that 
+            number. The file itself keeps no record of which residue an atom came from. The returned
+             (chain, residue, atom) triples record this.
+
+        An .xyz carries no charge and PySCF assumes neutral, so the comment line records the charge
+            and multiplicity.
         """
-        ...
+        if self.reduced is None or self.charge is None:
+            raise EncodingError(f"Cannot write {path} before the protein is encoded")
+
+        atoms = [
+            (chain, residue, atom)
+            for chain in self.reduced
+            for residue in chain
+            for atom in residue
+        ]
+        with open(path, "w") as file:
+            file.write(f"{len(atoms)}\n")
+            file.write(f"charge={self.charge} multiplicity={self.multiplicity}\n")
+            for _, _, atom in atoms:
+                file.write(
+                    f"{atom.element.name:<2}"
+                    f"{atom.pos.x:14.6f}{atom.pos.y:14.6f}{atom.pos.z:14.6f}\n"
+                )
+        return atoms
 
 class CompressProtein:
     # CompressProtein takes an encoded holo-protein structure and reduces it to a tractable 

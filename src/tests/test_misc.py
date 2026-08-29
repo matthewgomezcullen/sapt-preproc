@@ -1,15 +1,13 @@
 """
 Net charge, electron count, and geometry export for EncodeProtein.
 
-_calculate_charge, _verify_num_electrons and xyz all read the finished cutout and write nothing back
-    into it.
+_calculate_charge, _verify_num_electrons and xyz write nothing back into the cutout.
 
-The charge cannot be read off the protonation states. What decides the charge is the set of 
-    hydrogens the residue holds.
+The charge is determined by the set of hydrogens the residue holds.
 
-The order xyz writes in is a contract, not a detail. The AVAS default rule addresses target orbitals
-    by zero-based PySCF atom index, and PySCF indexes in file order, so the only way back from an
-    index to a residue is to walk `self.reduced` in the same order the file was written in.
+The AVAS default rule addresses target orbitals by zero-based PySCF atom index, and PySCF indexes 
+    in file order, so we traverse back from an index to a residue by walking `self.reduced` in the 
+    same order the file was written in.
 
 Three complexes cover the cases, all accepted by _reduce:
 
@@ -49,8 +47,7 @@ def encoding(name):
     A complex carried to the end of _reduce.
 
     Cached because the pipeline is far slower than the three methods under test, and none of them
-        changes the structure they read. Tests that move `charge` recompute it first, so a mutation
-        cannot reach the next test.
+        changes the structure they read.
     """
     encode = EncodeProtein(*paths(name))
     encode._fetch()
@@ -131,9 +128,6 @@ def written(path):
 def test_calculate_charge_counts_every_charged_residue(name):
     """
     q_A is the sum of the formal charges of what the cutout holds.
-
-    Getting this wrong is not loud: RHF solves happily for the wrong number of electrons and returns
-        an interaction energy that looks like the others.
     """
     encode = encoding(name)
 
@@ -146,10 +140,6 @@ def test_calculate_charge_counts_every_charged_residue(name):
 def test_calculate_charge_counts_a_free_terminus():
     """
     An uncapped chain end brings its charge into q_A.
-
-    _reduce leaves a chain end alone because there is no removed residue to build a cap from, so the
-        charged terminus protonation gave it survives into the QM region and has to be counted. The
-        side chains of 6TW5_9M2 come to -1 between them; the terminus takes it to -2.
     """
     encode = encoding(TERMINUS)
     chain_name, seqid = FREE_TERMINUS
@@ -183,12 +173,7 @@ def test_verify_num_electrons_accepts_an_even_count(name):
 
 def test_verify_num_electrons_rejects_an_odd_count():
     """
-    An odd count means the encoding is wrong, not that the complex is out of scope.
-
-    Every residue and cap the pipeline keeps is closed-shell, so the parity of sum_I Z_I fixes the
-        parity q_A must have. This check is the one thing standing between a q_A that is out by one
-        and an RHF that cannot be solved as a closed-shell singlet, which is why it is worth having
-        even though nothing in the dataset reaches it.
+    An odd count means the encoding is wrong.
     """
     encode = encoding(SIMPLE)
     encode._calculate_charge()
@@ -204,6 +189,7 @@ def test_xyz_writes_every_atom_of_the_cutout(name, tmp_path):
     The file holds the whole cutout and nothing else, hydrogens included.
     """
     encode = encoding(name)
+    encode._calculate_charge()
     path = tmp_path / "cutout.xyz"
 
     encode.xyz(str(path))
@@ -218,25 +204,25 @@ def test_xyz_writes_every_atom_of_the_cutout(name, tmp_path):
 def test_xyz_keeps_the_order_of_the_cutout(name, tmp_path):
     """
     The file is written in the order `self.reduced` iterates, and the coordinates are unchanged.
-
-    PySCF numbers its atoms in file order and the AVAS default rule addresses target orbitals by
-        that number, so this order is the only thing tying an orbital label back to the residue it
-        came from. Coordinates are in angstroms, as .xyz and PySCF both assume.
     """
     encode = encoding(name)
+    encode._calculate_charge()
     path = tmp_path / "cutout.xyz"
 
-    encode.xyz(str(path))
+    ordered = encode.xyz(str(path))
 
-    for (element, coordinates), (expected, position) in zip(written(path), atoms(encode.reduced)):
-        assert element == expected
+    expected = atoms(encode.reduced)
+    assert len(ordered) == len(expected)
+    for (element, coordinates), (symbol, position), (_, _, atom) in zip(
+        written(path), expected, ordered
+    ):
+        assert element == symbol == atom.element.name
         assert coordinates == pytest.approx(position, abs=1e-3)
 
 
 def test_xyz_records_the_charge_and_multiplicity(tmp_path):
     """
-    An .xyz carries no charge of its own, and RHF run on the same geometry as a neutral gives a
-        different number of electrons without complaining. The comment line says which was meant.
+    An .xyz carries no charge of its own. The comment line fills this gap.
     """
     encode = encoding(TERMINUS)
     encode._calculate_charge()
@@ -258,16 +244,17 @@ def test_xyz_is_read_back_by_pyscf(tmp_path):
     encode._verify_num_electrons()
     path = tmp_path / "cutout.xyz"
 
-    encode.xyz(str(path))
+    ordered = encode.xyz(str(path))
 
     mol = gto.M(atom=str(path), charge=encode.charge, spin=encode.spin, basis=encode.basis)
-    assert mol.natm == len(atoms(encode.reduced))
+    assert mol.natm == len(ordered)
     assert mol.nelectron == encode.electrons
+    assert [mol.atom_symbol(i) for i in range(mol.natm)] == [a.element.name for _, _, a in ordered]
 
 
 def test_xyz_refuses_a_structure_that_was_never_reduced():
     """
-    Writing the whole protein where the cutout was meant would be found only by the cost of the SCF.
+    Writing the whole protein where the cutout was meant would only show in the cost of the SCF.
     """
     encode = EncodeProtein(*paths(SIMPLE))
 

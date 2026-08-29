@@ -155,3 +155,10 @@ conda env create -f environment.yml
 conda activate sapt-preproc
 pytest tests
 ```
+
+### Data
+
+PoseBusters Benchmark set: https://zenodo.org/records/8278563/files/posebusters_paper_data.zip?download=1
+- `posebusters_paper_data/posebusters_benchmark_set` -> `src/data/posebusters`
+DiffDock-L Predictions: https://zenodo.org/records/11477766/files/diffdock_benchmark_method_predictions.tar.gz?download=1
+- `forks/DiffDock/inference/diffdock_posebusters_benchmark_output_3` -> `src/data/diffdock`

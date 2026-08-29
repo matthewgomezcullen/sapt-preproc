@@ -2,7 +2,7 @@
 
 Every complex that changed how this pipeline works, rather than merely exercising a rule it already had. A few appear twice because they forced separate decisions at different stages.
 
-Only the 36 complexes the tests use are kept under `src/data`; the rest were measured during dataset-wide surveys and would need re-downloading to re-check.
+Only the 36 complexes the tests use are kept under `src/tests/data`; the rest were measured during dataset-wide surveys and would need re-downloading to re-check.
 
 ## Fetching
 

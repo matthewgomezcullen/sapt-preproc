@@ -4,5 +4,6 @@
 **/*.pdf
 **/temp.md
 
-# The complexes the tests need are tracked already. This ignores the rest of the benchmark set
-data/
+# The full benchmark set filter.py screens, unpacked locally. The complexes the tests need are
+# tracked separately, under src/tests/data.
+/src/data/

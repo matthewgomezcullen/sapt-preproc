@@ -4,10 +4,9 @@ import pytest
 from rdkit import Chem
 from rdkit.Chem import rdMolDescriptors
 
-from conftest import paths
+from conftest import DATA, paths
 from prepare import PrepareComplex, PrepareError
 
-DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 COMPLEX = os.path.join(DATA, "5S8I_2LY")
 PROTEIN = os.path.join(COMPLEX, "5S8I_2LY_protein.pdb")
 POSES_DIR = os.path.join(COMPLEX, "poses")

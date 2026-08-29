@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 POSEBUSTERS = os.path.join(DATA, "posebusters")
 DIFFDOCK = os.path.join(DATA, "diffdock")
 

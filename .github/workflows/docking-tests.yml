@@ -41,8 +41,8 @@ jobs:
       - name: Check the fixtures are present
         working-directory: src
         run: |
-          if [ ! -d data/posebusters ] || [ ! -d data/diffdock ]; then
-            echo "::error::src/data is missing, so every test that loads a complex will fail to collect."
+          if [ ! -d tests/data/posebusters ] || [ ! -d tests/data/diffdock ]; then
+            echo "::error::src/tests/data is missing, so every test that loads a complex will fail to collect."
             exit 1
           fi
 

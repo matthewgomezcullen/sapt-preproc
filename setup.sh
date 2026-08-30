@@ -49,9 +49,10 @@ module purge
 module load "$MODULE"
 source "$(conda info --base)/etc/profile.d/conda.sh"
 
-WITHOUT_PYSCF="$(mktemp)"
-trap 'rm -f "$WITHOUT_PYSCF"' EXIT
-sed '/^[[:space:]]*-[[:space:]]*pyscf=/d' "$ENVIRONMENT" > "$WITHOUT_PYSCF"
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+WITHOUT_PYSCF="$WORK/environment.yml"
+sed -e '/^[[:space:]]*-[[:space:]]*pyscf=/d' -e '/^name:/d' "$ENVIRONMENT" > "$WITHOUT_PYSCF"
 
 echo "[$(date +%T)] Solving the environment"
 conda env create --yes --prefix "$PREFIX" --file "$WITHOUT_PYSCF"

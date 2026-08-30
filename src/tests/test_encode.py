@@ -98,6 +98,16 @@ def fragment():
     return prepared
 
 
+@functools.lru_cache(maxsize=None)
+def solved(prepared):
+    """
+    A prepared cutout carried through RHF.
+    """
+    encoded = EncodeProtein(prepared)
+    encoded.RHF()
+    return encoded
+
+
 def elements(model):
     return [
         atom.element.name
@@ -224,9 +234,8 @@ def test_rhf_converges_on_a_capped_fragment():
     The whole path runs and reaches a converged closed-shell solution.
     """
     prepared = fragment()
-    encoded = EncodeProtein(prepared)
 
-    encoded.RHF()
+    encoded = solved(prepared)
 
     assert encoded.mean_field.converged
     assert encoded.energy == pytest.approx(encoded.mean_field.e_tot)
@@ -240,9 +249,8 @@ def test_rhf_puts_the_electrons_where_the_charge_says():
     The converged density integrates to the electron count the preparation derived.
     """
     prepared = fragment()
-    encoded = EncodeProtein(prepared)
 
-    encoded.RHF()
+    encoded = solved(prepared)
 
     density = encoded.mean_field.make_rdm1()
     overlap = encoded.mol.intor("int1e_ovlp")
@@ -254,10 +262,8 @@ def test_rhf_reaches_a_minimum_rather_than_a_saddle_point():
     The converged solution is stable, so the orbitals AVAS is given are the ground state's. An 
         internally unstable one has a lower solution it did not find.
     """
-    prepared = fragment()
-    encoded = EncodeProtein(prepared)
+    encoded = solved(fragment())
 
-    encoded.RHF()
     internal, _ = encoded.mean_field.stability()
 
     assert np.allclose(internal, encoded.mean_field.mo_coeff)
@@ -330,9 +336,8 @@ def test_rhf_converges_over_the_subset(name):
     A converged, stable, closed-shell SCF over a cutout of the bin.
     """
     prepared = prepare(name)
-    encoded = EncodeProtein(prepared)
 
-    encoded.RHF()
+    encoded = solved(prepared)
 
     assert encoded.mean_field.converged
     assert set(np.unique(encoded.mean_field.mo_occ)) <= {0.0, 2.0}
@@ -352,10 +357,8 @@ def test_subset_orbitals_leave_a_gap_to_correlate_across(name):
         determinant is the wrong starting point. The SCF may still converge, but the active space
         AVAS builds on it will not describe what is happening.
     """
-    prepared = prepare(name)
-    encoded = EncodeProtein(prepared)
-
-    encoded.RHF()
+    # The solve this shares with the test above is the whole of the job's cost.
+    encoded = solved(prepare(name))
 
     energies, occupations = encoded.mean_field.mo_energy, encoded.mean_field.mo_occ
     gap = energies[occupations == 0].min() - energies[occupations > 0].max()

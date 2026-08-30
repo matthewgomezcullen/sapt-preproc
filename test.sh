@@ -20,7 +20,13 @@ set -euo pipefail
 MODULE="${MODULE:-Anaconda3/2025.06-1}"
 PREFIX="${PREFIX:-${DATA:?DATA is not set; it is where setup.sh put the environment}/sapt-preproc}"
 
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="${REPO:-${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}}"
+
+if [ ! -d "$REPO/src" ]; then
+    echo "REPO is $REPO, which has no src/. Submit from the repo root, or set REPO explicitly:" \
+         "REPO=\"\$DATA/thesis-experiments/sapt-tests\" sbatch test.sh" >&2
+    exit 1
+fi
 
 # Report progress
 export PYTHONUNBUFFERED=1

@@ -1,6 +1,15 @@
 from pyscf import gto, scf
+from pyscf.mcscf import avas
+from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 
 from prepare import PrepareComplex, PrepareError
+from utils.reduce import CAPS
+
+
+# The valence p shell README targets, per element it keeps. Hydrogen has no p shell and is not
+# named; anything else in the cutout was rejected by `_verify` for having no 6-31G basis.
+VALENCE = {"C": "2p", "N": "2p", "O": "2p", "S": "3p", "P": "3p"}
+
 
 class EncodingError(RuntimeError):
     pass
@@ -28,14 +37,25 @@ class EncodeProtein:
         #   cluster
         self.verbose = 0
 
+        self.ncas = None # active-space-size
+        self.nelecas = None # active-electrons
+        self.orbitals = None # orbital-initial-guess-for-CASCI/CASSCF
+
+        # How close to a pose an atom has to be for its valence p shell to be targeted. Distinct
+        # from `prepared.cutoff`, which decides what the cutout holds at all. The two may differ.
+        self.cutoff = 4.5
+
+        # Projection weight above which AVAS keeps an orbital. PySCF's own default, recorded here
+        #   because it sets the size of the active space and so has to be reported with a result.
+        self.threshold = 0.2
+
     def molecule(self):
         """
         Build the PySCF molecule the SCF is solved over.
 
         The geometry is taken in `prepared.atoms()` order, which is the order AVAS addresses its
             targets by. PySCF assumes a molecule it is given no charge for is neutral, so q_A is
-            passed explicitly: the neutral molecule of the same geometry converges just as happily
-            and answers a different question.
+            passed explicitly.
         """
         if self.prepared.charge is None:
             raise PrepareError("Cannot build the molecule before the charge is known")
@@ -79,20 +99,55 @@ class EncodeProtein:
         self.energy = mean_field.e_tot
         return mean_field
 
-    def AVAS(self):
+    def AVAS(self, targets=None):
         """
         Generates a tractable active space with target active orbitals.
+
+        AVAS projects the converged occupied and virtual spaces onto the target atomic orbitals and
+            keeps whatever carries weight above `threshold`.
+
+        Returns the size of the active space, the electrons in it, and the full set of molecular
+            orbitals rotated so that the active ones are contiguous.
         """
-        target_aos = self._generate_target_orbitals()
-        ...
+        if self.mean_field is None:
+            raise EncodingError("Cannot choose an active space before RHF has been solved")
+
+        if targets is None:
+            targets = self._generate_target_orbitals()
+
+        self.ncas, self.nelecas, self.orbitals = avas.avas(
+            self.mean_field, targets, threshold=self.threshold
+        )
+        return self.ncas, self.nelecas, self.orbitals
 
     def _generate_target_orbitals(self) -> list[str]:
         """
         Generate AVAS target orbitals based on which atoms are "chemically relevant".
 
         See README.md for how "chemically relevant" is defined.
+
+        Caps are left out.
+
+        Each target is addressed by its zero-based PySCF atom index, which is the position of the
+            atom in `prepared.atoms()` because that is the order `molecule` hands the geometry over
+            in. PySCF anchors an index-prefixed label.
         """
-        ...
+        if self.mol is None:
+            raise PrepareError("Cannot address target orbitals before the molecule is built")
+
+        atoms = self.prepared.atoms()
+        poses = cKDTree(self.prepared._pose_coordinates())
+        distances, _ = poses.query(
+            [(atom.pos.x, atom.pos.y, atom.pos.z) for _, _, atom in atoms]
+        )
+
+        return [
+            f"{index} {atom.element.name} {VALENCE[atom.element.name]}"
+            for index, ((_, residue, atom), distance) in enumerate(zip(atoms, distances))
+            if residue.name not in CAPS
+            and atom.element.name in VALENCE
+            and distance <= self.cutoff
+        ]
 
     def SHCI(self, eps1: float = 1e-4, lo: float = 0.02, hi: float = 1.97):
         """

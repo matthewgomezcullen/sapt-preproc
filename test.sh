@@ -39,7 +39,7 @@ conda activate "$PREFIX"
 cd "$REPO/src"
 
 # The bin is defined in the test module. Read it from there.
-COMPLEXES=$(python -c "import sys; sys.path.insert(0, 'tests'); from test_encode import SUBSET; print(' '.join(SUBSET))")
+COMPLEXES=$(python -c "import sys; sys.path[:0] = ['.', 'tests', 'tests/encode']; from cutouts import SUBSET; print(' '.join(SUBSET))")
 read -r -a SUBSET <<< "$COMPLEXES"
 if [ "${#SUBSET[@]}" -ne "$(( SLURM_ARRAY_TASK_MAX - SLURM_ARRAY_TASK_MIN + 1 ))" ]; then
     echo "The array is ${SLURM_ARRAY_TASK_MIN}-${SLURM_ARRAY_TASK_MAX} but the bin holds ${#SUBSET[@]}" \

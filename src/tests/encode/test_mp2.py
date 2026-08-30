@@ -1,22 +1,18 @@
 """
-Capping the active space with MP2 natural orbitals, README's MCP-NO step.
+Capping the active space with MP2 natural orbitals.
 
-AVAS is handed every valence p shell on the contact and returns whatever has weight on it, which
+AVAS is handed every valence p shell on the contact and returns those with weight on it, which
     over the bin is roughly 140 to 270 orbitals against Dice's ceiling of about fifty. The cap
     correlates the AVAS space with MP2, ranks its natural orbitals by fractionality min(n, 2 - n),
     and keeps the nmax most fractional: the orbitals MP2 says carry the correlation.
 
-One trap decides whether any of this is right. AVAS semicanonicalizes its orbitals but returns no
-    orbital energies, and mf.mo_energy still holds the canonical SCF values, wrong for the new
-    orbitals by up to 0.70 Ha on the fragment. MP2 divides by those energies: fed the stale ones
-    it returns a correlation energy 68% too negative and natural occupations two to three times
-    too fractional, silently, and at sixteen orbitals kept it changes which orbitals are kept.
-    Every comparison here is therefore against a reference that recomputes the energies from the
-    Fock matrix, and the tolerances are hundreds of times tighter than that failure.
+AVAS semicanonicalizes its orbitals but returns no orbital energies, and mf.mo_energy still holds 
+    the canonical SCF values. MP2 divides by those energies. Every comparison here is against a 
+    reference that recomputes the energies from the Fock matrix.
 
-What runs here is the fragment with every carbon targeted, 35 orbitals from 24 target AOs, capped
-    to eight so the truncation has something to do; the default rule reaches only two of its
-    atoms. The bin itself needs a converged SCF first and sits at the bottom, marked hpc.
+We run the fragment with every carbon targeted, 35 orbitals from 24 target AOs, capped to eight so 
+    the truncation has something to do; the default rule reaches only two of its atoms. The bin 
+    needs a converged SCF first and sits at the bottom, marked hpc.
 """
 
 import functools
@@ -29,19 +25,17 @@ from pyscf.mcscf import avas
 from cutouts import SUBSET, fragment, prepare, solved
 from encode import EncodeProtein, EncodingError
 
-# What the rest of the pipeline can actually take. Dice runs comfortably to roughly fifty orbitals
-# and the original paper's final active space was eight. The raw AVAS spaces of the bin run to
-# five times this, which is the reason this stage exists.
+# Dice runs comfortably to roughly fifty orbitals and the original paper's final active space was 
+# eight. 
 TRACTABLE_ORBITALS = 50
 
-# Small enough to bite the fragment's 35-orbital space, and the size the paper's own pipeline
-# ended at. The top eight here come back four occupied- and four virtual-derived: an (8e, 8o)
-# window.
+# Small enough to bite the fragment's 35-orbital space, and matching the paper's own pipeline
+# The top eight here come back four occupied- and four virtual-derived: an (8e, 8o) window.
 CAP = 8
 
 # Agreement with the independent reference. Loose enough that an implementation integrating the
-# MP2 differently (density fitting moves the fourth decimal) still agrees, and two orders of
-# magnitude tighter than the stale-energy mistake the margin exists to catch.
+# MP2 differently (e.g., density fitting) still agrees, and orders of magnitude tighter than the 
+# stale-energy mistake the margin exists to catch.
 CORRELATION = 1e-3  # relative, on the correlation energy
 OCCUPATION = 1e-4   # absolute, on a natural occupation; the selection boundary gap is 4.8e-4
 
@@ -81,9 +75,8 @@ def contact_weight(mol, vectors, targets):
 @functools.lru_cache(maxsize=None)
 def reference():
     """
-    The capped space worked out independently of the implementation: PySCF's AVAS and MP2 called
-        directly, with the orbital energies recomputed from the Fock matrix because AVAS does not
-        return them. A direct reading of README's step rather than of encode.py.
+    PySCF's AVAS and MP2 called directly, with the orbital energies recomputed from the Fock matrix 
+        because AVAS does not return them.
 
     Returns the size of the uncapped space, its MP2 correlation energy, and the occupations of the
         CAP most fractional natural orbitals, in descending order.
@@ -137,11 +130,6 @@ def capped():
 def test_mp2_runs_on_the_energies_avas_never_returned():
     """
     The correlation energy matches a reference whose orbital energies come from the Fock matrix.
-
-    AVAS hands back rotated orbitals and nothing else; mean_field.mo_energy still describes the
-        canonical orbitals, up to 0.70 Ha off for the new ones. MP2 fed those returns -0.171 Ha
-        where the answer is -0.102 Ha, with nothing visibly wrong. This is the sharpest single
-        detector of that mistake.
     """
     _, correlation, _ = reference()
     encoded = capped()
@@ -152,12 +140,10 @@ def test_mp2_runs_on_the_energies_avas_never_returned():
 
 def test_mp2_keeps_the_nmax_most_fractional_orbitals():
     """
-    The window holds exactly the nmax natural orbitals MP2 ranks most fractional.
-
-    Fractionality min(n, 2 - n) is the whole of the ranking, so this pins the selection and the
-        occupations at once. On the fragment the eight keep 0.498 of the summed fractionality of
-        the 35-orbital space and 0.231 of its correlation energy: the recorded cost of the cap,
-        which nothing downstream can recover.
+    The window holds the nmax natural orbitals MP2 ranks most fractional.
+    
+    On the fragment the eight keep 0.498 of the summed fractionality of the 35-orbital space and 
+        0.231 of its correlation energy: the recorded cost of the cap.
     """
     raw, _, occupations = reference()
     encoded = capped()
@@ -170,9 +156,6 @@ def test_mp2_keeps_the_nmax_most_fractional_orbitals():
 def test_mp2_recounts_the_electrons_the_window_kept():
     """
     The active electrons are the pairs of the occupied-derived orbitals that survived.
-
-    A discarded occupied-derived orbital retires its pair to the core; it does not stay counted.
-        A window with no electrons, or with every slot filled, has nothing left to correlate.
     """
     _, _, occupations = reference()
     encoded = capped()
@@ -192,8 +175,7 @@ def test_mp2_keeps_every_orbital_of_the_molecule():
     """
     The cap narrows the window, not the basis.
 
-    A discarded orbital moves to the core or the virtuals, it does not vanish: the Hamiltonian
-        built downstream needs the full set to stay a basis.
+    A discarded orbital moves to the core or the virtuals, it does not vanish.
     """
     encoded = capped()
 
@@ -208,9 +190,7 @@ def test_mp2_leaves_the_electrons_in_a_rotation_of_the_occupied_space():
     The first N_e / 2 columns still span the SCF occupied space.
 
     Natural orbitals mix occupied only with occupied and virtual only with virtual, so however the
-        cap shuffles them, the occupied span is untouched. A discarded occupied-derived orbital
-        filed among the virtuals, or the reverse, breaks this while leaving every count looking
-        right, and the core energy downstream is then integrated over the wrong orbitals.
+        cap shuffles them, the occupied span is untouched.
     """
     encoded = capped()
 
@@ -226,11 +206,9 @@ def test_mp2_leaves_the_electrons_in_a_rotation_of_the_occupied_space():
 def test_mp2_keeps_the_active_space_on_the_contact():
     """
     What survives the cap still sits on the targeted atoms.
-
-    MP2 ranks by correlation and carries no term for the ligand, and a combination of orbitals
-        each above the AVAS threshold can itself fall below it, so this is not automatic. On the
-        fragment the retained window carries mean weight 0.65 on the target AOs, never below 0.38,
-        against the 0.2 AVAS demanded of every orbital it admitted.
+    
+    On the fragment the retained window carries mean weight 0.65 on the target AOs, never below 
+        0.38, against the 0.2 AVAS demanded of every orbital it admitted.
     """
     encoded = capped()
 
@@ -302,9 +280,6 @@ def test_mp2_refuses_before_an_active_space_exists():
 def test_the_default_cap_is_within_what_can_be_solved():
     """
     The default nmax is something SHCI can actually take.
-
-    This is the tractability requirement that used to sit, strictly xfailed, on the target count
-        in test_avas.py; the cap is the stage that answers it now.
     """
     encoded = EncodeProtein(fragment())
 
@@ -320,12 +295,7 @@ def test_the_default_cap_is_within_what_can_be_solved():
 @pytest.mark.parametrize("name", SUBSET)
 def test_mp2_caps_the_subset_to_what_can_be_solved(name):
     """
-    On a real cutout the cap is what stands between AVAS and Dice, and it holds.
-
-    The rule targets 96 to 186 AOs over the bin, roughly 140 to 270 AVAS orbitals, so the cap must
-        bind, and what survives must still be physical and still on the contact. The occupation
-        bounds are a real diagnostic here: an MP2 density is not N-representable, and a breach on
-        a charged, small-gap cutout is the method saying the reference is bad.
+    On a real cutout the cap is what stands between AVAS and Dice.
     """
     encoded = solved(prepare(name))
     encoded.AVAS()

@@ -1,4 +1,5 @@
-from pyscf import gto, scf
+import numpy as np
+from pyscf import gto, mp, scf
 from pyscf.mcscf import avas
 from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 
@@ -40,6 +41,8 @@ class EncodeProtein:
         self.ncas = None # active-space-size
         self.nelecas = None # active-electrons
         self.orbitals = None # orbital-initial-guess-for-CASCI/CASSCF
+        self.occupations = None # natural occupations of the active window
+        self.correlation = None # MP2 correlation energy of the AVAS space
 
         # How close to a pose an atom has to be for its valence p shell to be targeted. Distinct
         # from `prepared.cutoff`, which decides what the cutout holds at all. The two may differ.
@@ -48,6 +51,10 @@ class EncodeProtein:
         # Projection weight above which AVAS keeps an orbital. PySCF's own default, recorded here
         #   because it sets the size of the active space and so has to be reported with a result.
         self.threshold = 0.2
+
+        # How many natural orbitals the MP2 cap keeps, which is the size of what SHCI is handed.
+        # Dice runs comfortably to roughly fifty orbitals.
+        self.nmax = 50
 
     def molecule(self):
         """
@@ -154,6 +161,82 @@ class EncodeProtein:
         Caps the active space size with MP2 correlations.
         """
         ...
+
+    def MP2(self):
+        """
+        Cap the active space at the nmax most correlated natural orbitals, README's MCP-NO step.
+
+        The AVAS space runs to hundreds of orbitals over the bin and SHCI can take about fifty, so
+            something has to choose. MP2 correlates the whole AVAS space, its one-particle density
+            is diagonalised into natural orbitals, and the nmax most fractional by min(n, 2 - n)
+            are kept: fractional occupation is where the correlation sits, which is the property
+            the SAPT correction is after.
+
+        AVAS returns semicanonical orbitals but not their energies, and the mean field still holds
+            the canonical ones, wrong for these orbitals by whole Hartrees. MP2 divides by orbital
+            energies, and fed the stale set it returns a plausible-looking answer 68% off. So the
+            energies are recomputed from the Fock matrix here, and the mean field is restored
+            afterwards rather than left describing orbitals it never solved.
+
+        The occupied-virtual block of the unrelaxed MP2 density is zero, so diagonalising the two
+            blocks separately loses nothing and keeps each orbital's provenance. That provenance is
+            the electron count: a discarded occupied-derived orbital retires its pair to the core,
+            a discarded virtual-derived one stays empty among the virtuals, and the window that
+            remains holds its survivors in descending occupation.
+        """
+        if self.ncas is None:
+            raise EncodingError("Cannot cap the active space before AVAS has chosen one")
+
+        nao = self.mol.nao
+        core = (self.mol.nelectron - self.nelecas) // 2
+        occupied = self.nelecas // 2
+
+        # While the mean field still describes the converged density, before any orbital swap.
+        fock = self.mean_field.get_fock()
+        energies = np.diag(self.orbitals.T @ fock @ self.orbitals)
+
+        frozen = list(range(core)) + list(range(core + self.ncas, nao))
+        saved = self.mean_field.mo_coeff, self.mean_field.mo_energy
+        try:
+            self.mean_field.mo_coeff = self.orbitals
+            self.mean_field.mo_energy = energies
+            correlated = mp.MP2(self.mean_field, frozen=frozen or None)
+            correlated.verbose = self.verbose
+            self.correlation = correlated.kernel()[0]
+            density = correlated.make_rdm1()[core:core + self.ncas, core:core + self.ncas]
+        finally:
+            self.mean_field.mo_coeff, self.mean_field.mo_energy = saved
+
+        filled, rotate_filled = np.linalg.eigh(density[:occupied, :occupied])
+        empty, rotate_empty = np.linalg.eigh(density[occupied:, occupied:])
+        filled, rotate_filled = filled[::-1], rotate_filled[:, ::-1]
+        empty, rotate_empty = empty[::-1], rotate_empty[:, ::-1]
+        natural_occ = self.orbitals[:, core:core + occupied] @ rotate_filled
+        natural_vir = self.orbitals[:, core + occupied:core + self.ncas] @ rotate_empty
+
+        ranked = sorted(
+            [("occupied", index, min(n, 2 - n)) for index, n in enumerate(filled)]
+            + [("virtual", index, min(n, 2 - n)) for index, n in enumerate(empty)],
+            key=lambda entry: entry[2],
+            reverse=True,
+        )[:min(self.nmax, self.ncas)]
+        kept_occ = sorted(index for block, index, _ in ranked if block == "occupied")
+        kept_vir = sorted(index for block, index, _ in ranked if block == "virtual")
+        lost_occ = [index for index in range(occupied) if index not in set(kept_occ)]
+        lost_vir = [index for index in range(self.ncas - occupied) if index not in set(kept_vir)]
+
+        self.orbitals = np.hstack([
+            self.orbitals[:, :core],
+            natural_occ[:, lost_occ],
+            natural_occ[:, kept_occ],
+            natural_vir[:, kept_vir],
+            natural_vir[:, lost_vir],
+            self.orbitals[:, core + self.ncas:],
+        ])
+        self.occupations = np.concatenate([filled[kept_occ], empty[kept_vir]])
+        self.ncas = len(ranked)
+        self.nelecas = 2 * len(kept_occ)
+        return self.ncas, self.nelecas, self.orbitals
 
     def SHCI(self, eps1: float = 1e-4, lo: float = 0.02, hi: float = 1.97):
         """

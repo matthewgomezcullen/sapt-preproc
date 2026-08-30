@@ -93,8 +93,10 @@ Solving RHF for large cutouts is computationally very expensive. Also, highly ch
 ### Encoding
 
 1. Solve the Restricted Hartree-Fock (RHF) equations, given $A^{\cup}$, $q_{A}$, $S$, and a `basis` (default: "6-31G"). The geometry is handed to PySCF in memory, in the order `PrepareComplex.atoms` fixes, since that is the order AVAS addresses its targets by. PySCF returns the molecular orbital (MO) coefficients, occupations, orbital energies, etc.
-1. Run Atomic Valence Active Space (AVAS) over the MOs, returning the number of active orbitals, active electrons, and transformed molecular orbitals. PySCF supports this on the SCF object. AVAS requires targeted atomic orbitals.
+1. Run Atomic Valence Active Space (AVAS) over the MOs, returning the number of active orbitals, active electrons, and transformed molecular orbitals. PySCF supports this on the SCF object. AVAS requires targeted atomic orbitals (AOs).
     1. (*) The original paper selected a system-specific set of Fe $3d$, O $2p$, and N $2p$ orbitals using chemical knowledge of KDM5A. In this work, we provide a minimal deterministic default for in-scope proteins.
+1. Run MP2 to correlate the AVAS space and keep the $N_{max}$ most fractional active orbitals. More on this below.
+    1. (*) This is an original contribution beyond the paper. The paper uses an hand-picked target set that produces roughly a dozen AOs. We replace this with every $p$ orbital of every contact atom. The blow-up leads to an active space that is intractable for SHCI. MP2-filtering caps the size of the active space based on correlation (motivating a CASCI/VQE correction), while the generated target set ensures the AOs are pose-relevant.
 1. Run Semistochastic Heat-Bath Configuration Interaction (SHCI) with Dice on AVAS active space, and restrict orbitals to $\text{lo} \le n_{i} \le \text{hi}$.
     1. (*) Matching the original occupation window does not guarantee $(8e, 8o)$, as in the original paper. _TBC_
 1. Finally, map the active-space fermionic Hamiltonian to a qubit Hamiltonian following the Jordan-Wigner transformation.
@@ -115,6 +117,25 @@ The default rule is:
 
 This MVP deliberately does not infer $d$-orbital targets, metal oxidation states, and ligand-field splittings.
 
+#### MP2-filtering
+
+Due to the generally chosen target AOs above, AVAS produces an active space that is intractable for SHCI. The chosen target AOs ensure the active space is pose-relevant, while MP2 caps the size based on correlation.
+
+We also considered swapping AVAS for the top AOs chosen by AP2. Although logically simpler, this loses pose relevance, so highly correlated AOs far from any poses may be incorrectly prioritised. A hybrid pipeline (as we do with MP2) is more plausible. A comparison is shown below:
+
+| | AVAS → MP2-NO | AVAS → APC-2 |
+|---|---|---|
+| Size bound | yes (N_max) | yes (`max_size`) |
+| Ranking metric | exact 2nd-order amplitudes → NO occupations | approximate pair coefficients (cheaper estimate of similar information) |
+| Basis handed to SHCI | rotated natural orbitals | unrotated AVAS orbitals (selection only) |
+| Small-gap robustness | MP2 denominators can blow up | designed to survive near-degeneracy |
+| PySCF surface | documented top-level API (`mp.MP2`, `mcscf.addons.make_natural_orbitals`) | `apc` internals + `Chooser` (less documented) |
+| Paper mapping | same currency as the SHCI step (natural-occupation filtering) | different currency (entropy ranking) |
+
+MP2-NO is computationally more expensive, but entirely tractable thanks to the reductions we have already made. Using MP2 sacrifices accuracy for computational gains we don't realise. MP2-NO rotates the natural orbits, whereas APC only selects. The rotated natural-order basis enables better convergence for SHCI.
+
+APC primarily wins given a pathological cutout with a very small HOMO–LUMO gap (plausible amongst the highly charged cutouts), where MP2 denominators spike and the NO occupations become unbalanced. If the gap is that small, the RHF reference itself is suspect and the complex is arguably out of scope anyway.
+
 ### Deviations from SAPT(VQE) Original Paper
 
 The following deviations apply relative to the KDM5A workflow in the original paper.
@@ -126,6 +147,7 @@ The following deviations apply relative to the KDM5A workflow in the original pa
 - **Coordinates across candidates:** the original performed ligand-specific relaxation and, for one ligand, reran Protonate3D to optimize the hydrogen-bond network. This work constructs and freezes one $A^{\cup}$ across all poses; input heavy-atom pose coordinates are not changed by the prepared/encoded MVP.
 - **Waters:** the original retained three manually selected crystallographic waters. The PoseBusters Benchmark set does not contain waters.
 - **AVAS targets:** the original selected Fe $3d$ orbitals and particular O $2p$ and N $2p$ orbitals from the metal centre, two waters, glutamate, and histidines. The automatic MVP instead targets chemically nontrivial protein atoms using the distance rule above.
+- **MCP filter:** Novel contribution to ensure the active space is tractable and the AOs chosen are the most correlated.
 - **Electronic-structure software:** the original used TeraChem/Lightspeed for classical SCF and integral generation, Gaussian for structural calculations, and in-house quantum code. This implementation substitutes PySCF and Dice where possible.
 - **Final active-space size:** the original SHCI natural-orbital occupation window $0.02\le n_i\le1.97$ produced $(8e,8o)$ for KDM5A. The same window is retained here (_maybe?_), but its output size is system-dependent; no automatic truncation to eight orbitals is attributed to the original method.
 
@@ -165,7 +187,11 @@ However, this drastically reduces the performance of `_protonate`, so this can b
 
 ### Tests
 
-Run `pytest tests --fast` to avoid testing `-protonate`, which is very slow.
+`pytest tests --fast` to avoid testing `-protonate`, which is very slow.
+
+`pytest tests --encode` to only test `EncodeProtein`.
+
+`pytest tests --encode --hpc` to test encoding for real complexes (hrs per complex for the smallest eligible complexes)
 
 ### Charges
 
@@ -173,7 +199,7 @@ Among accepted complexes, many cutouts are highly charged, as counter-charges th
 
 ## Notes on Encoding
 
-
+AVAS produces an active space that is too large. We use MP2 to pick the most correlated active orbitals.
 
 ## Setup
 

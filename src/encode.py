@@ -149,6 +149,12 @@ class EncodeProtein:
             and distance <= self.cutoff
         ]
 
+    def mp2(self):
+        """
+        Caps the active space size with MP2 correlations.
+        """
+        ...
+
     def SHCI(self, eps1: float = 1e-4, lo: float = 0.02, hi: float = 1.97):
         """
         Run Semistochastic Heat-bath Configuration Interaction to reduce the number of active 

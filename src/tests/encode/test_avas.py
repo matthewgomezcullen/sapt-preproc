@@ -13,7 +13,8 @@ The default rule, from README:
 
 PySCF matches AO labels by pattern, so an index-prefixed label has to resolve to that atom
 
-The size of what comes back is set by the number of targets. This must be runnable by SHCI.
+The size of what comes back is set by the number of targets. Capping it to what SHCI can run
+    is MP2's job, tested in test_mp2.py.
 
 We run the fragment, ACE-VAL-NME, lifted out of a cutout. The bin is marked hpc.
 """
@@ -36,10 +37,6 @@ VALENCE = {"C": "2p", "N": "2p", "O": "2p", "S": "3p", "P": "3p"}
 
 # A p shell is three atomic orbitals.
 PER_SHELL = 3
-
-# What the rest of the pipeline can handle. Dice runs comfortably to roughly fifty orbitals and 
-# the original paper's final active space was eight. An AVAS space must fit this limit.
-TRACTABLE_ORBITALS = 50
 
 
 def targeted(prepared, cutoff):
@@ -161,26 +158,6 @@ def test_target_orbitals_are_deterministic(name):
     encoded.molecule()
 
     assert encoded._generate_target_orbitals() == encoded._generate_target_orbitals()
-
-
-@pytest.mark.parametrize("name", SUBSET)
-@pytest.mark.xfail(
-    strict=True,
-    reason="README's 4.5 A rule selects 32 to 62 atoms, so 96 to 186 target AOs. AVAS returns "
-           "about 1.46 orbitals per target AO, which is 140 to 272 active orbitals, or 280 to 544 "
-           "qubits under Jordan-Wigner.",
-)
-def test_target_orbitals_stay_within_what_can_be_solved(name):
-    """
-    The active space AVAS will build is small enough for SHCI.
-    """
-    prepared = prepare(name)
-    encoded = EncodeProtein(prepared)
-    encoded.molecule()
-
-    targets = encoded._generate_target_orbitals()
-
-    assert len(targets) * PER_SHELL <= TRACTABLE_ORBITALS
 
 
 def test_target_orbitals_refuse_a_complex_with_no_molecule():

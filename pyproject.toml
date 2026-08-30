@@ -1,0 +1,16 @@
+# The environment is solved from src/environment.yml, so this file only carries tool configuration.
+
+[tool.basedpyright]
+# Only src/ holds Python. Everything else in the tree is prose or complexes, and the data
+# directories are large enough (src/data alone unpacks to ~225M) that walking them costs far more
+# than the code they contain, which is none.
+include = ["src"]
+exclude = [
+    "src/data",       # the full benchmark set, unpacked locally and gitignored
+    "src/tests/data", # the tracked fixtures the tests load
+    "src/out",        # run artefacts
+    # Re-stated because setting `exclude` replaces the defaults rather than adding to them.
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.*",
+]

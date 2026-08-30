@@ -4,9 +4,14 @@ import sys
 
 import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+HERE = os.path.dirname(os.path.abspath(__file__))
 
-DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+# src/, so the tests can import the modules under test. Then this directory, because the tests
+# sit a level below it now and pytest only puts their own directory on the path.
+sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, HERE)
+
+DATA = os.path.join(HERE, "data")
 POSEBUSTERS = os.path.join(DATA, "posebusters")
 DIFFDOCK = os.path.join(DATA, "diffdock")
 
@@ -64,7 +69,8 @@ def pytest_configure(config):
     )
 
 
-ENCODING = "test_encode.py"
+# The encoding tests are a directory now, so the flag selects on that rather than a filename.
+ENCODING = "encode"
 
 
 def pytest_collection_modifyitems(config, items):
@@ -79,8 +85,8 @@ def pytest_collection_modifyitems(config, items):
         run reports only what it was asked for.
     """
     if config.getoption("--encode"):
-        selected = [item for item in items if item.path.name == ENCODING]
-        deselected = [item for item in items if item.path.name != ENCODING]
+        selected = [item for item in items if ENCODING in item.path.parts]
+        deselected = [item for item in items if ENCODING not in item.path.parts]
         if deselected:
             config.hook.pytest_deselected(items=deselected)
         items[:] = selected

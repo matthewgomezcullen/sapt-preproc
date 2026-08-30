@@ -100,6 +100,7 @@ class PrepareComplex:
         self.protonation = None
         self.charge = None
         self.electrons = None
+        self.heavy_atoms = None
 
         # Scope assumptions
         self.pH = 7.4
@@ -321,17 +322,19 @@ class PrepareComplex:
             self.whole, keep, self.protonation, self.pH, self.seed
         )
 
-        heavy_atoms = sum(
+        # Recorded before the check, so a complex rejected here still carries the size that
+        # rejected it.
+        self.heavy_atoms = sum(
             1
             for chain in self.reduced
             for residue in chain
             for atom in residue
             if not atom.element.is_hydrogen
         )
-        if heavy_atoms > self.size_cap:
+        if self.heavy_atoms > self.size_cap:
             raise OutOfScopeError(
                 OutOfScopeErrorType.SIZE_CAP,
-                f"capped cutout holds {heavy_atoms} heavy atoms, over the cap of {self.size_cap}",
+                f"capped cutout holds {self.heavy_atoms} heavy atoms, over the cap of {self.size_cap}",
             )
 
     def _calculate_charge(self):

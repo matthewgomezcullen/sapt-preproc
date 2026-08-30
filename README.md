@@ -66,6 +66,30 @@ Protein structure is given by $A = \{\text{element}_I, R_I\}^{N_{A}}_{I=1}$.
 1. Verify that the number of electrons $N_{e} = \sum_{I} Z_{I} - q_{A}$ is even, so that RHF has $N_{\alpha} = N_{\beta} = N_{e}/2$.
     1. Spin and multiplicity are assumed ($S = 0, M = 1$), so the number of electrons must be even ($N_{\alpha} = N_{\beta} = N_{e}/2$).
 
+Results from `filter.py`:
+
+```
+Screened 278
+Eligible 87
+Rejected 191
+    78  metal in the retained region
+    46  cutout exceeds the heavy-atom cap
+    20  biological cofactor within the cutoff of a pose
+    18  incomplete residue in the cutout
+    16  non-cofactor heterogen within the cutoff of a pose
+     4  metal coordination sphere split by the cutout
+     4  ligand with a non-zero formal charge
+     3  disulfide split by the cutout
+     2  zero-occupancy heavy atom in the cutout
+Failed 0
+```
+
+`filter.py` carries every complex through the whole of `prepare()`, so this counts the rejections `_reduce` raises as well as those `_verify` raises. Stopping at `_verify` leaves 110 eligible; the post-cap size check takes 22 more and a residue repaired into the cutout takes one.
+
+### Binning
+
+Solving RHF for large cutouts is computationally very expensive. Also, highly charged cutouts form difficult SCF cases. Instead of encoding all 110 complexes, we bin complexes by ...
+
 ### Encoding
 
 1. Solve the Restricted Hartree-Fock (RHF) equations, given $A^{\cup}$ (`.xyz` file), $q_{A}$, $S$, and a `basis` (default: "6-31G"). PySCF returns the molecular orbital (MO) coefficients, occupations, orbital energies, etc.
@@ -105,7 +129,7 @@ The following deviations apply relative to the KDM5A workflow in the original pa
 - **Electronic-structure software:** the original used TeraChem/Lightspeed for classical SCF and integral generation, Gaussian for structural calculations, and in-house quantum code. This implementation substitutes PySCF and Dice where possible.
 - **Final active-space size:** the original SHCI natural-orbital occupation window $0.02\le n_i\le1.97$ produced $(8e,8o)$ for KDM5A. The same window is retained here (_maybe?_), but its output size is system-dependent; no automatic truncation to eight orbitals is attributed to the original method.
 
-## Notes on Implementation
+## Notes on Preparation
 
 PoseBusters Benchmark set does not contain SEQRES records, so `PDBFixer.FindMissingResidues` cannot find missing residues. For v1, this is ignored. Thus, missing residues may be contained in the cutout.
 
@@ -147,7 +171,11 @@ Run `pytest tests --fast` to avoid testing `-protonate`, which is very slow.
 
 Among accepted complexes, many cutouts are highly charged, as counter-charges that neutralise these sites in the real protein are truncated away. Large charges make electrostatics and induction dominate the SAPT decomposition, and those terms are large and basis-sensitive. Interaction energies may not be comparable across complexes even if they rank poses fine within one, and may lead to difficult SCF cases. May be worth implementing a charge cap, `|q_A| < Q`.
 
-### Setup
+## Notes on Encoding
+
+
+
+## Setup
 
 ```bash
 cd src

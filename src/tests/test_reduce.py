@@ -360,6 +360,8 @@ def test_reduce_keeps_the_capped_cutout_within_the_size_cap(name):
         if not atom.element.is_hydrogen
     ]
     assert len(heavy) <= prepared.size_cap
+    # _reduce keeps its own count, which filter.py and EncodeProtein read instead of recounting.
+    assert prepared.heavy_atoms == len(heavy)
 
 
 def test_reduce_rejects_a_cutout_the_caps_push_over_the_size_cap():
@@ -371,6 +373,8 @@ def test_reduce_rejects_a_cutout_the_caps_push_over_the_size_cap():
     with pytest.raises(OutOfScopeError) as rejected:
         prepared._reduce()
     assert rejected.value.error_type is OutOfScopeErrorType.SIZE_CAP
+    # Counted before the rejection, so how far over the cap a complex sits stays readable.
+    assert prepared.heavy_atoms > prepared.size_cap
 
 
 def test_reduce_rejects_a_residue_repaired_into_the_cutout():

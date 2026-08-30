@@ -66,10 +66,6 @@ class PrepareError(RuntimeError):
     pass
 
 
-class CompressionError(RuntimeError):
-    pass
-
-
 def _is_amino_acid(name):
     info = gemmi.find_tabulated_residue(name) # pyright: ignore[reportAttributeAccessIssue]
     return bool(info) and info.is_amino_acid()
@@ -106,7 +102,6 @@ class PrepareComplex:
         self.pH = 7.4
         self.cutoff = 4.5
         self.spin = 0
-        self.multiplicity = 1
 
         # Eligibility thresholds
         self.basis = "6-31g"
@@ -367,33 +362,19 @@ class PrepareComplex:
                 f"{self.electrons} electrons, which no closed-shell singlet can hold"
             )
 
-    def xyz(self, path: str):
+    def atoms(self):
         """
-        Store element and coordinates in a .xyz file, returning the atoms in the order written.
+        Every atom of the cutout as (chain, residue, atom), in the order the cutout iterates.
 
-        PySCF numbers its atoms in file order and the AVAS addresses target orbitals by that 
-            number. The file itself keeps no record of which residue an atom came from. The returned
-             (chain, residue, atom) triples record this.
-
-        An .xyz carries no charge and PySCF assumes neutral, so the comment line records the charge
-            and multiplicity.
+        PySCF numbers its atoms in the order it is handed them and AVAS addresses target orbitals by
+            that number, so this order is what ties an orbital back to the residue it came from. The
+            atom alone does not carry that; the (chain, residue, atom) triple does.
         """
-        if self.reduced is None or self.charge is None:
-            raise PrepareError(f"Cannot write {path} before the protein is prepared")
-
-        atoms = [
+        if self.reduced is None:
+            raise PrepareError("Cannot list the atoms before the protein is prepared")
+        return [
             (chain, residue, atom)
             for chain in self.reduced
             for residue in chain
             for atom in residue
         ]
-        with open(path, "w") as file:
-            file.write(f"{len(atoms)}\n")
-            file.write(f"charge={self.charge} multiplicity={self.multiplicity}\n")
-            for _, _, atom in atoms:
-                file.write(
-                    f"{atom.element.name:<2}"
-                    f"{atom.pos.x:14.6f}{atom.pos.y:14.6f}{atom.pos.z:14.6f}\n"
-                )
-        return atoms
-

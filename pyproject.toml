@@ -1,0 +1,11 @@
+[tool.basedpyright]
+include = ["src"]
+exclude = [
+    "src/data",
+    "src/tests/data",
+    "src/out",
+    # Re-stated because setting `exclude` replaces the defaults rather than adding to them.
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.*",
+]

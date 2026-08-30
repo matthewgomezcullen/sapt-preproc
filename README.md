@@ -16,13 +16,13 @@ An extended list of these deviations from the original paper are detailed in a s
 
 Some complexes require adjustments that either: A) Add too much complexity to the code, B) Currently require manual overrides to overcome their problems, or C) Are incompatible with the assumptions underlying this method. These proteins are out-of-scope for this project (see `filter.py` for how `prepare.py` rejections filter the dataset). For example, the paper's target complex, KDM5A, is unsupported because it contains an open-shell metal ion.
 
-Preparation assumes spin, $S = 0$, and multiplicity, $M = 2S + 1$, and Encoding solves RHF, which forces every electron into a doubly-occupied spatial orbital.
+Preparation assumes spin, $S = 0$, and Encoding solves RHF, which forces every electron into a doubly-occupied spatial orbital.
 
 #### Eligibility Rules
 
 Breaking exclusions:
 
-- ~XXX **Open-shell metals**. Preparation assumes spin, $S = 0$, and multiplicity, $M = 2S + 1$, and Encoding solves RHF, which forces every electron into a doubly-occupied spatial orbital. Open-shell metals (`Fe, Mn, Co, Cu, Ni`) have unpaired $d$ electrons, so a closed-shell singlet reference is the wrong state. These centres are also frequently high-spin/low-spin ambiguous, so the user must choose a spin state per complex. This exclusion rejects the original paper's own target.~
+- ~XXX **Open-shell metals**. Preparation assumes spin, $S = 0$, and Encoding solves RHF, which forces every electron into a doubly-occupied spatial orbital. Open-shell metals (`Fe, Mn, Co, Cu, Ni`) have unpaired $d$ electrons, so a closed-shell singlet reference is the wrong state. These centres are also frequently high-spin/low-spin ambiguous, so the user must choose a spin state per complex. This exclusion rejects the original paper's own target.~
     - ~XXX **All metals in the quantum region**: For v1, we reject complexes with `Zn, Mg, Ca, Na, K` or other nominally closed-shell metals within 4.5 Å of any pose.~
 - **Metals**. Any metal atom or metal-containing cofactor in the retained region is out of scope.
 - **Elements with no 6-31G basis**. Will raise on `mol.build()`, so check and reject during preparation.
@@ -64,7 +64,7 @@ Protein structure is given by $A = \{\text{element}_I, R_I\}^{N_{A}}_{I=1}$.
 1. Reverify the size limits and inclusion of incomplete residues in the cutout.
 1. Given $A^{\cup}$ and hydrogens, calculate the net charge $\rightarrow q_{A}$. 
 1. Verify that the number of electrons $N_{e} = \sum_{I} Z_{I} - q_{A}$ is even, so that RHF has $N_{\alpha} = N_{\beta} = N_{e}/2$.
-    1. Spin and multiplicity are assumed ($S = 0, M = 1$), so the number of electrons must be even ($N_{\alpha} = N_{\beta} = N_{e}/2$).
+    1. Spin is assumed ($S = 0$), so the number of electrons must be even ($N_{\alpha} = N_{\beta} = N_{e}/2$).
 
 Results from `filter.py`:
 
@@ -92,7 +92,7 @@ Solving RHF for large cutouts is computationally very expensive. Also, highly ch
 
 ### Encoding
 
-1. Solve the Restricted Hartree-Fock (RHF) equations, given $A^{\cup}$ (`.xyz` file), $q_{A}$, $S$, and a `basis` (default: "6-31G"). PySCF returns the molecular orbital (MO) coefficients, occupations, orbital energies, etc.
+1. Solve the Restricted Hartree-Fock (RHF) equations, given $A^{\cup}$, $q_{A}$, $S$, and a `basis` (default: "6-31G"). The geometry is handed to PySCF in memory, in the order `PrepareComplex.atoms` fixes, since that is the order AVAS addresses its targets by. PySCF returns the molecular orbital (MO) coefficients, occupations, orbital energies, etc.
 1. Run Atomic Valence Active Space (AVAS) over the MOs, returning the number of active orbitals, active electrons, and transformed molecular orbitals. PySCF supports this on the SCF object. AVAS requires targeted atomic orbitals.
     1. (*) The original paper selected a system-specific set of Fe $3d$, O $2p$, and N $2p$ orbitals using chemical knowledge of KDM5A. In this work, we provide a minimal deterministic default for in-scope proteins.
 1. Run Semistochastic Heat-Bath Configuration Interaction (SHCI) with Dice on AVAS active space, and restrict orbitals to $\text{lo} \le n_{i} \le \text{hi}$.

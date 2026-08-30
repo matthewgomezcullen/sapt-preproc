@@ -1,0 +1,279 @@
+name,status,heavy_atoms,charge,electrons,rejection
+5SAK_ZRY,eligible,327,-7,2488,
+5SB2_1K2,eligible,374,-5,2886,
+5SD5_HWI,rejected,,,,biological cofactor within the cutoff of a pose
+6M2B_EZO,rejected,,,,biological cofactor within the cutoff of a pose
+6M73_FNR,eligible,309,3,2338,
+6T88_MWQ,rejected,,,,biological cofactor within the cutoff of a pose
+6TW5_9M2,eligible,345,-2,2594,
+6TW7_NZB,rejected,,,,non-cofactor heterogen within the cutoff of a pose
+6VTA_AKN,rejected,,,,biological cofactor within the cutoff of a pose
+6XBO_5MC,eligible,354,3,2732,
+6XG5_TOP,rejected,,,,biological cofactor within the cutoff of a pose
+6XHT_V2V,rejected,,,,cutout exceeds the heavy-atom cap
+6XM9_V55,rejected,,,,metal in the retained region
+6YJA_2BA,rejected,,,,metal coordination sphere split by the cutout
+6YMS_OZH,rejected,,,,metal in the retained region
+6YQW_82I,eligible,116,0,868,
+6YR2_T1C,rejected,,,,metal in the retained region
+6YRV_PJ8,rejected,,,,biological cofactor within the cutoff of a pose
+6YSP_PAL,rejected,,,,non-cofactor heterogen within the cutoff of a pose
+6YT6_PKE,eligible,291,-3,2258,
+6YYO_Q1K,rejected,,,,cutout exceeds the heavy-atom cap
+6Z0R_Q4H,rejected,,,,incomplete residue in the cutout
+6Z14_Q4Z,eligible,217,-2,1614,
+6Z1C_7EY,rejected,,,,incomplete residue in the cutout
+6Z2C_Q5E,eligible,270,0,2058,
+6Z4N_Q7B,rejected,,,,biological cofactor within the cutoff of a pose
+6ZAE_ACV,rejected,,,,metal in the retained region
+6ZC3_JOR,eligible,258,0,1998,
+6ZCY_QF8,eligible,217,-2,1690,
+6ZK5_IMH,rejected,,,,metal in the retained region
+6ZPB_3D1,rejected,,,,metal in the retained region
+7A1P_QW2,rejected,,,,metal in the retained region
+7A9E_R4W,eligible,137,-2,1058,
+7A9H_TPP,rejected,,,,metal in the retained region
+7AFX_R9K,rejected,,,,metal in the retained region
+7AN5_RDH,eligible,397,-1,3056,
+7B94_ANP,rejected,,,,metal in the retained region
+7BCP_GCO,eligible,266,-1,2044,
+7BJJ_TVW,eligible,96,-1,756,
+7BKA_4JC,rejected,410,,,cutout exceeds the heavy-atom cap
+7BMI_U4B,rejected,,,,metal in the retained region
+7BNH_BEZ,rejected,,,,cutout exceeds the heavy-atom cap
+7BTT_F8R,eligible,232,-2,1792,
+7C0U_FGO,eligible,338,-4,2548,
+7C3U_AZG,rejected,,,,metal in the retained region
+7C8Q_DSG,rejected,433,,,cutout exceeds the heavy-atom cap
+7CD9_FVR,rejected,,,,cutout exceeds the heavy-atom cap
+7CIJ_G0C,rejected,,,,cutout exceeds the heavy-atom cap
+7CL8_TES,rejected,,,,cutout exceeds the heavy-atom cap
+7CNQ_G8X,rejected,,,,metal in the retained region
+7CNS_PMV,rejected,,,,metal in the retained region
+7CUO_PHB,rejected,,,,cutout exceeds the heavy-atom cap
+7D5C_GV6,rejected,,,,non-cofactor heterogen within the cutoff of a pose
+7DKT_GLF,eligible,244,-1,1848,
+7DQL_4CL,eligible,157,-2,1230,
+7DUA_HJ0,rejected,,,,zero-occupancy heavy atom in the cutout
+7E4L_MDN,rejected,,,,metal in the retained region
+7EBG_J0L,eligible,199,-1,1526,
+7ECR_SIN,rejected,,,,non-cofactor heterogen within the cutoff of a pose
+7ED2_A3P,rejected,,,,metal in the retained region
+7ELT_TYM,eligible,328,-1,2508,
+7EPV_FDA,eligible,354,2,2714,
+7ES1_UDP,rejected,,,,non-cofactor heterogen within the cutoff of a pose
+7F51_BA7,eligible,335,-2,2548,
+7F5D_EUO,eligible,151,-2,1136,
+7F8T_FAD,rejected,417,,,cutout exceeds the heavy-atom cap
+7FB7_8NF,eligible,213,-3,1618,
+7FHA_ADX,rejected,414,,,cutout exceeds the heavy-atom cap
+7JG0_GAR,rejected,,,,non-cofactor heterogen within the cutoff of a pose
+7JMV_4NC,eligible,282,2,2140,
+7JXX_VP7,rejected,,,,metal coordination sphere split by the cutout
+7JY3_VUD,rejected,,,,metal in the retained region
+7K0V_VQP,rejected,483,,,cutout exceeds the heavy-atom cap
+7KB1_WBJ,rejected,,,,biological cofactor within the cutoff of a pose
+7KC5_BJZ,rejected,,,,cutout exceeds the heavy-atom cap
+7KM8_WPD,rejected,,,,biological cofactor within the cutoff of a pose
+7KQU_YOF,rejected,,,,metal in the retained region
+7KRU_ATP,rejected,,,,metal in the retained region
+7KZ9_XN7,eligible,228,-1,1726,
+7L00_XCJ,rejected,,,,metal in the retained region
+7L03_F9F,eligible,257,-1,1970,
+7L5F_XNG,rejected,,,,metal in the retained region
+7L7C_XQ1,rejected,,,,incomplete residue in the cutout
+7LCU_XTA,rejected,,,,metal in the retained region
+7LEV_0JO,rejected,,,,incomplete residue in the cutout
+7LJN_GTP,rejected,,,,metal in the retained region
+7LMO_NYO,rejected,407,,,cutout exceeds the heavy-atom cap
+7LOE_Y84,eligible,147,0,1144,
+7LOU_IFM,rejected,,,,metal in the retained region
+7LT0_ONJ,eligible,248,-1,1908,
+7LZD_YHY,rejected,,,,biological cofactor within the cutoff of a pose
+7M3H_YPV,rejected,,,,cutout exceeds the heavy-atom cap
+7M6K_YRJ,rejected,,,,ligand with a non-zero formal charge
+7MFP_Z7P,rejected,,,,cutout exceeds the heavy-atom cap
+7MGT_ZD4,rejected,,,,metal in the retained region
+7MGY_ZD1,rejected,459,,,cutout exceeds the heavy-atom cap
+7MMH_ZJY,eligible,228,2,1736,
+7MOI_HPS,rejected,430,,,cutout exceeds the heavy-atom cap
+7MSR_DCA,rejected,,,,metal in the retained region
+7MWN_WI5,rejected,474,,,cutout exceeds the heavy-atom cap
+7MWU_ZPM,rejected,,,,biological cofactor within the cutoff of a pose
+7MY1_IPE,rejected,,,,metal in the retained region
+7MYU_ZR7,eligible,301,0,2276,
+7N03_ZRP,eligible,329,-4,2472,
+7N4N_0BK,rejected,,,,zero-occupancy heavy atom in the cutout
+7N4W_P4V,eligible,365,1,2798,
+7N6F_0I1,rejected,,,,metal in the retained region
+7N7B_T3F,rejected,,,,non-cofactor heterogen within the cutoff of a pose
+7N7H_CTP,rejected,,,,metal in the retained region
+7NF0_BYN,rejected,,,,metal in the retained region
+7NF3_4LU,rejected,,,,metal in the retained region
+7NFB_GEN,eligible,384,0,3006,
+7NGW_UAW,eligible,234,-1,1760,
+7NLV_UJE,rejected,,,,cutout exceeds the heavy-atom cap
+7NP6_UK8,eligible,368,2,2834,
+7NPL_UKZ,rejected,404,,,cutout exceeds the heavy-atom cap
+7NSW_HC4,eligible,217,0,1660,
+7NU0_DCL,rejected,,,,metal in the retained region
+7NUT_GLP,rejected,,,,metal in the retained region
+7NXO_UU8,rejected,,,,biological cofactor within the cutoff of a pose
+7O0N_CDP,rejected,,,,metal in the retained region
+7O1T_5X8,rejected,,,,metal in the retained region
+7ODY_DGI,rejected,,,,metal in the retained region
+7OEO_V9Z,eligible,217,-1,1646,
+7OFF_VCB,eligible,284,4,2154,
+7OFK_VCH,eligible,280,1,2180,
+7OLI_8HG,rejected,,,,cutout exceeds the heavy-atom cap
+7OMX_CNA,rejected,,,,ligand with a non-zero formal charge
+7OPG_06N,eligible,168,-3,1294,
+7OSO_0V1,rejected,,,,metal coordination sphere split by the cutout
+7OZ9_NGK,rejected,,,,metal in the retained region
+7OZC_G6S,rejected,,,,metal in the retained region
+7P1F_KFN,eligible,196,2,1498,
+7P1M_4IU,eligible,184,2,1390,
+7P4C_5OV,eligible,198,-3,1490,
+7P5T_5YG,rejected,,,,metal in the retained region
+7PGX_FMN,eligible,286,3,2192,
+7PJQ_OWH,eligible,191,1,1460,
+7PK0_BYC,rejected,,,,cutout exceeds the heavy-atom cap
+7PL1_SFG,rejected,,,,incomplete residue in the cutout
+7POM_7VZ,rejected,474,,,cutout exceeds the heavy-atom cap
+7PRI_7TI,rejected,,,,metal in the retained region
+7PRM_81I,rejected,440,,,cutout exceeds the heavy-atom cap
+7PT3_3KK,rejected,,,,metal in the retained region
+7PUV_84Z,rejected,,,,metal in the retained region
+7Q25_8J9,rejected,,,,metal in the retained region
+7Q27_8KC,rejected,,,,metal in the retained region
+7Q2B_M6H,rejected,407,,,cutout exceeds the heavy-atom cap
+7QE4_NGA,rejected,,,,non-cofactor heterogen within the cutoff of a pose
+7QF4_RBF,eligible,279,1,2130,
+7QGP_DJ8,eligible,303,-2,2330,
+7QHG_T3B,rejected,,,,incomplete residue in the cutout
+7QPP_VDX,eligible,353,0,2710,
+7QTA_URI,rejected,,,,metal in the retained region
+7R3D_APR,rejected,,,,metal in the retained region
+7R59_I5F,eligible,130,0,982,
+7R6J_2I7,rejected,,,,disulfide split by the cutout
+7R7R_AWJ,eligible,206,-2,1600,
+7R9N_F97,eligible,169,-1,1314,
+7RC3_SAH,rejected,,,,metal in the retained region
+7RH3_59O,eligible,213,-1,1622,
+7RKW_5TV,rejected,,,,metal in the retained region
+7RNI_60I,rejected,,,,metal in the retained region
+7ROR_69X,rejected,,,,cutout exceeds the heavy-atom cap
+7ROU_66I,rejected,462,,,cutout exceeds the heavy-atom cap
+7RSV_7IQ,eligible,204,1,1548,
+7RWS_4UR,eligible,324,2,2450,
+7SCW_GSP,rejected,,,,metal in the retained region
+7SDD_4IP,eligible,259,3,1978,
+7SFO_98L,rejected,,,,incomplete residue in the cutout
+7SIU_9ID,eligible,250,-2,1946,
+7SZA_DUI,eligible,180,-2,1390,
+7T0D_FPP,rejected,,,,metal in the retained region
+7T1D_E7K,rejected,,,,cutout exceeds the heavy-atom cap
+7T3E_SLB,eligible,218,-1,1670,
+7TB0_UD1,rejected,,,,non-cofactor heterogen within the cutoff of a pose
+7TBU_S3P,eligible,318,1,2440,
+7TE8_P0T,rejected,,,,cutout exceeds the heavy-atom cap
+7TH4_FFO,rejected,,,,biological cofactor within the cutoff of a pose
+7THI_PGA,eligible,347,8,2660,
+7TM6_GPJ,rejected,,,,non-cofactor heterogen within the cutoff of a pose
+7TOM_5AD,rejected,,,,metal in the retained region
+7TS6_KMI,rejected,,,,metal in the retained region
+7TSF_H4B,rejected,,,,metal in the retained region
+7TUO_KL9,rejected,,,,incomplete residue in the cutout
+7TXK_LW8,rejected,,,,ligand with a non-zero formal charge
+7TYP_KUR,rejected,,,,incomplete residue in the cutout
+7U0U_FK5,rejected,452,,,cutout exceeds the heavy-atom cap
+7U3J_L6U,rejected,,,,incomplete residue in the cutout
+7UAS_MBU,eligible,306,-2,2340,
+7UAW_MF6,rejected,,,,cutout exceeds the heavy-atom cap
+7UJ4_OQ4,rejected,,,,metal in the retained region
+7UJ5_DGL,rejected,,,,incomplete residue in the cutout
+7UJF_R3V,rejected,,,,incomplete residue in the cutout
+7ULC_56B,rejected,,,,cutout exceeds the heavy-atom cap
+7UMW_NAD,rejected,,,,non-cofactor heterogen within the cutoff of a pose
+7UQ3_O2U,rejected,,,,metal in the retained region
+7USH_82V,eligible,157,-1,1188,
+7UTW_NAI,rejected,,,,metal in the retained region
+7UXS_OJC,rejected,,,,cutout exceeds the heavy-atom cap
+7UY4_SMI,rejected,,,,metal in the retained region
+7UYB_OK0,rejected,,,,metal in the retained region
+7V14_ORU,eligible,280,-2,2160,
+7V3N_AKG,rejected,,,,metal in the retained region
+7V3S_5I9,rejected,,,,incomplete residue in the cutout
+7V43_C4O,rejected,,,,metal in the retained region
+7VB8_STL,rejected,,,,cutout exceeds the heavy-atom cap
+7VBU_6I4,rejected,527,,,cutout exceeds the heavy-atom cap
+7VC5_9SF,rejected,,,,non-cofactor heterogen within the cutoff of a pose
+7VKZ_NOJ,rejected,452,,,cutout exceeds the heavy-atom cap
+7VQ9_ISY,rejected,,,,metal in the retained region
+7VWF_K55,rejected,,,,non-cofactor heterogen within the cutoff of a pose
+7VYJ_CA0,rejected,,,,metal in the retained region
+7W05_GMP,eligible,167,-1,1242,
+7W06_ITN,eligible,168,1,1286,
+7WDT_NGS,eligible,242,-4,1802,
+7WJB_BGC,rejected,427,,,cutout exceeds the heavy-atom cap
+7WKL_CAQ,rejected,,,,metal in the retained region
+7WL4_JFU,rejected,,,,cutout exceeds the heavy-atom cap
+7WPW_F15,eligible,310,3,2374,
+7WQQ_5Z6,eligible,325,1,2506,
+7WUX_6OI,eligible,222,1,1700,
+7WUY_76N,rejected,,,,biological cofactor within the cutoff of a pose
+7WY1_D0L,eligible,251,-3,1918,
+7X5N_5M5,rejected,,,,non-cofactor heterogen within the cutoff of a pose
+7X9K_8OG,rejected,,,,metal in the retained region
+7XBV_APC,eligible,261,0,1984,
+7XFA_D9J,eligible,223,0,1696,
+7XG5_PLP,rejected,496,,,cutout exceeds the heavy-atom cap
+7XI7_4RI,eligible,193,-1,1478,
+7XJN_NSD,rejected,407,,,cutout exceeds the heavy-atom cap
+7XPO_UPG,rejected,,,,biological cofactor within the cutoff of a pose
+7XQZ_FPF,rejected,,,,metal in the retained region
+7XRL_FWK,rejected,,,,metal in the retained region
+7YZU_DO7,eligible,279,-2,2124,
+7Z1Q_NIO,eligible,201,1,1532,
+7Z2O_IAJ,eligible,275,1,2052,
+7Z7F_IF3,rejected,,,,incomplete residue in the cutout
+7ZCC_OGA,rejected,,,,metal in the retained region
+7ZDY_6MJ,rejected,455,,,cutout exceeds the heavy-atom cap
+7ZF0_DHR,rejected,,,,biological cofactor within the cutoff of a pose
+7ZHP_IQY,eligible,263,0,2036,
+7ZL5_IWE,rejected,,,,metal in the retained region
+7ZOC_T8E,rejected,,,,metal in the retained region
+7ZU2_DHT,eligible,265,0,2080,
+7ZZW_KKW,eligible,328,-3,2492,
+8A1H_DLZ,rejected,,,,metal in the retained region
+8A2D_KXY,rejected,475,,,cutout exceeds the heavy-atom cap
+8AAU_LH0,rejected,,,,metal coordination sphere split by the cutout
+8AEM_LVF,rejected,,,,biological cofactor within the cutoff of a pose
+8AIE_M7L,rejected,,,,non-cofactor heterogen within the cutoff of a pose
+8AP0_PRP,rejected,,,,metal in the retained region
+8AQL_PLG,rejected,,,,cutout exceeds the heavy-atom cap
+8AUH_L9I,rejected,,,,biological cofactor within the cutoff of a pose
+8AY3_OE3,eligible,352,-1,2670,
+8B8H_OJQ,rejected,,,,ligand with a non-zero formal charge
+8BOM_QU6,eligible,385,-5,2960,
+8BTI_RFO,rejected,,,,incomplete residue in the cutout
+8C3N_ADP,rejected,,,,metal in the retained region
+8C5M_MTA,eligible,201,2,1554,
+8D19_GSH,rejected,,,,metal in the retained region
+8D39_QDB,rejected,,,,metal in the retained region
+8D5D_5DK,rejected,,,,cutout exceeds the heavy-atom cap
+8DHG_T78,rejected,,,,biological cofactor within the cutoff of a pose
+8DKO_TFB,rejected,,,,biological cofactor within the cutoff of a pose
+8DSC_NCA,eligible,244,1,1870,
+8EAB_VN2,rejected,,,,disulfide split by the cutout
+8EX2_Q2Q,eligible,188,2,1444,
+8EYE_X4I,rejected,,,,metal in the retained region
+8F8E_XJI,rejected,,,,incomplete residue in the cutout
+8FAV_4Y5,rejected,,,,non-cofactor heterogen within the cutoff of a pose
+8FLV_ZB9,rejected,,,,incomplete residue in the cutout
+8FO5_Y4U,rejected,,,,disulfide split by the cutout
+8G0V_YHT,rejected,,,,incomplete residue in the cutout
+8GFD_ZHR,eligible,372,0,2842,
+8HFN_XGC,rejected,,,,metal in the retained region
+8HO0_3ZI,rejected,,,,metal in the retained region
+8SLG_G5A,rejected,,,,cutout exceeds the heavy-atom cap

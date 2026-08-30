@@ -48,6 +48,11 @@ def pytest_addoption(parser):
              "build of the smallest is around four minutes on twelve cores, so these are hours "
              "each and are left out of every ordinary run.",
     )
+    parser.addoption(
+        "--encode",
+        action="store_true",
+        help="Run only the encoding tests, for a change that touches nothing before them.",
+    )
 
 
 def pytest_configure(config):
@@ -59,6 +64,9 @@ def pytest_configure(config):
     )
 
 
+ENCODING = "test_encode.py"
+
+
 def pytest_collection_modifyitems(config, items):
     """
     `slow` is opt-out and `hpc` is opt-in.
@@ -66,7 +74,17 @@ def pytest_collection_modifyitems(config, items):
     The two differ by three orders of magnitude: a slow test is a minute of preparation, an hpc test
         is hours of SCF on hardware this machine is not. Defaulting hpc off keeps the suite a thing
         that can be run on every change.
+
+    `--encode` narrows to the encoding tests, which are deselected rather than skipped so that the
+        run reports only what it was asked for.
     """
+    if config.getoption("--encode"):
+        selected = [item for item in items if item.path.name == ENCODING]
+        deselected = [item for item in items if item.path.name != ENCODING]
+        if deselected:
+            config.hook.pytest_deselected(items=deselected)
+        items[:] = selected
+
     if not config.getoption("--hpc"):
         skipped = pytest.mark.skip(reason="needs --hpc")
         for item in items:

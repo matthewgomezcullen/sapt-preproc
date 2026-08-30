@@ -1,13 +1,9 @@
 """
-Net charge, electron count, and geometry export for PrepareComplex.
+Net charge and electron count for PrepareComplex.
 
-_calculate_charge, _verify_num_electrons and xyz write nothing back into the cutout.
+Neither _calculate_charge nor _verify_num_electrons writes anything back into the cutout.
 
 The charge is determined by the set of hydrogens the residue holds.
-
-The AVAS default rule addresses target orbitals by zero-based PySCF atom index, and PySCF indexes 
-    in file order, so we traverse back from an index to a residue by walking `self.reduced` in the 
-    same order the file was written in.
 
 Three complexes cover the cases, all accepted by _reduce:
 
@@ -19,7 +15,6 @@ Three complexes cover the cases, all accepted by _reduce:
 import functools
 
 import pytest
-from pyscf import gto
 
 from conftest import paths
 from prepare import PrepareComplex, PrepareError
@@ -113,17 +108,6 @@ def atoms(model):
     ]
 
 
-def written(path):
-    """
-    An .xyz file as (element, coordinates) in the order it was written.
-    """
-    lines = path.read_text().splitlines()
-    return [
-        (fields[0], tuple(float(value) for value in fields[1:4]))
-        for fields in (line.split() for line in lines[2:])
-    ]
-
-
 @pytest.mark.parametrize("name", COMPLEXES)
 def test_calculate_charge_counts_every_charged_residue(name):
     """
@@ -181,82 +165,3 @@ def test_verify_num_electrons_rejects_an_odd_count():
 
     with pytest.raises(PrepareError):
         prepared._verify_num_electrons()
-
-
-@pytest.mark.parametrize("name", COMPLEXES)
-def test_xyz_writes_every_atom_of_the_cutout(name, tmp_path):
-    """
-    The file holds the whole cutout and nothing else, hydrogens included.
-    """
-    prepared = prepare(name)
-    prepared._calculate_charge()
-    path = tmp_path / "cutout.xyz"
-
-    prepared.xyz(str(path))
-
-    lines = path.read_text().splitlines()
-    expected = atoms(prepared.reduced)
-    assert int(lines[0].split()[0]) == len(expected)
-    assert len(lines) == len(expected) + 2
-
-
-@pytest.mark.parametrize("name", COMPLEXES)
-def test_xyz_keeps_the_order_of_the_cutout(name, tmp_path):
-    """
-    The file is written in the order `self.reduced` iterates, and the coordinates are unchanged.
-    """
-    prepared = prepare(name)
-    prepared._calculate_charge()
-    path = tmp_path / "cutout.xyz"
-
-    ordered = prepared.xyz(str(path))
-
-    expected = atoms(prepared.reduced)
-    assert len(ordered) == len(expected)
-    for (element, coordinates), (symbol, position), (_, _, atom) in zip(
-        written(path), expected, ordered
-    ):
-        assert element == symbol == atom.element.name
-        assert coordinates == pytest.approx(position, abs=1e-3)
-
-
-def test_xyz_records_the_charge_and_multiplicity(tmp_path):
-    """
-    An .xyz carries no charge of its own. The comment line fills this gap.
-    """
-    prepared = prepare(TERMINUS)
-    prepared._calculate_charge()
-    path = tmp_path / "cutout.xyz"
-
-    prepared.xyz(str(path))
-
-    comment = path.read_text().splitlines()[1]
-    assert f"charge={prepared.charge}" in comment
-    assert f"multiplicity={prepared.multiplicity}" in comment
-
-
-def test_xyz_is_read_back_by_pyscf(tmp_path):
-    """
-    What is written is what compression is handed.
-    """
-    prepared = prepare(SIMPLE)
-    prepared._calculate_charge()
-    prepared._verify_num_electrons()
-    path = tmp_path / "cutout.xyz"
-
-    ordered = prepared.xyz(str(path))
-
-    mol = gto.M(atom=str(path), charge=prepared.charge, spin=prepared.spin, basis=prepared.basis)
-    assert mol.natm == len(ordered)
-    assert mol.nelectron == prepared.electrons
-    assert [mol.atom_symbol(i) for i in range(mol.natm)] == [a.element.name for _, _, a in ordered]
-
-
-def test_xyz_refuses_a_structure_that_was_never_reduced():
-    """
-    Writing the whole protein where the cutout was meant would only show in the cost of the SCF.
-    """
-    prepared = PrepareComplex(*paths(SIMPLE))
-
-    with pytest.raises(PrepareError):
-        prepared.xyz("cutout.xyz")

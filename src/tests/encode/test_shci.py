@@ -99,7 +99,7 @@ def test_shci_reproduces_the_exact_solution_of_the_space_it_is_given():
     energy, occupations = reference()
     encoded = capped()
 
-    encoded.SHCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
+    encoded.SCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
 
     assert encoded.energy_cas == pytest.approx(energy, abs=ENERGY)
     assert np.allclose(encoded.occupations, occupations, atol=OCCUPATION)
@@ -112,7 +112,7 @@ def test_shci_lowers_the_energy_the_mean_field_settled_on():
     energy, _ = reference()
     encoded = capped()
 
-    encoded.SHCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
+    encoded.SCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
 
     assert encoded.energy_cas < encoded.energy
     assert encoded.energy_cas >= energy - ENERGY
@@ -125,8 +125,8 @@ def test_a_tighter_selection_cutoff_is_a_closer_answer():
     energy, occupations = reference()
 
     coarse, fine = capped(), capped()
-    coarse.SHCI(eps1=COARSE, lo=EVERYTHING[0], hi=EVERYTHING[1])
-    fine.SHCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
+    coarse.SCI(eps1=COARSE, lo=EVERYTHING[0], hi=EVERYTHING[1])
+    fine.SCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
 
     assert coarse.energy_cas >= fine.energy_cas >= energy - ENERGY
     assert abs(fine.energy_cas - energy) < abs(coarse.energy_cas - energy)
@@ -141,8 +141,8 @@ def test_shci_is_reproducible():
     """
     first, second = capped(), capped()
 
-    first.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
-    second.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
+    first.SCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
+    second.SCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
 
     assert (first.ncas, first.nelecas) == (second.ncas, second.nelecas)
     assert first.energy_cas == pytest.approx(second.energy_cas)
@@ -158,7 +158,7 @@ def test_shci_keeps_exactly_the_occupations_inside_the_window():
     lo, hi = NARROW
     encoded = capped()
 
-    encoded.SHCI(eps1=SELECTION, lo=lo, hi=hi)
+    encoded.SCI(eps1=SELECTION, lo=lo, hi=hi)
 
     expected = occupations[(occupations >= lo) & (occupations <= hi)]
     assert encoded.ncas == len(expected)
@@ -178,7 +178,7 @@ def test_shci_retires_a_pair_for_every_orbital_above_the_window():
     before, core_before = encoded.nelecas, (encoded.mol.nelectron - encoded.nelecas) // 2
     retained = encoded.orbitals[:, :core_before].copy()
 
-    encoded.SHCI(eps1=SELECTION, lo=lo, hi=hi)
+    encoded.SCI(eps1=SELECTION, lo=lo, hi=hi)
 
     above = int((occupations > hi).sum())
     core = (encoded.mol.nelectron - encoded.nelecas) // 2
@@ -196,7 +196,7 @@ def test_shci_leaves_a_space_a_correction_can_be_made_in():
     """
     encoded = capped()
 
-    encoded.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
+    encoded.SCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
 
     assert (encoded.nelecas, encoded.ncas) == NARROWED
     assert not encoded.nelecas % 2
@@ -210,8 +210,8 @@ def test_a_wider_window_keeps_more_of_the_space():
     """
     narrow, wide = capped(), capped()
 
-    narrow.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
-    wide.SHCI(eps1=SELECTION, lo=WIDE[0], hi=WIDE[1])
+    narrow.SCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
+    wide.SCI(eps1=SELECTION, lo=WIDE[0], hi=WIDE[1])
 
     assert (wide.nelecas, wide.ncas) == WIDENED
     assert wide.ncas > narrow.ncas
@@ -224,7 +224,7 @@ def test_shci_keeps_every_orbital_of_the_molecule():
     """
     encoded = capped()
 
-    encoded.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
+    encoded.SCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
 
     orbitals = encoded.orbitals
     assert orbitals.shape == (encoded.mol.nao, encoded.mol.nao)
@@ -245,7 +245,7 @@ def test_shci_leaves_the_correlated_space_it_was_handed():
     before = encoded.orbitals[:, :correlated]
     span = before @ before.T @ overlap
 
-    encoded.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
+    encoded.SCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
 
     after = encoded.orbitals[:, :correlated]
     assert np.allclose(after @ after.T @ overlap, span, atol=1e-8)
@@ -260,7 +260,7 @@ def test_shci_keeps_the_active_space_on_the_contact():
     """
     encoded = capped()
 
-    encoded.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
+    encoded.SCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
 
     weights = contact_weight(encoded.mol, window(encoded), all_carbons(encoded.mol))
     assert weights.mean() >= encoded.threshold
@@ -273,7 +273,7 @@ def test_shci_refuses_before_an_active_space_exists():
     encoded = EncodeProtein(fragment())
 
     with pytest.raises(EncodingError):
-        encoded.SHCI()
+        encoded.SCI()
 
 
 @pytest.mark.parametrize(
@@ -292,7 +292,7 @@ def test_shci_refuses_a_window_that_leaves_nothing_to_correct(lo, hi):
     encoded = capped()
 
     with pytest.raises(EncodingError):
-        encoded.SHCI(eps1=SELECTION, lo=lo, hi=hi)
+        encoded.SCI(eps1=SELECTION, lo=lo, hi=hi)
 
 
 def test_the_paper_window_is_too_narrow_for_a_saturated_cutout():
@@ -308,7 +308,7 @@ def test_the_paper_window_is_too_narrow_for_a_saturated_cutout():
     encoded = capped()
 
     with pytest.raises(EncodingError):
-        encoded.SHCI(eps1=SELECTION, lo=PAPER[0], hi=PAPER[1])
+        encoded.SCI(eps1=SELECTION, lo=PAPER[0], hi=PAPER[1])
 
 
 def test_the_default_window_leaves_a_space_worth_correcting():
@@ -317,7 +317,7 @@ def test_the_default_window_leaves_a_space_worth_correcting():
     """
     encoded = capped()
 
-    encoded.SHCI()
+    encoded.SCI()
 
     assert encoded.ncas >= 2
     assert 0 < encoded.nelecas < 2 * encoded.ncas
@@ -337,7 +337,7 @@ def reduced(name):
     encoded = solved(prepare(name))
     encoded.AVAS()
     encoded.MP2()
-    encoded.SHCI(lo=EVERYTHING[0], hi=EVERYTHING[1])
+    encoded.SCI(lo=EVERYTHING[0], hi=EVERYTHING[1])
     return encoded
 
 

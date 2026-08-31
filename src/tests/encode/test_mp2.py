@@ -22,7 +22,7 @@ import pytest
 from pyscf import mp
 from pyscf.mcscf import avas
 
-from cutouts import SUBSET, fragment, prepare, solved
+from cutouts import SUBSET, all_carbons, contact_weight, fragment, prepare, solved, window
 from encode import EncodeProtein, EncodingError
 
 # Dice runs comfortably to roughly fifty orbitals and the original paper's final active space was 
@@ -38,38 +38,6 @@ CAP = 8
 # stale-energy mistake the margin exists to catch.
 CORRELATION = 1e-3  # relative, on the correlation energy
 OCCUPATION = 1e-4   # absolute, on a natural occupation; the selection boundary gap is 4.8e-4
-
-
-def all_carbons(mol):
-    """
-    Every carbon's 2p shell: a target set large enough that the cap has to cut.
-    """
-    return [
-        f"{index} C 2p"
-        for index in range(mol.natm)
-        if mol.atom_symbol(index) == "C"
-    ]
-
-
-def window(encoded):
-    """
-    The active columns of the orbital set, located by the electron bookkeeping.
-    """
-    core = (encoded.mol.nelectron - encoded.nelecas) // 2
-    return encoded.orbitals[:, core:core + encoded.ncas]
-
-
-def contact_weight(mol, vectors, targets):
-    """
-    Weight of each orbital on the span of the target AOs, in the overlap metric. One per column,
-        each within [0, 1].
-    """
-    overlap = mol.intor("int1e_ovlp")
-    indices = np.unique(np.concatenate([mol.search_ao_label(t) for t in targets]))
-    projected = overlap[indices] @ vectors
-    return np.einsum(
-        "ti,ti->i", np.linalg.solve(overlap[np.ix_(indices, indices)], projected), projected
-    )
 
 
 @functools.lru_cache(maxsize=None)

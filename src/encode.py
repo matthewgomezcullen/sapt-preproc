@@ -156,33 +156,23 @@ class EncodeProtein:
             and distance <= self.cutoff
         ]
 
-    def mp2(self):
-        """
-        Caps the active space size with MP2 correlations.
-        """
-        ...
-
     def MP2(self):
         """
-        Cap the active space at the nmax most correlated natural orbitals, README's MCP-NO step.
+        Cap the active space at the nmax most correlated natural orbitals.
 
-        The AVAS space runs to hundreds of orbitals over the bin and SHCI can take about fifty, so
-            something has to choose. MP2 correlates the whole AVAS space, its one-particle density
-            is diagonalised into natural orbitals, and the nmax most fractional by min(n, 2 - n)
-            are kept: fractional occupation is where the correlation sits, which is the property
-            the SAPT correction is after.
+        MP2 correlates the whole AVAS space, its one-particle density is diagonalised into natural 
+            orbitals, and the nmax most fractional by min(n, 2 - n) are kept.
 
         AVAS returns semicanonical orbitals but not their energies, and the mean field still holds
-            the canonical ones, wrong for these orbitals by whole Hartrees. MP2 divides by orbital
-            energies, and fed the stale set it returns a plausible-looking answer 68% off. So the
-            energies are recomputed from the Fock matrix here, and the mean field is restored
-            afterwards rather than left describing orbitals it never solved.
+            the canonical ones, wrong for these orbitals. MP2 divides by orbital energies, and fed 
+            the stale set it returns wrong answers. The energies are recomputed from the Fock 
+            matrix, and the mean field is restored afterwards
 
         The occupied-virtual block of the unrelaxed MP2 density is zero, so diagonalising the two
             blocks separately loses nothing and keeps each orbital's provenance. That provenance is
             the electron count: a discarded occupied-derived orbital retires its pair to the core,
             a discarded virtual-derived one stays empty among the virtuals, and the window that
-            remains holds its survivors in descending occupation.
+            remains returns the survivors in descending occupation.
         """
         if self.ncas is None:
             raise EncodingError("Cannot cap the active space before AVAS has chosen one")

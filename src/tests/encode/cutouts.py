@@ -12,6 +12,7 @@ Nothing here is cheap, and the SCFs are not cheap by three orders of magnitude, 
 import functools
 
 import gemmi
+import numpy as np
 
 from conftest import paths
 from encode import EncodeProtein
@@ -104,3 +105,35 @@ def elements(model):
         for residue in chain
         for atom in residue
     ]
+
+
+def all_carbons(mol):
+    """
+    Every carbon's 2p shell: a target set large enough that the cap has to cut.
+    """
+    return [
+        f"{index} C 2p"
+        for index in range(mol.natm)
+        if mol.atom_symbol(index) == "C"
+    ]
+
+
+def window(encoded):
+    """
+    The active columns of the orbital set, located by the electron bookkeeping.
+    """
+    core = (encoded.mol.nelectron - encoded.nelecas) // 2
+    return encoded.orbitals[:, core:core + encoded.ncas]
+
+
+def contact_weight(mol, vectors, targets):
+    """
+    Weight of each orbital on the span of the target AOs, in the overlap metric. One per column,
+        each within [0, 1].
+    """
+    overlap = mol.intor("int1e_ovlp")
+    indices = np.unique(np.concatenate([mol.search_ao_label(t) for t in targets]))
+    projected = overlap[indices] @ vectors
+    return np.einsum(
+        "ti,ti->i", np.linalg.solve(overlap[np.ix_(indices, indices)], projected), projected
+    )

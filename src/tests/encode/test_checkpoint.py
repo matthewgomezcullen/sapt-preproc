@@ -318,15 +318,19 @@ def test_an_encoder_without_a_store_is_unchanged(monkeypatch, tmp_path):
 def test_the_subset_solve_is_read_back_from_the_store(tmp_path, fock_builds, name):
     """
     A cutout of the bin, solved once and then read.
+
+    The real store, so that this shares the solve `test_rhf` already pays for rather than adding
+        another eight to twelve hours to the job. `tmp_path` stands in where there is no store.
     """
+    store = encode.store() or str(tmp_path)
     prepared = prepare(name)
     first = EncodeProtein(prepared)
-    first.checkpoints = str(tmp_path)
+    first.checkpoints = store
     first.RHF()
     fock_builds.clear()
 
     second = EncodeProtein(prepared)
-    second.checkpoints = str(tmp_path)
+    second.checkpoints = store
     second.RHF()
 
     assert not fock_builds

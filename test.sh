@@ -5,9 +5,9 @@
 # Run setup.sh once from a login node first, then: sbatch test.sh
 
 #SBATCH --clusters=htc
-#SBATCH --partition=short
+#SBATCH --partition=medium
 #SBATCH --job-name=sapt-rhf
-#SBATCH --time=12:00:00
+#SBATCH --time=48:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=32G
@@ -71,9 +71,10 @@ echo "[$(date +%T)] Host      $(hostname)"
 # this complex's contract tests, which are seconds and run first, so a broken environment or a
 # cutout that has moved out of the bin fails here
 #
-# -x because the two hpc tests share one solve through a cache that does not hold exceptions. A
-# converged solve is reused, but a failed one is not, so without -x a cutout that will not converge
-# is solved again from scratch to fail the same way hours later.
+# -x because the seven hpc tests run in sequence on one cutout, and everything after the first
+# failure is either the same failure again or a step that cannot run without it. A solve that dies
+# is not repeated from scratch any more, since it leaves a checkpoint the next attempt resumes
+# from, but there is still no reason to spend the rest of the wall clock finding that out.
 echo "[$(date +%T)] Running the encoding tests for $NAME"
 pytest tests --encode --hpc -k "$NAME" -v -x --durations=0
 

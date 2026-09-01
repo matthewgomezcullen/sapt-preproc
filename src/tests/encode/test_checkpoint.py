@@ -262,6 +262,78 @@ def test_a_checkpoint_of_the_wrong_shape_is_ignored(tmp_path):
     assert mean_field.e_tot == pytest.approx(scf.RHF(small()).kernel(), abs=REPRODUCIBLE)
 
 
+def test_a_density_fitted_solve_takes_a_different_path(tmp_path):
+    """
+    Fitting the two-electron integrals changes the answer, so it has to change the checkpoint.
+    """
+    store = str(tmp_path)
+    mol = small()
+
+    assert encode.checkpoint(mol, store) != encode.checkpoint(
+        mol, store, scf.RHF(mol).density_fit()
+    )
+
+
+def test_a_different_fitting_basis_takes_a_different_path(tmp_path):
+    """
+    The auxiliary basis is part of the method, not a detail of it.
+    """
+    store = str(tmp_path)
+    mol = small()
+
+    assert encode.checkpoint(
+        mol, store, scf.RHF(mol).density_fit()
+    ) != encode.checkpoint(mol, store, scf.RHF(mol).density_fit(auxbasis="weigend"))
+
+
+def test_the_default_path_is_the_exact_solve(tmp_path):
+    """
+    Naming no mean field means the one the pipeline has always run.
+    """
+    store = str(tmp_path)
+    mol = small()
+
+    assert encode.checkpoint(mol, store) == encode.checkpoint(mol, store, scf.RHF(mol))
+
+
+def test_a_density_fitted_solve_is_not_read_back_by_an_exact_one(tmp_path, fock_builds):
+    """
+    A fitted solve and an exact one differ by a few times 1e-6 Ha, silently, if they collide.
+    """
+    store = str(tmp_path)
+    fitted = encode.rhf(small(), 50, store, density_fit=True)
+    fock_builds.clear()
+
+    exact = encode.rhf(small(), 50, store)
+
+    assert fock_builds
+    assert exact.e_tot != fitted.e_tot
+    assert exact.e_tot == pytest.approx(scf.RHF(small()).kernel(), abs=REPRODUCIBLE)
+
+
+def test_a_density_fitted_solve_is_read_back_by_another(tmp_path, fock_builds):
+    """
+    Fitted or not, a solve is paid for once.
+    """
+    store = str(tmp_path)
+    first = encode.rhf(small(), 50, store, density_fit=True)
+    fock_builds.clear()
+
+    second = encode.rhf(small(), 50, store, density_fit=True)
+
+    assert not fock_builds
+    assert second.e_tot == first.e_tot
+
+
+def test_the_integrals_are_not_fitted_unless_asked(tmp_path):
+    """
+    Nothing changes for a caller that does not mention it.
+    """
+    mean_field = encode.rhf(small(), 50, str(tmp_path))
+
+    assert not hasattr(mean_field, "with_df")
+
+
 def test_the_encoder_checkpoints_where_the_environment_says(monkeypatch, tmp_path):
     """
     An encoder picks the store up from `$DATA`.

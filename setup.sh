@@ -4,17 +4,31 @@
 #
 # Run once from a login node, then submit test.sh. Safe to re-run: it replaces the environment.
 #
-# pyscf comes from PyPI rather than conda-forge, which is the one deviation from environment.yml
-# and is forced. conda-forge's only linux-64 builds of pyscf 2.14.0 are python 3.10, and both
-# require _x86_64-microarch-level >=4, meaning AVX-512. Dropping to python 3.10 to reach them then
-# breaks scipy 1.17.1, which needs 3.11 or newer, so the conda route cannot honour environment.yml
-# on Linux at all. PyPI's wheel is py3-none-manylinux_2_17_x86_64: no python pin, no AVX-512, and
-# every other version in environment.yml is kept exactly.
+# Dice is the SHCI program the encoding step solves with, an MPI C++ program with no conda package, 
+# so it is built here against the environment's own Boost, HDF5 and OpenMPI and installed into its 
+# bin. This does not build on macOS.
+#
+# `encode.py` looks for it on the PATH, which the environment puts it on when it is activated.
+#
+# pyscf comes from PyPI rather than conda-forge, conda-forge's only linux-64 builds of pyscf 2.14.0 
+# are python 3.10, and both require _x86_64-microarch-level >=4, meaning AVX-512. scipy 1.17.1 
+# needs 3.11 or newer, so the conda route cannot honour environment.yml on Linux at all. PyPI's 
+# wheel has no python pin, no AVX-512, and every other version in environment.yml is kept exactly.
 
 set -euo pipefail
 
 MODULE="${MODULE:-Anaconda3/2025.06-1}"
 PREFIX="${PREFIX:-${DATA:?DATA is not set; it is where the environment goes}/sapt-preproc}"
+
+# Dice is the SHCI program; shciscf is PySCF's interface to it, one C file and a driver.
+DICE="${DICE:-f0f0850de73f2f02953ff6552315889d47255b6f}"
+SHCISCF="${SHCISCF:-7edb54dcbfe03bc1ff83c143ea9e8102ce0b16a3}"
+
+# -march=core-avx2 in Dice's makefile. Read from this machine, which is the login node: if the
+# compute nodes are the older ones, set it to no by hand, because a binary built for a vector width
+# the node does not have does not run.
+AVX2="${AVX2:-$(grep -qm1 avx2 /proc/cpuinfo 2>/dev/null && echo yes || echo no)}"
+BUILD_JOBS="${BUILD_JOBS:-8}"
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENVIRONMENT="$REPO/src/environment.yml"
@@ -28,10 +42,11 @@ fi
 
 echo "[$(date +%T)] Environment  $PREFIX"
 echo "[$(date +%T)] pyscf        $PYSCF, from PyPI"
+echo "[$(date +%T)] Dice         ${DICE:0:12}, built here, AVX2 $AVX2"
+echo "[$(date +%T)] shciscf      ${SHCISCF:0:12}"
 
-# Reported rather than acted on. Level 4 means the conda-forge build is reachable, and being
-# compiled for this machine's vector width it is likely faster than the generic wheel. Taking it
-# costs python 3.10 and a scipy downgrade.
+# Level 4 means the conda-forge build is reachable, and being compiled for this machine's vector 
+# width it is likely faster than the generic wheel. Taking costs python 3.10 and a scipy downgrade.
 if command -v python3 >/dev/null 2>&1; then
     python3 - <<'PY' || true
 try:
@@ -62,8 +77,35 @@ conda activate "$PREFIX"
 echo "[$(date +%T)] Installing pyscf $PYSCF"
 pip install --no-cache-dir "pyscf==$PYSCF"
 
+# --no-deps because its metadata asks for pyscf again and would pull a different one
+echo "[$(date +%T)] Installing the Dice interface"
+pip install --no-cache-dir --no-deps "git+https://github.com/pyscf/shciscf@$SHCISCF"
+
+# Boost has to carry its MPI bindings and be built by the same compiler as Dice, which is what
+# taking both from conda-forge buys. Eigen is vendored in Dice's own tree, so it is not needed here.
+echo "[$(date +%T)] Installing what Dice is built against"
+conda install --yes --prefix "$PREFIX" --channel conda-forge \
+    openmpi libboost-devel libboost-mpi hdf5 make cxx-compiler
+
+# Create empty directories for ouptut. OPT is appended to the link line untouched, which is where 
+# an rpath can go without displacing the flags that find Boost.
+echo "[$(date +%T)] Building Dice on $BUILD_JOBS cores"
+git clone --quiet "https://github.com/sanshar/Dice" "$WORK/Dice"
+git -C "$WORK/Dice" checkout --quiet "$DICE"
+mkdir -p "$WORK/Dice/bin" "$WORK/Dice/obj/SHCI"
+make -C "$WORK/Dice" -j"$BUILD_JOBS" Dice \
+    CXX=mpicxx \
+    BOOST="$PREFIX" \
+    HDF5="$PREFIX" \
+    EIGEN=./eigen/ \
+    HAS_AVX2="$AVX2" \
+    OPT="-Wl,-rpath,$PREFIX/lib"
+install -m 0755 "$WORK/Dice/bin/Dice" "$PREFIX/bin/Dice"
+
 echo "[$(date +%T)] Checking the environment"
 python - <<'PY'
+import shutil
+
 import numpy, scipy, gemmi, openmm, pyscf, rdkit
 from pyscf import gto, scf
 
@@ -78,6 +120,16 @@ mean_field = scf.RHF(mol)
 mean_field.kernel()
 assert mean_field.converged, "the check SCF did not converge"
 print(f"  water RHF/6-31G {mean_field.e_tot:.6f} Ha, converged")
+
+# The interface refuses to import until it has been told where Dice is. `encode.py` seeds the same
+# two settings the same way, so this is the check that the path it takes works here.
+dice = shutil.which("Dice")
+assert dice, "Dice was built but is not on the PATH"
+pyscf.__config__.shci_SHCIEXE = dice
+pyscf.__config__.shci_SHCISCRATCHDIR = "."
+from pyscf.shciscf import shci
+assert shci.SHCI(mol).executable == dice
+print(f"  Dice     {dice}")
 PY
 
 echo "[$(date +%T)] Done. Submit with: sbatch $REPO/test.sh"

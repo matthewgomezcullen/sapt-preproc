@@ -1,5 +1,10 @@
+import os
+import shutil
+import tempfile
+from subprocess import CalledProcessError
+
 import numpy as np
-from pyscf import fci, gto, mcscf, mp, scf
+from pyscf import gto, mcscf, mp, scf
 from pyscf.mcscf import avas
 from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 
@@ -31,39 +36,57 @@ class EncodeProtein:
         self.mean_field = None
         self.energy = None
 
-        # Enough for a well-behaved cutout. A cutout that reaches this has failed.
-        self.max_cycle = 50
-
-        # PySCF prints its SCF table at its own default. Silent by default. Turn it up for a run on the
-        #   cluster
-        self.verbose = 0
-
+        self.max_cycle = 50 # RHF maximum number of cycles for convergence.
+        self.verbose = 0 # PySCF prints its SCF table. Silent by default. Set = 4 for logging.
         self.ncas = None # active-space-size
         self.nelecas = None # active-electrons
         self.orbitals = None # orbital-initial-guess-for-CASCI/CASSCF
         self.occupations = None # natural occupations of the active window
         self.correlation = None # MP2 correlation energy of the AVAS space
         self.energy_cas = None # selected CI total energy of the space MP2 capped
+        self.cutoff = 4.5 # Cutoff for chemically relevant atoms.
+        self.threshold = 0.2 # AVAS threshold. PySCF's own default.
+        self.nmax = 50 # Number of natural orbitals the MP2 caps
 
-        # How close to a pose an atom has to be for its valence p shell to be targeted. Distinct
-        # from `prepared.cutoff`, which decides what the cutout holds at all. The two may differ.
-        self.cutoff = 4.5
+        # Dice
+        self.dice = shutil.which("Dice") # `setup.sh` builds Dice into the environment's own bin.
+        self.mpi = os.environ.get("MPIPREFIX", "") # empty runs on one rank. A cluster wants "srun" 
+        # under SLURM, or "mpirun -np <ranks>"
+        self.scratch = None # where to write integrals, wavefunction and RDMs.
 
-        # Projection weight above which AVAS keeps an orbital. PySCF's own default, recorded here
-        #   because it sets the size of the active space and so has to be reported with a result.
-        self.threshold = 0.2
+    def RHF(self):
+        """
+        Solves RHF over the prepared protein for initial molecular orbitals. Computationally
+            expensive and the driver behind the atom size cap.
 
-        # How many natural orbitals the MP2 cap keeps, which is the size of what SHCI is handed.
-        # Dice runs comfortably to roughly fifty orbitals.
-        self.nmax = 50
+        Restricted, so every electron is in a doubly occupied spatial orbital, which is what the
+            even electron count `_verify_num_electrons` insisted on buys.
 
-    def molecule(self):
+        The two-electron integrals are never held: a cutout carries many basis functions, whose 
+            integrals run to petabytes, so PySCF builds them on the fly.
+
+        An unconverged SCF is rejected.
+        """
+        self._molecule()
+
+        mean_field = scf.RHF(self.mol)
+        mean_field.max_cycle = self.max_cycle
+        mean_field.kernel()
+        if not mean_field.converged:
+            raise EncodingError(
+                f"RHF did not converge in {self.max_cycle} cycles"
+            )
+
+        self.mean_field = mean_field
+        self.energy = mean_field.e_tot
+        return mean_field
+
+    def _molecule(self):
         """
         Build the PySCF molecule the SCF is solved over.
 
         The geometry is taken in `prepared.atoms()` order, which is the order AVAS addresses its
-            targets by. PySCF assumes a molecule it is given no charge for is neutral, so q_A is
-            passed explicitly.
+            targets by. PySCF assumes a molecule it is given no charge by default.
         """
         if self.prepared.charge is None:
             raise PrepareError("Cannot build the molecule before the charge is known")
@@ -79,33 +102,6 @@ class EncodeProtein:
             verbose=self.verbose,
         )
         return self.mol
-
-    def RHF(self):
-        """
-        Solves RHF over the prepared protein for initial molecular orbitals. Computationally
-            expensive and the main driver behind the atom size cap.
-
-        Restricted, so every electron is in a doubly occupied spatial orbital, which is what the
-            even electron count `_verify_num_electrons` insisted on buys.
-
-        The two-electron integrals are never held: a cutout carries many basis functions, whose 
-            integrals run to petabytes, so PySCF builds them on the fly.
-
-        An unconverged SCF is rejected.
-        """
-        self.molecule()
-
-        mean_field = scf.RHF(self.mol)
-        mean_field.max_cycle = self.max_cycle
-        mean_field.kernel()
-        if not mean_field.converged:
-            raise EncodingError(
-                f"RHF did not converge in {self.max_cycle} cycles"
-            )
-
-        self.mean_field = mean_field
-        self.energy = mean_field.e_tot
-        return mean_field
 
     def AVAS(self, targets=None):
         """
@@ -231,53 +227,51 @@ class EncodeProtein:
 
     def SHCI(self, eps1: float = 1e-4, lo: float = 0.01, hi: float = 1.99):
         """
-        Truncate the active space to the orbitals a single determinant cannot describe.
+        Truncate the active space to the correlated orbitals.
 
-        Selected CI solves the space MP2 capped, and its one-particle density is diagonalised into
-            natural orbitals. An occupation near two or near zero is one a single determinant
-            already has right, so only lo <= n_i <= hi is kept: an orbital above the window is
-            doubly occupied and retires its pair to the core, one below it is empty and joins the
-            virtuals. A symmetric window is a floor on fractionality, min(n, 2 - n) >= lo.
+        Semistochastic Heat-bath Configuration Interaction (SHCI) solves the space MP2 capped. Its
+            one-particle density is diagonalised into natural orbitals. An occupation near two or
+            near zero is one a single determinant already describes, so only lo <= n_i <= hi is
+            kept: an orbital above the window is doubly occupied and retires its pair to the core,
+            one below it is empty and joins the virtuals.
 
-        `eps1` is the selection threshold: the coefficient below which a determinant is left out of
-            the variational space. Smaller is nearer exact and costs more. On the fragment 1e-4
-            sits 2.3e-7 Ha above exact diagonalisation of the same space and 1e-3 sits 8.2e-5 Ha
-            above it.
+        `eps1` is the selection threshold, below which a determinant is left out of the variational 
+            space. Smaller is nearer exact and costs more.
 
-        The window is not the paper's 0.02 <= n_i <= 1.97. That was set on KDM5A, whose active
-            space is built round an open-shell iron centre; a saturated peptide has no static
-            correlation for it to find, and the same numbers keep one orbital of the fragment and
-            no electrons at all. One order of magnitude looser keeps the four most fractional of
-            the fragment's eight, and (8e, 8o) of a sixteen-orbital cap, which is the size the
-            paper ended at. What it leaves of a fifty-orbital space is not yet measured.
+        The window may deviate from the paper's 0.02 <= n_i <= 1.97, due to a lack of correlation.
 
-        A window fixes no size, so it can leave a space with no excitation in it, whose correction
-            to SAPT is exactly zero. That is rejected rather than handed on, and the space MP2
-            chose is left as it was for a wider window to be tried on.
+        The window can leave a space with no excitation in it, whose correction to SAPT is exactly 
+            zero. Rejected.
 
-        The solver is PySCF's own selected CI, which is variational and deterministic and runs in
-            process. It is not Dice, and it does not have Dice's semistochastic perturbative
-            correction; nothing downstream reads the energy, only the density.
+        Dice is an external program, so this leaves the process.
         """
         if self.ncas is None:
             raise EncodingError("Cannot solve the active space before AVAS has chosen one")
+        if not self.dice:
+            raise EncodingError(
+                "Dice was not found. `setup.sh` builds it into the environment, or set `dice` to "
+                "the executable"
+            )
 
-        solver = fci.SCI(self.mol)
-        solver.select_cutoff = eps1
-        solver.ci_coeff_cutoff = eps1
+        scratch = os.path.abspath(self.scratch or tempfile.mkdtemp(prefix="dice-"))
+        try:
+            correlated = mcscf.CASCI(self.mean_field, self.ncas, self.nelecas)
+            correlated.fcisolver = self._dice(eps1, scratch)
+            correlated.verbose = self.verbose
+            correlated.kernel(self.orbitals)
+            self.energy_cas = correlated.e_tot
+            # `cas_natorb` cannot rotate what Dice returns, which is a set of RDM files rather than
+            # a CI vector, so the density is diagonalised here. Its eigenvalues are the natural
+            # occupations and its eigenvectors rotate the window onto them.
+            density = correlated.fcisolver.make_rdm1(correlated.ci, self.ncas, self.nelecas)
+        except CalledProcessError as error:
+            raise EncodingError(
+                f"Dice failed over {self.ncas} orbitals; what it wrote is in {scratch}"
+            ) from error
+        else:
+            if self.scratch is None:
+                shutil.rmtree(scratch, ignore_errors=True)
 
-        correlated = mcscf.CASCI(self.mean_field, self.ncas, self.nelecas)
-        correlated.fcisolver = solver
-        correlated.verbose = self.verbose
-        correlated.kernel(self.orbitals)
-        if not correlated.converged:
-            raise EncodingError(f"Selected CI did not converge over {self.ncas} orbitals")
-        self.energy_cas = correlated.e_tot
-
-        # `cas_natorb` cannot rotate a selected CI vector, which is held compressed over the
-        # determinants it kept rather than over the whole space, so the density is diagonalised
-        # here. Its eigenvalues are the natural occupations and its eigenvectors rotate the window.
-        density = solver.make_rdm1(correlated.ci, self.ncas, self.nelecas)
         occupations, rotation = np.linalg.eigh(density)
         # Descending, and bounded: an occupation that comes back at -1e-17 is noise about zero, and
         # a window of the whole interval has to keep everything.
@@ -286,8 +280,6 @@ class EncodeProtein:
         core = (self.mol.nelectron - self.nelecas) // 2
         natural = self.orbitals[:, core:core + self.ncas] @ rotation
 
-        # Descending, so the orbitals above the window are its first columns and those below it its
-        # last. The window stays contiguous once the core has grown by the ones above it.
         kept = (occupations >= lo) & (occupations <= hi)
         ncas = int(kept.sum())
         nelecas = self.nelecas - 2 * int((occupations > hi).sum())
@@ -303,6 +295,41 @@ class EncodeProtein:
         self.occupations = occupations[kept]
         self.ncas, self.nelecas = ncas, nelecas
         return self.ncas, self.nelecas, self.orbitals
+
+    def _dice(self, eps1, scratch):
+        """
+        Dice, configured as a solver CASCI can drive.
+
+        The interface will not import until it has been told where Dice is.
+
+        `scratchDirectory` has to be an absolute path.
+
+        The schedule starts coarse and tightens onto eps1. The run is given six more iterations
+            after its last step to converge in.
+
+        The perturbative correction is left off. It is not variational, so it would put the energy
+            below full CI, and nothing downstream reads the energy.
+        """
+        from pyscf import __config__
+
+        __config__.shci_SHCIEXE = self.dice
+        __config__.shci_SHCISCRATCHDIR = scratch
+        try:
+            from pyscf.shciscf import shci
+        except ImportError as error:
+            raise EncodingError(
+                "The Dice interface is not installed; `setup.sh` installs it beside Dice"
+            ) from error
+
+        solver = shci.SHCI(self.mol)
+        solver.executable = self.dice
+        solver.mpiprefix = self.mpi
+        solver.scratchDirectory = scratch
+        solver.runtimeDir = scratch
+        solver.sweep_iter, solver.sweep_epsilon = [0, 3], [10 * eps1, eps1]
+        solver.nPTiter = 0
+        solver.verbose = self.verbose
+        return solver
 
     def H_fermionic(self):
         """

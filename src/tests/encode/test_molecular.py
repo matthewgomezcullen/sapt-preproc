@@ -62,7 +62,7 @@ def test_molecule_is_handed_the_charge_the_preparation_settled(name):
     prepared = prepare(name)
     encoded = EncodeProtein(prepared)
 
-    encoded.molecule()
+    encoded._molecule()
 
     assert encoded.mol.charge == prepared.charge
     assert encoded.mol.spin == prepared.spin == 0
@@ -79,7 +79,7 @@ def test_molecule_keeps_the_atom_order_avas_addresses_by(name):
     prepared = prepare(name)
     encoded = EncodeProtein(prepared)
 
-    encoded.molecule()
+    encoded._molecule()
 
     expected = elements(prepared.reduced)
     assert encoded.mol.natm == len(expected)
@@ -94,7 +94,7 @@ def test_molecule_uses_the_basis_the_scope_verified(name):
     prepared = prepare(name)
     encoded = EncodeProtein(prepared)
 
-    encoded.molecule()
+    encoded._molecule()
 
     assert encoded.mol.basis == prepared.basis
     low, high = FUNCTIONS_PER_HEAVY_ATOM
@@ -111,7 +111,7 @@ def test_molecule_is_too_large_to_hold_its_integrals(name):
     prepared = prepare(name)
     encoded = EncodeProtein(prepared)
 
-    encoded.molecule()
+    encoded._molecule()
 
     incore = encoded.mol.nao ** 4 * 8
     assert incore > encoded.mol.max_memory * 1e6
@@ -130,7 +130,7 @@ def test_molecule_carries_no_redundant_basis_functions(name):
     prepared = prepare(name)
     encoded = EncodeProtein(prepared)
 
-    encoded.molecule()
+    encoded._molecule()
 
     overlap = np.linalg.eigvalsh(encoded.mol.intor("int1e_ovlp"))
     assert overlap.min() > CONDITIONING
@@ -143,7 +143,7 @@ def test_molecule_carries_the_cutout_geometry_unchanged():
     prepared = fragment()
     encoded = EncodeProtein(prepared)
 
-    encoded.molecule()
+    encoded._molecule()
     written = gto.M(
         atom=[
             (atom.element.name, (atom.pos.x, atom.pos.y, atom.pos.z))

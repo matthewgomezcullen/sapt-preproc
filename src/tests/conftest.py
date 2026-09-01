@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import sys
 
 import pytest
@@ -67,6 +68,9 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "hpc: solves a full SCF over a subset cutout; run only under --hpc"
     )
+    config.addinivalue_line(
+        "markers", "dice: needs the Dice executable; skipped wherever it is not on the PATH"
+    )
 
 
 # The encoding tests are a directory now, so the flag selects on that rather than a filename.
@@ -77,9 +81,9 @@ def pytest_collection_modifyitems(config, items):
     """
     `slow` is opt-out and `hpc` is opt-in.
 
-    The two differ by three orders of magnitude: a slow test is a minute of preparation, an hpc test
-        is hours of SCF on hardware this machine is not. Defaulting hpc off keeps the suite a thing
-        that can be run on every change.
+    A slow test is a minute of preparation, an hpc test is hours of SCF.
+
+    Dice is an external program that only builds on Linux
 
     `--encode` narrows to the encoding tests, which are deselected rather than skipped so that the
         run reports only what it was asked for.
@@ -90,6 +94,12 @@ def pytest_collection_modifyitems(config, items):
         if deselected:
             config.hook.pytest_deselected(items=deselected)
         items[:] = selected
+
+    if shutil.which("Dice") is None:
+        skipped = pytest.mark.skip(reason="Dice is not on the PATH")
+        for item in items:
+            if "dice" in item.keywords:
+                item.add_marker(skipped)
 
     if not config.getoption("--hpc"):
         skipped = pytest.mark.skip(reason="needs --hpc")

@@ -1,3 +1,7 @@
+# Builds on macOS as well as on the cluster.
+# Dice and PySCF's interface to it are not here, as Dice is an MPI C++ program with no conda 
+# package that only builds on Linux. `setup.sh` builds it on the cluster and installs it into the 
+# environment's bin.
 name: sapt-preproc
 channels:
   - conda-forge

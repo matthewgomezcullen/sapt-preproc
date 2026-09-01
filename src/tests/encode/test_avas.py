@@ -68,7 +68,7 @@ def test_target_orbitals_name_the_atoms_the_rule_selects(name):
     """
     prepared = prepare(name)
     encoded = EncodeProtein(prepared)
-    encoded.molecule()
+    encoded._molecule()
 
     targets = encoded._generate_target_orbitals()
 
@@ -84,7 +84,7 @@ def test_target_orbitals_leave_out_the_caps(name):
     """
     prepared = prepare(name)
     encoded = EncodeProtein(prepared)
-    encoded.molecule()
+    encoded._molecule()
 
     targets = encoded._generate_target_orbitals()
 
@@ -103,7 +103,7 @@ def test_target_orbitals_are_the_valence_p_shell(name):
     """
     prepared = prepare(name)
     encoded = EncodeProtein(prepared)
-    encoded.molecule()
+    encoded._molecule()
 
     targets = encoded._generate_target_orbitals()
 
@@ -121,7 +121,7 @@ def test_every_target_orbital_addresses_exactly_its_own_atom(name):
     """
     prepared = prepare(name)
     encoded = EncodeProtein(prepared)
-    encoded.molecule()
+    encoded._molecule()
 
     targets = encoded._generate_target_orbitals()
 
@@ -139,7 +139,7 @@ def test_target_orbitals_are_ordered_and_unique(name):
     """
     prepared = prepare(name)
     encoded = EncodeProtein(prepared)
-    encoded.molecule()
+    encoded._molecule()
 
     targets = encoded._generate_target_orbitals()
 
@@ -155,7 +155,7 @@ def test_target_orbitals_are_deterministic(name):
     """
     prepared = prepare(name)
     encoded = EncodeProtein(prepared)
-    encoded.molecule()
+    encoded._molecule()
 
     assert encoded._generate_target_orbitals() == encoded._generate_target_orbitals()
 

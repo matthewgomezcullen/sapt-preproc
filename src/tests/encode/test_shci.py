@@ -91,20 +91,22 @@ def reference():
     return exact.e_tot, np.sort(np.linalg.eigvalsh(density))[::-1]
 
 
+@pytest.mark.dice
 def test_shci_reproduces_the_exact_solution_of_the_space_it_is_given():
     """
-    Selected CI recovers the energy and the density full CI would have given. Run with a window 
+    SHCI recovers the energy and the density full CI would have given. Run with a window 
         that keeps everything, so what is compared is the solve alone.
     """
     energy, occupations = reference()
     encoded = capped()
 
-    encoded.SCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
+    encoded.SHCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
 
     assert encoded.energy_cas == pytest.approx(energy, abs=ENERGY)
     assert np.allclose(encoded.occupations, occupations, atol=OCCUPATION)
 
 
+@pytest.mark.dice
 def test_shci_lowers_the_energy_the_mean_field_settled_on():
     """
     Selected CI is variational, so it sits above exact and below Hartree-Fock.
@@ -112,12 +114,13 @@ def test_shci_lowers_the_energy_the_mean_field_settled_on():
     energy, _ = reference()
     encoded = capped()
 
-    encoded.SCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
+    encoded.SHCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
 
     assert encoded.energy_cas < encoded.energy
     assert encoded.energy_cas >= energy - ENERGY
 
 
+@pytest.mark.dice
 def test_a_tighter_selection_cutoff_is_a_closer_answer():
     """
     Smaller `eps1` increases accuracy.
@@ -125,8 +128,8 @@ def test_a_tighter_selection_cutoff_is_a_closer_answer():
     energy, occupations = reference()
 
     coarse, fine = capped(), capped()
-    coarse.SCI(eps1=COARSE, lo=EVERYTHING[0], hi=EVERYTHING[1])
-    fine.SCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
+    coarse.SHCI(eps1=COARSE, lo=EVERYTHING[0], hi=EVERYTHING[1])
+    fine.SHCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
 
     assert coarse.energy_cas >= fine.energy_cas >= energy - ENERGY
     assert abs(fine.energy_cas - energy) < abs(coarse.energy_cas - energy)
@@ -135,14 +138,15 @@ def test_a_tighter_selection_cutoff_is_a_closer_answer():
     ).max()
 
 
+@pytest.mark.dice
 def test_shci_is_reproducible():
     """
     The same capped space gives the same truncation twice.
     """
     first, second = capped(), capped()
 
-    first.SCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
-    second.SCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
+    first.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
+    second.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
 
     assert (first.ncas, first.nelecas) == (second.ncas, second.nelecas)
     assert first.energy_cas == pytest.approx(second.energy_cas)
@@ -150,6 +154,7 @@ def test_shci_is_reproducible():
     assert np.allclose(first.orbitals, second.orbitals)
 
 
+@pytest.mark.dice
 def test_shci_keeps_exactly_the_occupations_inside_the_window():
     """
     The exact spectrum the window admits, in descending order.
@@ -158,7 +163,7 @@ def test_shci_keeps_exactly_the_occupations_inside_the_window():
     lo, hi = NARROW
     encoded = capped()
 
-    encoded.SCI(eps1=SELECTION, lo=lo, hi=hi)
+    encoded.SHCI(eps1=SELECTION, lo=lo, hi=hi)
 
     expected = occupations[(occupations >= lo) & (occupations <= hi)]
     assert encoded.ncas == len(expected)
@@ -166,11 +171,12 @@ def test_shci_keeps_exactly_the_occupations_inside_the_window():
     assert np.all(np.diff(encoded.occupations) <= 0)
 
 
+@pytest.mark.dice
 def test_shci_retires_a_pair_for_every_orbital_above_the_window():
     """
     An orbital too full to correlate takes its two electrons into the core.
 
-    An orbital too empty to correlate moves to the virtuals and the electron count does not notice.
+    An orbital too empty to correlate moves to the virtuals and the electron count doesn't change.
     """
     _, occupations = reference()
     lo, hi = NARROW
@@ -178,7 +184,7 @@ def test_shci_retires_a_pair_for_every_orbital_above_the_window():
     before, core_before = encoded.nelecas, (encoded.mol.nelectron - encoded.nelecas) // 2
     retained = encoded.orbitals[:, :core_before].copy()
 
-    encoded.SCI(eps1=SELECTION, lo=lo, hi=hi)
+    encoded.SHCI(eps1=SELECTION, lo=lo, hi=hi)
 
     above = int((occupations > hi).sum())
     core = (encoded.mol.nelectron - encoded.nelecas) // 2
@@ -190,13 +196,14 @@ def test_shci_retires_a_pair_for_every_orbital_above_the_window():
     assert np.allclose(projector @ retained, retained, atol=1e-8)
 
 
+@pytest.mark.dice
 def test_shci_leaves_a_space_a_correction_can_be_made_in():
     """
     The window that comes back is closed-shell, non-empty, and not simply full.
     """
     encoded = capped()
 
-    encoded.SCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
+    encoded.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
 
     assert (encoded.nelecas, encoded.ncas) == NARROWED
     assert not encoded.nelecas % 2
@@ -204,27 +211,29 @@ def test_shci_leaves_a_space_a_correction_can_be_made_in():
     assert 0 < encoded.nelecas < 2 * encoded.ncas
 
 
+@pytest.mark.dice
 def test_a_wider_window_keeps_more_of_the_space():
     """
     Widening the window can only keep more.
     """
     narrow, wide = capped(), capped()
 
-    narrow.SCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
-    wide.SCI(eps1=SELECTION, lo=WIDE[0], hi=WIDE[1])
+    narrow.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
+    wide.SHCI(eps1=SELECTION, lo=WIDE[0], hi=WIDE[1])
 
     assert (wide.nelecas, wide.ncas) == WIDENED
     assert wide.ncas > narrow.ncas
     assert wide.nelecas > narrow.nelecas
 
 
+@pytest.mark.dice
 def test_shci_keeps_every_orbital_of_the_molecule():
     """
     The truncation narrows the window.
     """
     encoded = capped()
 
-    encoded.SCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
+    encoded.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
 
     orbitals = encoded.orbitals
     assert orbitals.shape == (encoded.mol.nao, encoded.mol.nao)
@@ -232,6 +241,7 @@ def test_shci_keeps_every_orbital_of_the_molecule():
     assert np.allclose(orbitals.T @ overlap @ orbitals, np.eye(encoded.mol.nao), atol=1e-8)
 
 
+@pytest.mark.dice
 def test_shci_leaves_the_correlated_space_it_was_handed():
     """
     Core and active together span what they spanned before.
@@ -245,12 +255,13 @@ def test_shci_leaves_the_correlated_space_it_was_handed():
     before = encoded.orbitals[:, :correlated]
     span = before @ before.T @ overlap
 
-    encoded.SCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
+    encoded.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
 
     after = encoded.orbitals[:, :correlated]
     assert np.allclose(after @ after.T @ overlap, span, atol=1e-8)
 
 
+@pytest.mark.dice
 def test_shci_keeps_the_active_space_on_the_contact():
     """
     What survives the truncation still sits on the targeted atoms.
@@ -260,7 +271,7 @@ def test_shci_keeps_the_active_space_on_the_contact():
     """
     encoded = capped()
 
-    encoded.SCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
+    encoded.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
 
     weights = contact_weight(encoded.mol, window(encoded), all_carbons(encoded.mol))
     assert weights.mean() >= encoded.threshold
@@ -273,9 +284,38 @@ def test_shci_refuses_before_an_active_space_exists():
     encoded = EncodeProtein(fragment())
 
     with pytest.raises(EncodingError):
-        encoded.SCI()
+        encoded.SHCI()
 
 
+def test_shci_refuses_without_dice():
+    """
+    Reject without Dice.
+    """
+    encoded = capped()
+    encoded.dice = None
+
+    with pytest.raises(EncodingError):
+        encoded.SHCI()
+
+
+@pytest.mark.dice
+def test_shci_keeps_what_dice_wrote_when_it_is_given_somewhere_to_write(tmp_path):
+    """
+    Tests that output is written and that something is done.
+    """
+    encoded = capped()
+    encoded.scratch = str(tmp_path)
+
+    encoded.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
+
+    written = {path.name for path in tmp_path.iterdir()}
+    assert "FCIDUMP" in written  # the integrals it was handed
+    assert "input.dat" in written  # the schedule and the window it was handed
+    assert "output.dat" in written  # what it said about the run
+    assert "spatialRDM.0.0.txt" in written  # the density the truncation is made of
+
+
+@pytest.mark.dice
 @pytest.mark.parametrize(
     "lo,hi",
     [
@@ -292,9 +332,10 @@ def test_shci_refuses_a_window_that_leaves_nothing_to_correct(lo, hi):
     encoded = capped()
 
     with pytest.raises(EncodingError):
-        encoded.SCI(eps1=SELECTION, lo=lo, hi=hi)
+        encoded.SHCI(eps1=SELECTION, lo=lo, hi=hi)
 
 
+@pytest.mark.dice
 def test_the_paper_window_is_too_narrow_for_a_saturated_cutout():
     """
     The original window keeps one orbital of the fragment, at n = 0.024, so (0e, 1o).
@@ -308,16 +349,17 @@ def test_the_paper_window_is_too_narrow_for_a_saturated_cutout():
     encoded = capped()
 
     with pytest.raises(EncodingError):
-        encoded.SCI(eps1=SELECTION, lo=PAPER[0], hi=PAPER[1])
+        encoded.SHCI(eps1=SELECTION, lo=PAPER[0], hi=PAPER[1])
 
 
+@pytest.mark.dice
 def test_the_default_window_leaves_a_space_worth_correcting():
     """
     The window has to survive a cutout with no pi system on it, forced by the test above.
     """
     encoded = capped()
 
-    encoded.SCI()
+    encoded.SHCI()
 
     assert encoded.ncas >= 2
     assert 0 < encoded.nelecas < 2 * encoded.ncas
@@ -337,15 +379,16 @@ def reduced(name):
     encoded = solved(prepare(name))
     encoded.AVAS()
     encoded.MP2()
-    encoded.SCI(lo=EVERYTHING[0], hi=EVERYTHING[1])
+    encoded.SHCI(lo=EVERYTHING[0], hi=EVERYTHING[1])
     return encoded
 
 
+@pytest.mark.dice
 @pytest.mark.hpc
 @pytest.mark.parametrize("name", SUBSET)
 def test_shci_solves_the_space_mp2_leaves_on_a_real_cutout(name):
     """
-    The selected CI runs to completion over nmax orbitals of a cutout of the bin, and returns a
+    The SHCI runs to completion over nmax orbitals of a cutout of the bin, and returns a
         density.
     """
     encoded = reduced(name)
@@ -360,11 +403,12 @@ def test_shci_solves_the_space_mp2_leaves_on_a_real_cutout(name):
     assert occupations.sum() == pytest.approx(encoded.nelecas, abs=1e-6)
 
 
+@pytest.mark.dice
 @pytest.mark.hpc
 @pytest.mark.parametrize("name", SUBSET)
 def test_the_window_leaves_the_subset_a_space_a_vqe_could_carry(name):
     """
-    The window is what stands between a fifty-orbital space and something a simulator can hold.
+    VQE can handle the output.
     """
     encoded = reduced(name)
     lo, hi = PAPER

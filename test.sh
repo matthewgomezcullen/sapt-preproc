@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Solve RHF over the hpc-marked tests.
+# Solve RHF and run Dice over the hpc-marked tests.
 #
 # Run setup.sh once from a login node first, then: sbatch test.sh
 
@@ -55,10 +55,16 @@ export PYSCF_MAX_MEMORY="$(( ${SLURM_MEM_PER_NODE:-32768} * 3 / 4 ))"
 
 export PYSCF_TMPDIR="${TMPDIR:-/tmp}"
 
+# How Dice is launched. `setup.sh` put it on the PATH, and empty runs it on this task's one rank,
+# where it takes the same sixteen cores through OpenMP that PySCF does. To give it more than one
+# rank, ask SLURM for the tasks and set this to "srun". Its scratch goes to TMPDIR, node-local.
+export MPIPREFIX="${MPIPREFIX:-}"
+
 echo "[$(date +%T)] Complex   $NAME  (task $SLURM_ARRAY_TASK_ID of ${#SUBSET[@]})"
 echo "[$(date +%T)] Threads   $OMP_NUM_THREADS"
 echo "[$(date +%T)] Memory    ${PYSCF_MAX_MEMORY} MB of ${SLURM_MEM_PER_NODE:-?} MB"
 echo "[$(date +%T)] Scratch   $PYSCF_TMPDIR"
+echo "[$(date +%T)] Dice      $(command -v Dice || echo 'not on the PATH')  ${MPIPREFIX:+under $MPIPREFIX}"
 echo "[$(date +%T)] Host      $(hostname)"
 
 # --encode narrows to the encoding tests and --hpc opts into the ones that solve. -k also picks up

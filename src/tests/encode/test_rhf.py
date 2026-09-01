@@ -95,7 +95,7 @@ def test_rhf_rejects_an_scf_that_did_not_converge():
     """
     prepared = fragment()
     encoded = EncodeProtein(prepared)
-    encoded.max_cycle = 1
+    encoded.rhf_max_cycle = 1
 
     with pytest.raises(EncodingError):
         encoded.RHF()

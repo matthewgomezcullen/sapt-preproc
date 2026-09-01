@@ -17,7 +17,7 @@ NME = {"N": "N", "H": "H", "CA": "C"}
 
 def _identifier(chain, residue):
     """
-    The OpenMM spelling of `verify.identifier`.
+    OpenMM spelling of `verify.identifier`.
     """
     return (chain.id, int(residue.id), residue.insertionCode)
 
@@ -25,11 +25,6 @@ def _identifier(chain, residue):
 def _bridge(topology, keep):
     """
     `keep` widened to swallow every residue sitting alone between two kept ones.
-
-    Capping around such a residue would take its backbone into an NME on one side and an ACE on the
-        other, placing its CA twice at one point. Widening cannot open a new gap of the same shape:
-        a residue left out with both neighbours in the result has both of them in `keep`, and would
-        have been swallowed here.
     """
     bridged = set(keep)
     for chain in topology.chains():
@@ -61,13 +56,10 @@ def truncate(model, keep, protonation, pH, seed):
     """
     The residues of `keep`, bridged and capped, with everything else deleted.
 
-    A cut is capped and a chain end is not: a cap stands in for a removed residue, and at a chain
-        end there is no such residue. Modeller decides that the same way, by position in the chain,
-        so a run that starts at one keeps the terminus protonation gave it while a run that starts
-        at a cut is left alone behind its ACE.
+    A cut is capped and a chain end is not.
 
     The protonation states are passed back in so that Modeller reaches the same tautomer for every
-        residue it already decided, and adds nothing but the hydrogens of the caps.
+        residue it already decided.
     """
     structure = gemmi.Structure() # pyright: ignore[reportAttributeAccessIssue]
     structure.add_model(model)

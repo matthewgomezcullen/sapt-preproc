@@ -4,12 +4,12 @@ import tempfile
 from subprocess import CalledProcessError
 
 import numpy as np
-from pyscf import gto, mcscf, mp, scf
+from pyscf import mcscf, mp
 from pyscf.mcscf import avas
-from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 
 from prepare import PrepareComplex, PrepareError
 from utils.reduce import CAPS
+from utils import encode
 
 
 # The valence p shell README targets, per element it keeps. Hydrogen has no p shell and is not
@@ -36,7 +36,7 @@ class EncodeProtein:
         self.mean_field = None
         self.energy = None
 
-        self.max_cycle = 50 # RHF maximum number of cycles for convergence.
+        self.rhf_max_cycle = 50 # RHF maximum number of cycles for convergence.
         self.verbose = 0 # PySCF prints its SCF table. Silent by default. Set = 4 for logging.
         self.ncas = None # active-space-size
         self.nelecas = None # active-electrons
@@ -68,15 +68,11 @@ class EncodeProtein:
         An unconverged SCF is rejected.
         """
         self._molecule()
-
-        mean_field = scf.RHF(self.mol)
-        mean_field.max_cycle = self.max_cycle
-        mean_field.kernel()
+        mean_field = encode.rhf(self.mol, self.rhf_max_cycle)
         if not mean_field.converged:
             raise EncodingError(
-                f"RHF did not converge in {self.max_cycle} cycles"
+                f"RHF did not converge in {self.rhf_max_cycle} cycles"
             )
-
         self.mean_field = mean_field
         self.energy = mean_field.e_tot
         return mean_field
@@ -90,18 +86,7 @@ class EncodeProtein:
         """
         if self.prepared.charge is None:
             raise PrepareError("Cannot build the molecule before the charge is known")
-
-        self.mol = gto.M(
-            atom=[
-                (atom.element.name, (atom.pos.x, atom.pos.y, atom.pos.z))
-                for _, _, atom in self.prepared.atoms()
-            ],
-            charge=self.prepared.charge,
-            spin=self.prepared.spin,
-            basis=self.prepared.basis,
-            verbose=self.verbose,
-        )
-        return self.mol
+        self.mol = encode.molecule(self.prepared, self.verbose)
 
     def AVAS(self, targets=None):
         """
@@ -118,7 +103,6 @@ class EncodeProtein:
 
         if targets is None:
             targets = self._generate_target_orbitals()
-
         self.ncas, self.nelecas, self.orbitals = avas.avas(
             self.mean_field, targets, threshold=self.threshold
         )
@@ -132,26 +116,16 @@ class EncodeProtein:
 
         Caps are left out.
 
-        Each target is addressed by its zero-based PySCF atom index, which is the position of the
-            atom in `prepared.atoms()` because that is the order `molecule` hands the geometry over
-            in. PySCF anchors an index-prefixed label.
+        Each target is addressed by its zero-based PySCF atom index
         """
         if self.mol is None:
             raise PrepareError("Cannot address target orbitals before the molecule is built")
-
-        atoms = self.prepared.atoms()
-        poses = cKDTree(self.prepared._pose_coordinates())
-        distances, _ = poses.query(
-            [(atom.pos.x, atom.pos.y, atom.pos.z) for _, _, atom in atoms]
+        return encode.generate_target_orbitals(
+            self.prepared,
+            self.cutoff,
+            CAPS,
+            VALENCE
         )
-
-        return [
-            f"{index} {atom.element.name} {VALENCE[atom.element.name]}"
-            for index, ((_, residue, atom), distance) in enumerate(zip(atoms, distances))
-            if residue.name not in CAPS
-            and atom.element.name in VALENCE
-            and distance <= self.cutoff
-        ]
 
     def MP2(self):
         """

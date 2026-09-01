@@ -37,9 +37,24 @@ def store():
     data = os.environ.get("DATA")
     return os.path.join(data, CHECKPOINTS) if data else None
 
-def checkpoint(mol, store):
+def _method(mean_field):
+    """
+    What produced the orbitals, as far as the digest is concerned.
+
+    Taken from the object rather than a flag, so a mean field this module has never heard of still
+        keys apart from the ones it has.
+    """
+    name = type(mean_field).__name__
+    auxbasis = getattr(getattr(mean_field, "with_df", None), "auxbasis", None)
+    return f"{name}/{auxbasis}" if auxbasis else name
+
+def checkpoint(mol, store, mean_field=None):
     """
     The path this molecule's SCF takes in `store`.
+
+    `mean_field` of None is the exact RHF the pipeline has always run. Fitting the two-electron
+        integrals moves the energy by a few times 1e-6 Ha, which is small, systematic, and exactly
+        the sort of difference nothing would notice if the two shared a file.
     """
     if not mol._built:
         mol.build()
@@ -51,25 +66,33 @@ def checkpoint(mol, store):
             "charge": mol.charge,
             "spin": mol.spin,
             "cart": mol.cart,
+            # `test_the_default_path_is_the_exact_solve` holds this to `_method(scf.RHF(mol))`.
+            "method": _method(mean_field) if mean_field is not None else "RHF",
         },
         sort_keys=True,
     )
     return os.path.join(store, f"{hashlib.sha256(payload.encode()).hexdigest()}.chk")
 
-def rhf(mol, max_cycle, store=None):
+def rhf(mol, max_cycle, store=None, density_fit=False):
     """
     Run RHF with PySCF, keeping a checkpoint if there is somewhere to keep one.
 
     PySCF writes the checkpoint every cycle.
+
+    `density_fit` fits the two-electron integrals rather than computing them, which is the lever
+        for a cutout whose exact SCF will not finish inside a wall clock. It answers differently,
+        and the checkpoint knows.
     """
     mean_field = scf.RHF(mol)
+    if density_fit:
+        mean_field = mean_field.density_fit()
     mean_field.max_cycle = max_cycle
     if store is None:
         mean_field.kernel()
         return mean_field
 
     os.makedirs(store, exist_ok=True)
-    mean_field.chkfile = checkpoint(mol, store)
+    mean_field.chkfile = checkpoint(mol, store, mean_field)
 
     record = _checkpointed(mean_field.chkfile, mol)
     if record is not None:

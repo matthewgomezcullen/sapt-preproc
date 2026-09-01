@@ -1,0 +1,256 @@
+"""
+The driver that runs the pipeline over one complex and keeps what it produces.
+
+These are about what is written and what is read back, not about the physics.
+
+`run` itself reaches Dice, so it is marked. Nothing above it is.
+"""
+
+import os
+from types import SimpleNamespace
+
+import numpy as np
+import pytest
+
+import run
+from cutouts import FRAGMENT, SUBSET, all_carbons, fragment
+from encode import EncodingError
+
+# The window the driver solves under. Truncating is arithmetic on the occupations, so one stored 
+# run answers for any window.
+EVERYTHING = (0.0, 2.0)
+
+# Small enough that the cap has to cut, and quick enough to run here.
+FRAGMENT_NMAX = 8
+
+
+def finished(ncas=4, nao=12):
+    """
+    An encoder that has been the whole way.
+    """
+    return SimpleNamespace(
+        ncas=ncas,
+        nelecas=ncas,
+        orbitals=np.arange(nao * nao, dtype=float).reshape(nao, nao),
+        occupations=np.linspace(1.99, 0.01, ncas),
+        energy=-570.5,
+        energy_cas=-570.52,
+        correlation=-0.31,
+    )
+
+
+def test_the_results_follow_data(monkeypatch):
+    """
+    A run on the cluster belongs beside the checkpoints it was built from.
+    """
+    monkeypatch.setenv("DATA", "/data/somewhere")
+
+    assert run.spaces() == os.path.join("/data/somewhere", "spaces")
+
+
+def test_the_results_land_locally_without_data(monkeypatch):
+    """
+    Off the cluster there is still somewhere to put them, beside the screen's own table.
+    """
+    monkeypatch.delenv("DATA", raising=False)
+
+    assert run.spaces() == os.path.join(run.OUT, "spaces")
+
+
+def test_each_complex_gets_its_own_file():
+    """
+    The array runs one task per complex, and they don't land on each other.
+    """
+    assert run.path("7USH_82V", "/out") != run.path("7W06_ITN", "/out")
+
+
+def test_what_is_saved_is_what_comes_back(tmp_path):
+    """
+    Every array survives the round trip exactly.
+    """
+    written = finished()
+    path = run.path(FRAGMENT, str(tmp_path))
+
+    run.save(written, FRAGMENT, path)
+    read = run.load(path)
+
+    assert np.array_equal(read["orbitals"], written.orbitals)
+    assert np.array_equal(read["occupations"], written.occupations)
+
+
+def test_what_is_saved_is_enough_to_go_on_with(tmp_path):
+    """
+    The active space, the energies behind it, and which complex it belongs to.
+    """
+    written = finished()
+    path = run.path(FRAGMENT, str(tmp_path))
+
+    run.save(written, FRAGMENT, path)
+    read = run.load(path)
+
+    assert read["name"] == FRAGMENT
+    assert read["ncas"] == written.ncas
+    assert read["nelecas"] == written.nelecas
+    assert read["energy"] == written.energy
+    assert read["energy_cas"] == written.energy_cas
+    assert read["correlation"] == written.correlation
+
+
+def test_the_window_it_was_solved_under_is_recorded(tmp_path):
+    """
+    A reader has to know the occupations were never truncated, or it cannot re-window them.
+    """
+    path = run.path(FRAGMENT, str(tmp_path))
+
+    run.save(finished(), FRAGMENT, path)
+
+    assert tuple(run.load(path)["window"]) == EVERYTHING
+
+
+def test_the_numbers_come_back_as_numbers(tmp_path):
+    """
+    A scalar out of an npz is a zero-dimensional array, which compares oddly and prints worse.
+    """
+    path = run.path(FRAGMENT, str(tmp_path))
+    run.save(finished(), FRAGMENT, path)
+
+    read = run.load(path)
+
+    assert isinstance(read["ncas"], int)
+    assert isinstance(read["energy"], float)
+    assert isinstance(read["name"], str)
+
+
+def test_the_directory_is_made_if_it_is_not_there(tmp_path):
+    """
+    The first task to finish creates the dictionary.
+    """
+    out = str(tmp_path / "not" / "yet")
+
+    run.save(finished(), FRAGMENT, run.path(FRAGMENT, out))
+
+    assert os.path.isdir(out)
+
+
+def test_an_unfinished_run_is_not_saved(tmp_path):
+    """
+    A space that never reached Dice is not a result.
+    """
+    unfinished = finished()
+    unfinished.energy_cas = None
+
+    with pytest.raises(EncodingError):
+        run.save(unfinished, FRAGMENT, run.path(FRAGMENT, str(tmp_path)))
+
+
+def test_a_finished_complex_is_left_alone(tmp_path):
+    """
+    A rerun does not recompute.
+    """
+    out = str(tmp_path)
+    run.save(finished(), FRAGMENT, run.path(FRAGMENT, out))
+
+    assert run.done(FRAGMENT, out)
+
+
+def test_an_unstarted_complex_is_not_finished(tmp_path):
+    assert not run.done(FRAGMENT, str(tmp_path))
+
+
+def test_a_result_that_cannot_be_read_is_not_finished(tmp_path):
+    """
+    A file cut off mid-write is not a result.
+    """
+    out = str(tmp_path)
+    os.makedirs(out, exist_ok=True)
+    with open(run.path(FRAGMENT, out), "wb") as handle:
+        handle.write(b"not an npz")
+
+    assert not run.done(FRAGMENT, out)
+
+
+@pytest.mark.dice
+def test_the_driver_carries_a_complex_the_whole_way(tmp_path):
+    """
+    Every step, and a file at the end of it holding what the steps produced.
+    """
+    out = str(tmp_path)
+
+    result = run.run(
+        FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX
+    )
+
+    assert run.done(FRAGMENT, out)
+    read = run.load(run.path(FRAGMENT, out))
+    assert read["ncas"] == result.ncas == FRAGMENT_NMAX
+    assert read["orbitals"].shape[0] == result.mol.nao
+    assert len(read["occupations"]) == result.ncas
+    assert read["energy_cas"] < read["energy"]
+
+
+@pytest.mark.dice
+def test_the_whole_window_is_kept(tmp_path):
+    """
+    The driver truncates nothing.
+    """
+    out = str(tmp_path)
+
+    run.run(FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX)
+
+    occupations = run.load(run.path(FRAGMENT, out))["occupations"]
+    assert len(occupations) == FRAGMENT_NMAX
+    assert occupations.max() > 1.97  # a paper window would have dropped this one
+    assert occupations.min() < 0.02  # and this one
+
+
+@pytest.mark.dice
+def test_a_second_run_reads_rather_than_solves(tmp_path):
+    """
+    Resumes previous jobs.
+    """
+    out = str(tmp_path)
+    run.run(FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX)
+
+    again = run.run(
+        FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX
+    )
+
+    assert again is None
+
+
+@pytest.mark.dice
+def test_force_solves_it_again(tmp_path):
+    """
+    Alternative force to not resume previous runs. 
+    """
+    out = str(tmp_path)
+    run.run(FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX)
+
+    again = run.run(
+        FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX, force=True
+    )
+
+    assert again is not None
+    assert again.ncas == FRAGMENT_NMAX
+
+
+# --------------------------------------------------------------------------------------------
+# The bin. Hours each, for the cluster.
+# --------------------------------------------------------------------------------------------
+
+
+@pytest.mark.dice
+@pytest.mark.hpc
+@pytest.mark.parametrize("name", SUBSET)
+def test_the_driver_carries_a_cutout_of_the_bin_the_whole_way(tmp_path, name):
+    """
+    What the cluster is being asked to do, and what it leaves behind.
+    """
+    out = str(tmp_path)
+
+    result = run.run(name, out)
+
+    read = run.load(run.path(name, out))
+    assert read["ncas"] == result.ncas == result.nmax
+    assert read["orbitals"].shape[0] == result.mol.nao
+    assert 0 < read["nelecas"] < 2 * read["ncas"]

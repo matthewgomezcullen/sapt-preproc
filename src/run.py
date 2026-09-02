@@ -22,11 +22,16 @@ import time
 import numpy as np
 
 from encode import EncodeProtein, EncodingError
-from filter import _poses, _protein
+from filter import FAIL, POSE
 from prepare import PrepareComplex
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(ROOT, "out")
+
+# Where the benchmark set is looked for, in order. The whole set is not tracked, so a clone has
+# only the fixtures under tests/data and a machine that has downloaded it has both. The cluster is
+# a clone.
+ROOTS = (os.path.join(ROOT, "data"), os.path.join(ROOT, "tests", "data"))
 
 # What `$DATA` is joined with, and what `out/` is joined with off the cluster.
 SPACES = "spaces"
@@ -124,20 +129,45 @@ def done(name, out):
     return True
 
 
-def _complex(name):
+def _candidates(directory):
     """
-    A complex of the benchmark set, resolved to the halves `PrepareComplex` wants.
+    The poses DiffDock kept in a directory, dropping the ones it failed on.
     """
-    proteins, poses = _protein(name), _poses(name)
-    if len(proteins) != 1 or not poses:
-        raise EncodingError(
-            f"{name} has {len(proteins)} deposited structures and {len(poses)} poses; it needs "
-            "exactly one structure and at least one pose"
-        )
-    return PrepareComplex(proteins[0], poses)
+    if not os.path.isdir(directory):
+        return []
+    return sorted(
+        os.path.join(directory, entry)
+        for entry in os.listdir(directory)
+        if POSE.match(entry) and FAIL not in entry
+    )
 
 
-def run(name, out, prepared=None, targets=None, nmax=None, eps1=1e-4, verbose=0, force=False):
+def find(name, roots=ROOTS):
+    """
+    A complex of the benchmark set, wherever on this machine it is kept.
+
+    Two layouts, because the fixtures are stored whole and the benchmark set is split: a complex
+        may sit in `<root>/<name>` beside its own poses, or across `<root>/posebusters/<name>` and
+        `<root>/diffdock/<name>`.
+    """
+    for root in roots:
+        standalone = os.path.join(root, name)
+        if os.path.isdir(os.path.join(standalone, "poses")):
+            protein = os.path.join(standalone, f"{name}_protein.pdb")
+            poses = _candidates(os.path.join(standalone, "poses"))
+        else:
+            protein = os.path.join(root, "posebusters", name, f"{name}_protein.pdb")
+            poses = _candidates(os.path.join(root, "diffdock", name))
+        if os.path.isfile(protein) and poses:
+            return PrepareComplex(protein, poses)
+    raise EncodingError(
+        f"{name} is in none of {', '.join(roots)}. The benchmark set is not tracked; see README.md "
+        "for where to download it, or pass --data."
+    )
+
+
+def run(name, out, prepared=None, targets=None, nmax=None, eps1=1e-4, verbose=0, force=False,
+        roots=ROOTS):
     """
     Carry one complex the whole way and keep what comes out, or nothing if it is already there.
 
@@ -153,7 +183,7 @@ def run(name, out, prepared=None, targets=None, nmax=None, eps1=1e-4, verbose=0,
     if not force and done(name, out):
         return None
 
-    encoded = EncodeProtein(prepared if prepared is not None else _complex(name))
+    encoded = EncodeProtein(prepared if prepared is not None else find(name, roots))
     if prepared is None:
         encoded.prepared.prepare()
     if nmax is not None:
@@ -204,6 +234,11 @@ if __name__ == "__main__":
         help="Dice's selection threshold. Larger selects fewer determinants and costs less.",
     )
     parser.add_argument(
+        "--data",
+        default=None,
+        help="A directory holding the benchmark set, searched before the ones built in.",
+    )
+    parser.add_argument(
         "--verbose",
         type=int,
         default=0,
@@ -223,6 +258,7 @@ if __name__ == "__main__":
         nmax=arguments.nmax,
         eps1=arguments.eps1,
         verbose=arguments.verbose,
+        roots=(arguments.data, *ROOTS) if arguments.data else ROOTS,
         force=arguments.force,
     )
     if encoded is None:

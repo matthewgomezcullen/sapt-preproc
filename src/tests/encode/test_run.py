@@ -64,6 +64,64 @@ def test_each_complex_gets_its_own_file():
     assert run.path("7USH_82V", "/out") != run.path("7W06_ITN", "/out")
 
 
+def test_a_complex_resolves_from_the_tracked_fixtures():
+    """
+    The full benchmark set is not tracked, so a fresh clone has only these. The cluster is a fresh
+        clone, and resolving only against `src/data` is why the first run of the driver died.
+    """
+    tracked = os.path.join(run.ROOT, "tests", "data")
+
+    for name in SUBSET:
+        found = run.find(name, roots=(tracked,))
+        assert os.path.isfile(found.protein_path)
+        assert found.poses_paths
+
+
+def test_a_complex_kept_beside_its_own_poses_resolves():
+    """
+    The fragment is stored whole rather than split across the two benchmark directories.
+    """
+    tracked = os.path.join(run.ROOT, "tests", "data")
+
+    found = run.find(FRAGMENT, roots=(tracked,))
+
+    assert os.path.isfile(found.protein_path)
+    assert found.poses_paths
+
+
+def test_the_first_root_holding_a_complex_wins(tmp_path):
+    """
+    A machine with the whole set downloaded uses it; a clone falls back to what it has.
+    """
+    tracked = os.path.join(run.ROOT, "tests", "data")
+
+    found = run.find(SUBSET[0], roots=(str(tmp_path), tracked))
+
+    assert found.protein_path.startswith(tracked)
+
+
+def test_a_complex_that_is_nowhere_says_where_it_looked(tmp_path):
+    """
+    The failure this replaces was a FileNotFoundError out of `os.listdir`, naming one directory
+        that the reader had no reason to expect.
+    """
+    with pytest.raises(EncodingError) as raised:
+        run.find("not_a_complex", roots=(str(tmp_path),))
+
+    assert str(tmp_path) in str(raised.value)
+
+
+def test_a_root_that_does_not_exist_is_passed_over(tmp_path):
+    """
+    `src/data` is absent wherever the set has not been downloaded, which is the ordinary case.
+    """
+    tracked = os.path.join(run.ROOT, "tests", "data")
+
+    found = run.find(SUBSET[0], roots=(str(tmp_path / "nothing" / "here"), tracked))
+
+    assert found.poses_paths
+
+
 def test_what_is_saved_is_what_comes_back(tmp_path):
     """
     Every array survives the round trip exactly.

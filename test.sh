@@ -5,9 +5,9 @@
 # Run setup.sh once from a login node first, then: sbatch test.sh
 
 #SBATCH --clusters=htc
-#SBATCH --partition=medium
+#SBATCH --partition=short
 #SBATCH --job-name=sapt-rhf
-#SBATCH --time=48:00:00
+#SBATCH --time=12:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=32G

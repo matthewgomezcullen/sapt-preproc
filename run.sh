@@ -95,6 +95,8 @@ else
     echo "[$(date +%T)] Running the pipeline for $NAME"
 fi
 
-python run.py --complex "$NAME" --out "$SPACES"
+# --verbose 4 puts one line per SCF cycle in the log. Without it nothing is printed between the
+# banner and the RHF step line.
+python run.py --complex "$NAME" --out "$SPACES" --verbose 4
 
 echo "[$(date +%T)] Done"

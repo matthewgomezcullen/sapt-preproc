@@ -410,7 +410,7 @@ def test_a_finished_run_keeps_dices_log_and_nothing_else(tmp_path):
 
 
 @pytest.mark.dice
-@pytest.mark.hpc
+@pytest.mark.hpc_long_run
 @pytest.mark.parametrize("name", SUBSET)
 def test_the_driver_carries_a_cutout_of_the_bin_the_whole_way(tmp_path, name):
     """

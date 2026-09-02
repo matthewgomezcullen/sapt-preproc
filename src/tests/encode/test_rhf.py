@@ -121,8 +121,7 @@ def test_rhf_converges_over_the_subset(name):
     assert int(encoded.mean_field.mo_occ.sum()) == prepared.electrons
 
 
-@pytest.mark.hpc
-@pytest.mark.stability
+@pytest.mark.hpc_long_stab
 @pytest.mark.parametrize("name", SUBSET)
 def test_the_subset_reference_is_a_minimum_rather_than_a_saddle_point(name):
     """

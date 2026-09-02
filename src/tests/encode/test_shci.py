@@ -384,7 +384,7 @@ def reduced(name):
 
 
 @pytest.mark.dice
-@pytest.mark.hpc
+@pytest.mark.hpc_long_dice
 @pytest.mark.parametrize("name", SUBSET)
 def test_shci_solves_the_space_mp2_leaves_on_a_real_cutout(name):
     """
@@ -404,7 +404,7 @@ def test_shci_solves_the_space_mp2_leaves_on_a_real_cutout(name):
 
 
 @pytest.mark.dice
-@pytest.mark.hpc
+@pytest.mark.hpc_long_dice
 @pytest.mark.parametrize("name", SUBSET)
 def test_the_window_leaves_the_subset_a_space_a_vqe_could_carry(name):
     """

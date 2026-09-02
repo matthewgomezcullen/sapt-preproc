@@ -33,8 +33,8 @@ from conftest import paths
 from prepare import PrepareComplex, OutOfScopeError, OutOfScopeErrorType
 from utils import verify
 
-# Every test here runs the preparation pipeline over several complexes. --fast drops them.
-pytestmark = pytest.mark.slow
+# Every test here runs the preparation pipeline over several complexes. --long-protonate adds them.
+pytestmark = pytest.mark.long_protonate
 
 SIMPLE = "5S8I_2LY"
 GAPPED = "7WPW_F15"

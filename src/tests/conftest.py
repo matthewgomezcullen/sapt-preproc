@@ -42,46 +42,56 @@ def paths(name):
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--fast",
-        action="store_true",
-        help="Skip the tests marked slow, which are the ones that carry several complexes through "
-             "the repair and protonation pipelines.",
-    )
-    parser.addoption(
-        "--hpc",
-        action="store_true",
-        help="Also run the tests marked hpc, which solve a real SCF over a subset cutout. One Fock "
-             "build of the smallest is around four minutes on twelve cores, so these are hours "
-             "each and are left out of every ordinary run.",
-    )
-    parser.addoption(
-        "--stability",
-        action="store_true",
-        help="Also run the tests marked stability, which check that a subset cutout's converged "
-             "SCF is a minimum rather than a saddle point. Six to ten hours each, an order of "
-             "magnitude more than the SCF itself, and needed once per cutout rather than once per "
-             "run. Needs --hpc as well.",
-    )
-    parser.addoption(
         "--encode",
         action="store_true",
         help="Run only the encoding tests, for a change that touches nothing before them.",
     )
+    parser.addoption(
+        "--long-protonate",
+        action="store_true",
+        help="Also run the tests that carry complexes through the repair and protonation "
+             "pipelines. Minutes each, because protonation is seeded onto a reference platform "
+             "for determinism.",
+    )
+    parser.addoption(
+        "--hpc",
+        action="store_true",
+        help="Also run the tests that solve a real SCF over a subset cutout and correlate it. "
+             "About an hour a cutout cold, seconds against a checkpoint.",
+    )
+    parser.addoption(
+        "--hpc-long-stab",
+        action="store_true",
+        help="Also run the stability analysis over a subset cutout's converged SCF. Several hours "
+             "each, and true once per cutout rather than once per run.",
+    )
+    parser.addoption(
+        "--hpc-long-dice",
+        action="store_true",
+        help="Also run Dice over the fifty orbitals MP2 leaves on a subset cutout.",
+    )
+    parser.addoption(
+        "--hpc-long-run",
+        action="store_true",
+        help="Also run the driver end to end over a subset cutout, which repeats AVAS, MP2 and "
+             "Dice rather than sharing the cached ones.",
+    )
+
+
+OPTIONAL = {
+    "long_protonate": "--long-protonate",
+    "hpc": "--hpc",
+    "hpc_long_stab": "--hpc-long-stab",
+    "hpc_long_dice": "--hpc-long-dice",
+    "hpc_long_run": "--hpc-long-run",
+}
 
 
 def pytest_configure(config):
-    config.addinivalue_line(
-        "markers", "slow: carries complexes through the preparation pipeline; skipped by --fast"
-    )
-    config.addinivalue_line(
-        "markers", "hpc: solves a full SCF over a subset cutout; run only under --hpc"
-    )
+    for marker, flag in OPTIONAL.items():
+        config.addinivalue_line("markers", f"{marker}: long; run only under {flag}")
     config.addinivalue_line(
         "markers", "dice: needs the Dice executable; skipped wherever it is not on the PATH"
-    )
-    config.addinivalue_line(
-        "markers",
-        "stability: analyses a subset cutout's converged SCF; run only under --hpc --stability",
     )
 
 
@@ -91,16 +101,13 @@ ENCODING = "encode"
 
 def pytest_collection_modifyitems(config, items):
     """
-    `slow` is opt-out and `hpc` is opt-in.
+    Every long-running mark is opt-in, so a bare run is the quick one and nothing has to be
+        remembered to keep it that way.
 
-    A slow test is a minute of preparation, an hpc test is hours of SCF.
+    `--encode` It narrows to the encoding tests, which are deselected rather than skipped.
 
-    `stability` is opt-in on top of `hpc`, and carries both marks.
-
-    Dice is an external program that only builds on Linux
-
-    `--encode` narrows to the encoding tests, which are deselected rather than skipped so that the
-        run reports only what it was asked for.
+    For Dice, the tests that need it are skipped wherever it is absent and run wherever it is
+        there, without a flag either way.
     """
     if config.getoption("--encode"):
         selected = [item for item in items if ENCODING in item.path.parts]
@@ -115,21 +122,10 @@ def pytest_collection_modifyitems(config, items):
             if "dice" in item.keywords:
                 item.add_marker(skipped)
 
-    if not config.getoption("--hpc"):
-        skipped = pytest.mark.skip(reason="needs --hpc")
+    for marker, flag in OPTIONAL.items():
+        if config.getoption(flag):
+            continue
+        skipped = pytest.mark.skip(reason=f"needs {flag}")
         for item in items:
-            if "hpc" in item.keywords:
+            if marker in item.keywords:
                 item.add_marker(skipped)
-
-    if not config.getoption("--stability"):
-        skipped = pytest.mark.skip(reason="needs --stability")
-        for item in items:
-            if "stability" in item.keywords:
-                item.add_marker(skipped)
-
-    if not config.getoption("--fast"):
-        return
-    skipped = pytest.mark.skip(reason="skipped by --fast")
-    for item in items:
-        if "slow" in item.keywords:
-            item.add_marker(skipped)

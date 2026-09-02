@@ -22,8 +22,8 @@ from utils import verify
 
 SMALL = "5S8I_2LY"
 DISULFIDE = "6YT6_PKE"
-# Every test here runs the preparation pipeline over several complexes. --fast drops them.
-pytestmark = pytest.mark.slow
+# Every test here runs the preparation pipeline over several complexes. --long-protonate adds them.
+pytestmark = pytest.mark.long_protonate
 
 TITRATABLE = "6TW5_9M2"
 

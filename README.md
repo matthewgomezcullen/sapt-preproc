@@ -192,11 +192,24 @@ However, this drastically reduces the performance of `_protonate`, so this can b
 
 ### Tests
 
-`pytest tests --fast` to avoid testing `-protonate`, which is very slow.
+`pytest tests` runs everything quick. Every long-running test sits behind a flag that adds it.
 
-`pytest tests --encode` to only test `EncodeProtein`.
+`--encode` is the takes tests away rather than adding them, narrowing to the encoding tests.
 
-`pytest tests --encode --hpc` to test encoding for real complexes (hrs per complex for the smallest eligible complexes)
+
+| Flag | Adds | Cost |
+|---|---|---|
+| `--long-protonate` | the repair and protonation pipelines, over several complexes | minutes each, because protonation is seeded onto a reference platform for determinism |
+| `--hpc` | RHF, AVAS and the MP2 cap over a real cutout of the bin | about an hour a cutout cold, seconds against a checkpoint |
+| `--hpc-long-stab` | the stability analysis of a cutout's converged SCF | six to ten hours each, an order of magnitude beyond the solve it checks |
+| `--hpc-long-dice` | Dice over the fifty orbitals MP2 leaves on a cutout | unmeasured; this is what the flag exists to find out |
+| `--hpc-long-run` | the driver, end to end over a cutout | repeats AVAS, MP2 and Dice rather than sharing the cached ones |
+
+Every test carries exactly one of these marks: `pytest tests --encode --hpc --hpc-long-dice` solves a cutout and runs Dice over it, without also paying for the stability analysis or a second pass through the driver.
+
+`--hpc-long-stab` is worth running once per cutout rather than once per run. Stability is a property of the converged SCF, and the SCF is checkpointed to `$DATA/scf`, so a job that asks only for it reads the solve back in seconds and spends the whole of its time on the analysis.
+
+Dice itself is not behind a flag. It is an external program that only builds on Linux, so the tests that need it are skipped wherever it is not on the `PATH` and run wherever it is, without a flag either way.
 
 ### Charges
 

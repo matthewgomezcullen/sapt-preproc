@@ -34,16 +34,22 @@ class EncodeProtein:
         self.mean_field = None
         self.energy = None
 
+        # RHF
         self.rhf_max_cycle = 50 # RHF maximum number of cycles for convergence.
         self.verbose = 0 # PySCF prints its SCF table. Silent by default. Set = 4 for logging.
-        self.ncas = None # active-space-size
-        self.nelecas = None # active-electrons
-        self.orbitals = None # orbital-initial-guess-for-CASCI/CASSCF
+
+        # AVAS
+        self.active_space_size = None # active-space-size
+        self.active_electrons = None # active-electrons
+        self.orbital_initial = None # orbital-initial-guess-for-CASCI/CASSCF
         self.occupations = None # natural occupations of the active window
         self.correlation = None # MP2 correlation energy of the AVAS space
-        self.energy_cas = None # selected CI total energy of the space MP2 capped
+        self.shci_energy = None # SHCI total energy of the space MP2 capped
         self.cutoff = 4.5 # Cutoff for chemically relevant atoms.
-        self.threshold = 0.2 # AVAS threshold. PySCF's own default.
+        self.avas_threshold = 0.2 # AVAS threshold. PySCF's own default.
+        
+        # MP2
+        self.density_fit = True # Density fit MP2
         self.nmax = 50 # Number of natural orbitals the MP2 caps
 
         # Where a converged SCF is kept so that the next run reads it instead of solving again.
@@ -105,10 +111,10 @@ class EncodeProtein:
 
         if targets is None:
             targets = self._generate_target_orbitals()
-        self.ncas, self.nelecas, self.orbitals = avas.avas(
-            self.mean_field, targets, threshold=self.threshold
+        self.active_space_size, self.active_electrons, self.orbital_initial = avas.avas(
+            self.mean_field, targets, threshold=self.avas_threshold
         )
-        return self.ncas, self.nelecas, self.orbitals
+        return self.active_space_size, self.active_electrons, self.orbital_initial
 
     def _generate_target_orbitals(self) -> list[str]:
         """
@@ -147,17 +153,22 @@ class EncodeProtein:
             a discarded virtual-derived one stays empty among the virtuals, and the window that
             remains returns the survivors in descending occupation.
         """
-        if self.ncas is None:
+        if self.active_space_size is None:
             raise EncodingError("Cannot cap the active space before AVAS has chosen one")
 
-        core = (self.mol.nelectron - self.nelecas) // 2
+        core = (self.mol.nelectron - self.active_electrons) // 2
         self.correlation, density = encode.mp2(
-            self.mean_field, self.orbitals, self.ncas, self.nelecas, self.verbose
+            self.mean_field,
+            self.orbital_initial,
+            self.active_space_size,
+            self.active_electrons,
+            density_fit,
+            verbose=self.verbose,
         )
-        self.ncas, self.nelecas, self.orbitals, self.occupations = encode.cap(
-            self.orbitals, density, self.ncas, self.nelecas, core, self.nmax
+        self.active_space_size, self.active_electrons, self.orbital_initial, self.occupations = encode.cap(
+            self.orbital_initial, density, self.active_space_size, self.active_electrons, core, self.nmax
         )
-        return self.ncas, self.nelecas, self.orbitals
+        return self.active_space_size, self.active_electrons, self.orbital_initial
 
     def SHCI(self, eps1: float = 1e-4, lo: float = 0.01, hi: float = 1.99):
         """
@@ -179,7 +190,7 @@ class EncodeProtein:
 
         Dice is an external program, so this leaves the process.
         """
-        if self.ncas is None:
+        if self.active_space_size is None:
             raise EncodingError("Cannot solve the active space before AVAS has chosen one")
         if not self.dice:
             raise EncodingError(
@@ -188,11 +199,11 @@ class EncodeProtein:
             )
 
         scratch = os.path.abspath(self.scratch or tempfile.mkdtemp(prefix="dice-"))
-        core = (self.mol.nelectron - self.nelecas) // 2
+        core = (self.mol.nelectron - self.active_electrons) // 2
         try:
             solver = encode.dice(self.mol, self.dice, self.mpi, scratch, eps1, self.verbose)
-            self.energy_cas, density = encode.shci(
-                self.mean_field, self.orbitals, self.ncas, self.nelecas, solver, self.verbose
+            self.shci_energy, density = encode.shci(
+                self.mean_field, self.orbital_initial, self.active_space_size, self.active_electrons, solver, self.verbose
             )
         except ImportError as error:
             raise EncodingError(
@@ -200,24 +211,24 @@ class EncodeProtein:
             ) from error
         except CalledProcessError as error:
             raise EncodingError(
-                f"Dice failed over {self.ncas} orbitals; what it wrote is in {scratch}"
+                f"Dice failed over {self.active_space_size} orbitals; what it wrote is in {scratch}"
             ) from error
         else:
             if self.scratch is None:
                 shutil.rmtree(scratch, ignore_errors=True)
 
         ncas, nelecas, orbitals, occupations = encode.window(
-            self.orbitals, density, self.ncas, self.nelecas, core, lo, hi
+            self.orbital_initial, density, self.active_space_size, self.active_electrons, core, lo, hi
         )
         if ncas == 0 or nelecas == 0 or nelecas == 2 * ncas:
             raise EncodingError(
                 f"The window {lo} <= n <= {hi} leaves ({nelecas}e, {ncas}o) of "
-                f"({self.nelecas}e, {self.ncas}o), which has no excitation in it to correct"
+                f"({self.active_electrons}e, {self.active_space_size}o), which has no excitation in it to correct"
             )
 
-        self.orbitals, self.occupations = orbitals, occupations
-        self.ncas, self.nelecas = ncas, nelecas
-        return self.ncas, self.nelecas, self.orbitals
+        self.orbital_initial, self.occupations = orbitals, occupations
+        self.active_space_size, self.active_electrons = ncas, nelecas
+        return self.active_space_size, self.active_electrons, self.orbital_initial
 
     def H_fermionic(self):
         """

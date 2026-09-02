@@ -122,8 +122,8 @@ def window(encoded):
     """
     The active columns of the orbital set, located by the electron bookkeeping.
     """
-    core = (encoded.mol.nelectron - encoded.nelecas) // 2
-    return encoded.orbitals[:, core:core + encoded.ncas]
+    core = (encoded.mol.nelectron - encoded.active_electrons) // 2
+    return encoded.orbital_initial[:, core:core + encoded.active_space_size]
 
 
 def contact_weight(mol, vectors, targets):

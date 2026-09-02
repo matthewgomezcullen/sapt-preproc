@@ -29,12 +29,12 @@ def finished(ncas=4, nao=12):
     An encoder that has been the whole way.
     """
     return SimpleNamespace(
-        ncas=ncas,
-        nelecas=ncas,
-        orbitals=np.arange(nao * nao, dtype=float).reshape(nao, nao),
+        active_space_size=ncas,
+        active_electrons=ncas,
+        orbital_initial=np.arange(nao * nao, dtype=float).reshape(nao, nao),
         occupations=np.linspace(1.99, 0.01, ncas),
         energy=-570.5,
-        energy_cas=-570.52,
+        shci_energy=-570.52,
         correlation=-0.31,
     )
 
@@ -132,7 +132,7 @@ def test_what_is_saved_is_what_comes_back(tmp_path):
     run.save(written, FRAGMENT, path)
     read = run.load(path)
 
-    assert np.array_equal(read["orbitals"], written.orbitals)
+    assert np.array_equal(read["orbitals"], written.orbital_initial)
     assert np.array_equal(read["occupations"], written.occupations)
 
 
@@ -147,10 +147,10 @@ def test_what_is_saved_is_enough_to_go_on_with(tmp_path):
     read = run.load(path)
 
     assert read["name"] == FRAGMENT
-    assert read["ncas"] == written.ncas
-    assert read["nelecas"] == written.nelecas
+    assert read["ncas"] == written.active_space_size
+    assert read["nelecas"] == written.active_electrons
     assert read["energy"] == written.energy
-    assert read["energy_cas"] == written.energy_cas
+    assert read["energy_cas"] == written.shci_energy
     assert read["correlation"] == written.correlation
 
 
@@ -195,7 +195,7 @@ def test_an_unfinished_run_is_not_saved(tmp_path):
     A space that never reached Dice is not a result.
     """
     unfinished = finished()
-    unfinished.energy_cas = None
+    unfinished.shci_energy = None
 
     with pytest.raises(EncodingError):
         run.save(unfinished, FRAGMENT, run.path(FRAGMENT, str(tmp_path)))
@@ -240,9 +240,9 @@ def test_the_driver_carries_a_complex_the_whole_way(tmp_path):
 
     assert run.done(FRAGMENT, out)
     read = run.load(run.path(FRAGMENT, out))
-    assert read["ncas"] == result.ncas == FRAGMENT_NMAX
+    assert read["ncas"] == result.active_space_size == FRAGMENT_NMAX
     assert read["orbitals"].shape[0] == result.mol.nao
-    assert len(read["occupations"]) == result.ncas
+    assert len(read["occupations"]) == result.active_space_size
     assert read["energy_cas"] < read["energy"]
 
 
@@ -289,7 +289,7 @@ def test_force_solves_it_again(tmp_path):
     )
 
     assert again is not None
-    assert again.ncas == FRAGMENT_NMAX
+    assert again.active_space_size == FRAGMENT_NMAX
 
 
 def test_dices_log_is_copied_out_of_the_scratch(tmp_path):
@@ -352,8 +352,8 @@ def test_the_run_reports_the_space_it_reached(tmp_path, capfd):
     )
 
     printed = capfd.readouterr().out
-    assert f"{result.nelecas}e" in printed
-    assert f"{result.ncas}o" in printed
+    assert f"{result.active_electrons}e" in printed
+    assert f"{result.active_space_size}o" in printed
 
 
 @pytest.mark.dice
@@ -421,6 +421,6 @@ def test_the_driver_carries_a_cutout_of_the_bin_the_whole_way(tmp_path, name):
     result = run.run(name, out)
 
     read = run.load(run.path(name, out))
-    assert read["ncas"] == result.ncas == result.nmax
+    assert read["ncas"] == result.active_space_size == result.nmax
     assert read["orbitals"].shape[0] == result.mol.nao
     assert 0 < read["nelecas"] < 2 * read["ncas"]

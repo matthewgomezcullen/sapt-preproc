@@ -86,7 +86,7 @@ def save(encoded, name, destination):
     """
     Everything a later experiment needs from a finished run.
     """
-    if encoded.energy_cas is None:
+    if encoded.shci_energy is None:
         raise EncodingError(
             f"{name} has not been through SHCI, so there is no active space to save"
         )
@@ -94,12 +94,12 @@ def save(encoded, name, destination):
     np.savez(
         destination,
         name=name,
-        ncas=encoded.ncas,
-        nelecas=encoded.nelecas,
-        orbitals=encoded.orbitals,
+        ncas=encoded.active_space_size,
+        nelecas=encoded.active_electrons,
+        orbitals=encoded.orbital_initial,
         occupations=encoded.occupations,
         energy=encoded.energy,
-        energy_cas=encoded.energy_cas,
+        energy_cas=encoded.shci_energy,
         correlation=encoded.correlation,
         window=np.array(EVERYTHING),
     )
@@ -195,10 +195,10 @@ def run(name, out, prepared=None, targets=None, nmax=None, eps1=1e-4, verbose=0,
     _say(f"RHF    E = {encoded.energy:.9f} over {encoded.mol.nao} basis functions")
 
     encoded.AVAS(targets(encoded.mol) if callable(targets) else targets)
-    _say(f"AVAS   ({encoded.nelecas}e, {encoded.ncas}o)")
+    _say(f"AVAS   ({encoded.active_electrons}e, {encoded.active_space_size}o)")
 
     encoded.MP2()
-    _say(f"MP2    ({encoded.nelecas}e, {encoded.ncas}o) capped at {encoded.nmax}, "
+    _say(f"MP2    ({encoded.active_electrons}e, {encoded.active_space_size}o) capped at {encoded.nmax}, "
          f"correlation {encoded.correlation:.9f}")
 
     try:
@@ -207,7 +207,7 @@ def run(name, out, prepared=None, targets=None, nmax=None, eps1=1e-4, verbose=0,
         # In a finally because a Dice that failed is exactly when its log is worth reading.
         keep(encoded.scratch, log(name, out))
         shutil.rmtree(encoded.scratch, ignore_errors=True)
-    _say(f"SHCI   ({encoded.nelecas}e, {encoded.ncas}o) E = {encoded.energy_cas:.9f}, "
+    _say(f"SHCI   ({encoded.active_electrons}e, {encoded.active_space_size}o) E = {encoded.shci_energy:.9f}, "
          f"n from {encoded.occupations.max():.6f} to {encoded.occupations.min():.6f}")
 
     save(encoded, name, path(name, out))
@@ -265,6 +265,6 @@ if __name__ == "__main__":
         print(f"{arguments.complex} is already in {out}; nothing to do")
     else:
         print(
-            f"{arguments.complex}: ({encoded.nelecas}e, {encoded.ncas}o) "
-            f"E = {encoded.energy_cas:.9f} written to {path(arguments.complex, out)}"
+            f"{arguments.complex}: ({encoded.active_electrons}e, {encoded.active_space_size}o) "
+            f"E = {encoded.shci_energy:.9f} written to {path(arguments.complex, out)}"
         )

@@ -52,7 +52,7 @@ def reference():
     encoded = solved(fragment())
     mean_field, mol = encoded.mean_field, encoded.mol
     fock = mean_field.get_fock()  # before any orbital swap, while the density is the converged one
-    raw, nelecas, orbitals = avas.avas(mean_field, all_carbons(mol), threshold=encoded.threshold)
+    raw, nelecas, orbitals = avas.avas(mean_field, all_carbons(mol), threshold=encoded.avas_threshold)
     core, occupied = (mol.nelectron - nelecas) // 2, nelecas // 2
     energies = np.diag(orbitals.T @ fock @ orbitals)
     saved = mean_field.mo_coeff, mean_field.mo_energy
@@ -90,6 +90,59 @@ def capped():
     return encoded
 
 
+@functools.lru_cache(maxsize=None)
+def exactly():
+    """
+    The same cap with the two-electron integrals computed rather than fitted.
+    """
+    encoded = EncodeProtein(fragment())
+    encoded.density_fit = False
+    encoded.RHF()
+    encoded.AVAS(targets=all_carbons(encoded.mol))
+    encoded.nmax = CAP
+    encoded.MP2()
+    return encoded
+
+
+# --------------------------------------------------------------------------------------------
+# Fitting the integrals
+# --------------------------------------------------------------------------------------------
+
+
+def test_the_integrals_are_fitted_by_default():
+    """
+    Computing them spooled 62 GB into a compute node's /tmp before it ran out of disk.
+    """
+    assert EncodeProtein(fragment()).density_fit
+
+
+def test_fitting_the_integrals_is_a_different_calculation():
+    """
+    The flag has to reach PySCF. Ignored, these two would be identical rather than merely close.
+    """
+    assert capped().correlation != exactly().correlation
+
+
+def test_fitting_the_integrals_reaches_the_same_space():
+    """
+    Cheaper integrals, same answer: the fit approximates the quantity the cap is ranking on.
+    """
+    fitted, exact = capped(), exactly()
+
+    assert (fitted.active_electrons, fitted.active_space_size) == (
+        exact.active_electrons,
+        exact.active_space_size,
+    )
+    assert fitted.occupations == pytest.approx(exact.occupations, abs=OCCUPATION)
+
+
+def test_fitting_the_integrals_barely_moves_the_correlation_energy():
+    """
+    The error is what the auxiliary basis costs, and it is small beside what the cap does with it.
+    """
+    assert capped().correlation == pytest.approx(exactly().correlation, rel=CORRELATION)
+
+
 # --------------------------------------------------------------------------------------------
 # The cap, against an independent reading of the same step.
 # --------------------------------------------------------------------------------------------
@@ -117,7 +170,7 @@ def test_mp2_keeps_the_nmax_most_fractional_orbitals():
     encoded = capped()
 
     assert raw > CAP
-    assert encoded.ncas == encoded.nmax == CAP
+    assert encoded.active_space_size == encoded.nmax == CAP
     assert np.allclose(encoded.occupations, occupations, atol=OCCUPATION)
 
 
@@ -128,10 +181,10 @@ def test_mp2_recounts_the_electrons_the_window_kept():
     _, _, occupations = reference()
     encoded = capped()
 
-    assert encoded.nelecas == 2 * int(np.sum(occupations > 1.0))
-    assert not encoded.nelecas % 2
-    assert not (encoded.mol.nelectron - encoded.nelecas) % 2
-    assert 0 < encoded.nelecas < 2 * encoded.ncas
+    assert encoded.active_electrons == 2 * int(np.sum(occupations > 1.0))
+    assert not encoded.active_electrons % 2
+    assert not (encoded.mol.nelectron - encoded.active_electrons) % 2
+    assert 0 < encoded.active_electrons < 2 * encoded.active_space_size
 
 
 # --------------------------------------------------------------------------------------------
@@ -147,7 +200,7 @@ def test_mp2_keeps_every_orbital_of_the_molecule():
     """
     encoded = capped()
 
-    orbitals = encoded.orbitals
+    orbitals = encoded.orbital_initial
     assert orbitals.shape == (encoded.mol.nao, encoded.mol.nao)
     overlap = encoded.mol.intor("int1e_ovlp")
     assert np.allclose(orbitals.T @ overlap @ orbitals, np.eye(encoded.mol.nao), atol=1e-8)
@@ -164,7 +217,7 @@ def test_mp2_leaves_the_electrons_in_a_rotation_of_the_occupied_space():
 
     filled = encoded.mol.nelectron // 2
     overlap = encoded.mol.intor("int1e_ovlp")
-    rotated = encoded.orbitals[:, :filled]
+    rotated = encoded.orbital_initial[:, :filled]
     original = encoded.mean_field.mo_coeff[:, :filled]
     assert np.allclose(
         rotated @ rotated.T @ overlap, original @ original.T @ overlap, atol=1e-8
@@ -181,7 +234,7 @@ def test_mp2_keeps_the_active_space_on_the_contact():
     encoded = capped()
 
     weights = contact_weight(encoded.mol, window(encoded), all_carbons(encoded.mol))
-    assert weights.mean() >= encoded.threshold
+    assert weights.mean() >= encoded.avas_threshold
 
 
 def test_mp2_leaves_a_space_the_cap_already_fits():
@@ -194,16 +247,16 @@ def test_mp2_leaves_a_space_the_cap_already_fits():
     encoded = solved(fragment())
     encoded.AVAS()
 
-    assert encoded.ncas <= encoded.nmax
-    before = (encoded.ncas, encoded.nelecas)
+    assert encoded.active_space_size <= encoded.nmax
+    before = (encoded.active_space_size, encoded.active_electrons)
     overlap = encoded.mol.intor("int1e_ovlp")
     active = window(encoded)
     span = active @ active.T @ overlap
 
     encoded.MP2()
 
-    assert (encoded.ncas, encoded.nelecas) == before
-    assert len(encoded.occupations) == encoded.ncas
+    assert (encoded.active_space_size, encoded.active_electrons) == before
+    assert len(encoded.occupations) == encoded.active_space_size
     active = window(encoded)
     assert np.allclose(active @ active.T @ overlap, span, atol=1e-8)
 
@@ -214,20 +267,20 @@ def test_mp2_is_reproducible():
     """
     encoded = capped()
     first = (
-        encoded.ncas,
-        encoded.nelecas,
+        encoded.active_space_size,
+        encoded.active_electrons,
         encoded.correlation,
         encoded.occupations.copy(),
-        encoded.orbitals.copy(),
+        encoded.orbital_initial.copy(),
     )
 
     encoded.AVAS(targets=all_carbons(encoded.mol))
     encoded.MP2()
 
-    assert (encoded.ncas, encoded.nelecas) == first[:2]
+    assert (encoded.active_space_size, encoded.active_electrons) == first[:2]
     assert encoded.correlation == pytest.approx(first[2])
     assert np.allclose(encoded.occupations, first[3])
-    assert np.allclose(encoded.orbitals, first[4])
+    assert np.allclose(encoded.orbital_initial, first[4])
 
 
 # --------------------------------------------------------------------------------------------
@@ -267,18 +320,18 @@ def test_mp2_caps_the_subset_to_what_can_be_solved(name):
     """
     encoded = solved(prepare(name))
     encoded.AVAS()
-    raw = encoded.ncas
+    raw = encoded.active_space_size
 
     encoded.MP2()
 
     assert raw > encoded.nmax
-    assert encoded.ncas == encoded.nmax <= TRACTABLE_ORBITALS
-    assert not encoded.nelecas % 2
-    assert 0 < encoded.nelecas < 2 * encoded.ncas
+    assert encoded.active_space_size == encoded.nmax <= TRACTABLE_ORBITALS
+    assert not encoded.active_electrons % 2
+    assert 0 < encoded.active_electrons < 2 * encoded.active_space_size
     assert encoded.correlation < 0
 
     occupations = encoded.occupations
-    assert len(occupations) == encoded.ncas
+    assert len(occupations) == encoded.active_space_size
     assert np.all(occupations > -1e-8)
     assert np.all(occupations < 2 + 1e-8)
     assert np.all(np.diff(occupations) <= 1e-8)
@@ -286,4 +339,4 @@ def test_mp2_caps_the_subset_to_what_can_be_solved(name):
     weights = contact_weight(
         encoded.mol, window(encoded), encoded._generate_target_orbitals()
     )
-    assert weights.mean() >= encoded.threshold
+    assert weights.mean() >= encoded.avas_threshold

@@ -206,6 +206,8 @@ Among accepted complexes, many cutouts are highly charged, as counter-charges th
 
 AVAS produces an active space that is too large. We use MP2 to pick the most correlated active orbitals.
 
+`MP2` requires storing four-index electron-repulsion integrals, $(ij|ab)$, which scales $O(N^{4})$ in the number of orbitals. We use density fitting instead, scaling at $O(N^{3})$ instead.
+
 ## Setup
 
 ```bash

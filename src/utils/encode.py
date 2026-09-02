@@ -151,7 +151,7 @@ def generate_target_orbitals(prepared, cutoff, exclude, valence):
         and distance <= cutoff
     ]
 
-def mp2(mean_field, orbitals, ncas, nelecas, verbose=0):
+def mp2(mean_field, orbitals, ncas, nelecas, density_fit=False, verbose=0):
     """
     Correlate the active space with MP2 and return its one-particle density.
 
@@ -172,6 +172,8 @@ def mp2(mean_field, orbitals, ncas, nelecas, verbose=0):
         mean_field.mo_coeff = orbitals
         mean_field.mo_energy = energies
         correlated = mp.MP2(mean_field, frozen=frozen or None)
+        if density_fit:
+            correlated = correlated.density_fit()
         correlated.verbose = verbose
         correlation = correlated.kernel()[0]
         density = correlated.make_rdm1()[core:core + ncas, core:core + ncas]

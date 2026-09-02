@@ -72,8 +72,8 @@ def capped():
     encoded.mol = cached.mol
     encoded.mean_field = cached.mean_field
     encoded.energy = cached.energy
-    encoded.ncas, encoded.nelecas = cached.ncas, cached.nelecas
-    encoded.orbitals = cached.orbitals.copy()
+    encoded.active_space_size, encoded.active_electrons = cached.active_space_size, cached.active_electrons
+    encoded.orbital_initial = cached.orbital_initial.copy()
     encoded.occupations = cached.occupations.copy()
     return encoded
 
@@ -84,9 +84,9 @@ def reference():
     Exact diagonalisation of the capped space, which at eight orbitals is affordable.
     """
     encoded = _capped()
-    exact = mcscf.CASCI(encoded.mean_field, encoded.ncas, encoded.nelecas)
+    exact = mcscf.CASCI(encoded.mean_field, encoded.active_space_size, encoded.active_electrons)
     exact.verbose = 0
-    exact.kernel(encoded.orbitals)
+    exact.kernel(encoded.orbital_initial)
     density = exact.fcisolver.make_rdm1(exact.ci, exact.ncas, exact.nelecas)
     return exact.e_tot, np.sort(np.linalg.eigvalsh(density))[::-1]
 
@@ -102,7 +102,7 @@ def test_shci_reproduces_the_exact_solution_of_the_space_it_is_given():
 
     encoded.SHCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
 
-    assert encoded.energy_cas == pytest.approx(energy, abs=ENERGY)
+    assert encoded.shci_energy == pytest.approx(energy, abs=ENERGY)
     assert np.allclose(encoded.occupations, occupations, atol=OCCUPATION)
 
 
@@ -116,8 +116,8 @@ def test_shci_lowers_the_energy_the_mean_field_settled_on():
 
     encoded.SHCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
 
-    assert encoded.energy_cas < encoded.energy
-    assert encoded.energy_cas >= energy - ENERGY
+    assert encoded.shci_energy < encoded.energy
+    assert encoded.shci_energy >= energy - ENERGY
 
 
 @pytest.mark.dice
@@ -131,8 +131,8 @@ def test_a_tighter_selection_cutoff_is_a_closer_answer():
     coarse.SHCI(eps1=COARSE, lo=EVERYTHING[0], hi=EVERYTHING[1])
     fine.SHCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
 
-    assert coarse.energy_cas >= fine.energy_cas >= energy - ENERGY
-    assert abs(fine.energy_cas - energy) < abs(coarse.energy_cas - energy)
+    assert coarse.shci_energy >= fine.shci_energy >= energy - ENERGY
+    assert abs(fine.shci_energy - energy) < abs(coarse.shci_energy - energy)
     assert np.abs(fine.occupations - occupations).max() < np.abs(
         coarse.occupations - occupations
     ).max()
@@ -148,10 +148,10 @@ def test_shci_is_reproducible():
     first.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
     second.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
 
-    assert (first.ncas, first.nelecas) == (second.ncas, second.nelecas)
-    assert first.energy_cas == pytest.approx(second.energy_cas)
+    assert (first.active_space_size, first.active_electrons) == (second.active_space_size, second.active_electrons)
+    assert first.shci_energy == pytest.approx(second.shci_energy)
     assert np.allclose(first.occupations, second.occupations)
-    assert np.allclose(first.orbitals, second.orbitals)
+    assert np.allclose(first.orbital_initial, second.orbital_initial)
 
 
 @pytest.mark.dice
@@ -166,7 +166,7 @@ def test_shci_keeps_exactly_the_occupations_inside_the_window():
     encoded.SHCI(eps1=SELECTION, lo=lo, hi=hi)
 
     expected = occupations[(occupations >= lo) & (occupations <= hi)]
-    assert encoded.ncas == len(expected)
+    assert encoded.active_space_size == len(expected)
     assert np.allclose(encoded.occupations, expected, atol=OCCUPATION)
     assert np.all(np.diff(encoded.occupations) <= 0)
 
@@ -181,18 +181,18 @@ def test_shci_retires_a_pair_for_every_orbital_above_the_window():
     _, occupations = reference()
     lo, hi = NARROW
     encoded = capped()
-    before, core_before = encoded.nelecas, (encoded.mol.nelectron - encoded.nelecas) // 2
-    retained = encoded.orbitals[:, :core_before].copy()
+    before, core_before = encoded.active_electrons, (encoded.mol.nelectron - encoded.active_electrons) // 2
+    retained = encoded.orbital_initial[:, :core_before].copy()
 
     encoded.SHCI(eps1=SELECTION, lo=lo, hi=hi)
 
     above = int((occupations > hi).sum())
-    core = (encoded.mol.nelectron - encoded.nelecas) // 2
-    assert encoded.nelecas == before - 2 * above
+    core = (encoded.mol.nelectron - encoded.active_electrons) // 2
+    assert encoded.active_electrons == before - 2 * above
     assert core == core_before + above
     # The orbitals that were already core are still core, not merely still present.
     overlap = encoded.mol.intor("int1e_ovlp")
-    projector = encoded.orbitals[:, :core] @ encoded.orbitals[:, :core].T @ overlap
+    projector = encoded.orbital_initial[:, :core] @ encoded.orbital_initial[:, :core].T @ overlap
     assert np.allclose(projector @ retained, retained, atol=1e-8)
 
 
@@ -205,10 +205,10 @@ def test_shci_leaves_a_space_a_correction_can_be_made_in():
 
     encoded.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
 
-    assert (encoded.nelecas, encoded.ncas) == NARROWED
-    assert not encoded.nelecas % 2
-    assert not (encoded.mol.nelectron - encoded.nelecas) % 2
-    assert 0 < encoded.nelecas < 2 * encoded.ncas
+    assert (encoded.active_electrons, encoded.active_space_size) == NARROWED
+    assert not encoded.active_electrons % 2
+    assert not (encoded.mol.nelectron - encoded.active_electrons) % 2
+    assert 0 < encoded.active_electrons < 2 * encoded.active_space_size
 
 
 @pytest.mark.dice
@@ -221,9 +221,9 @@ def test_a_wider_window_keeps_more_of_the_space():
     narrow.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
     wide.SHCI(eps1=SELECTION, lo=WIDE[0], hi=WIDE[1])
 
-    assert (wide.nelecas, wide.ncas) == WIDENED
-    assert wide.ncas > narrow.ncas
-    assert wide.nelecas > narrow.nelecas
+    assert (wide.active_electrons, wide.active_space_size) == WIDENED
+    assert wide.active_space_size > narrow.active_space_size
+    assert wide.active_electrons > narrow.active_electrons
 
 
 @pytest.mark.dice
@@ -235,7 +235,7 @@ def test_shci_keeps_every_orbital_of_the_molecule():
 
     encoded.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
 
-    orbitals = encoded.orbitals
+    orbitals = encoded.orbital_initial
     assert orbitals.shape == (encoded.mol.nao, encoded.mol.nao)
     overlap = encoded.mol.intor("int1e_ovlp")
     assert np.allclose(orbitals.T @ overlap @ orbitals, np.eye(encoded.mol.nao), atol=1e-8)
@@ -250,14 +250,14 @@ def test_shci_leaves_the_correlated_space_it_was_handed():
         preserved and cannot be asserted on. The space MP2 chose is preserved.
     """
     encoded = capped()
-    correlated = (encoded.mol.nelectron - encoded.nelecas) // 2 + encoded.ncas
+    correlated = (encoded.mol.nelectron - encoded.active_electrons) // 2 + encoded.active_space_size
     overlap = encoded.mol.intor("int1e_ovlp")
-    before = encoded.orbitals[:, :correlated]
+    before = encoded.orbital_initial[:, :correlated]
     span = before @ before.T @ overlap
 
     encoded.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
 
-    after = encoded.orbitals[:, :correlated]
+    after = encoded.orbital_initial[:, :correlated]
     assert np.allclose(after @ after.T @ overlap, span, atol=1e-8)
 
 
@@ -274,7 +274,7 @@ def test_shci_keeps_the_active_space_on_the_contact():
     encoded.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
 
     weights = contact_weight(encoded.mol, window(encoded), all_carbons(encoded.mol))
-    assert weights.mean() >= encoded.threshold
+    assert weights.mean() >= encoded.avas_threshold
 
 
 def test_shci_refuses_before_an_active_space_exists():
@@ -361,9 +361,9 @@ def test_the_default_window_leaves_a_space_worth_correcting():
 
     encoded.SHCI()
 
-    assert encoded.ncas >= 2
-    assert 0 < encoded.nelecas < 2 * encoded.ncas
-    assert encoded.ncas <= SIMULABLE_ORBITALS
+    assert encoded.active_space_size >= 2
+    assert 0 < encoded.active_electrons < 2 * encoded.active_space_size
+    assert encoded.active_space_size <= SIMULABLE_ORBITALS
 
 
 # --------------------------------------------------------------------------------------------
@@ -393,14 +393,14 @@ def test_shci_solves_the_space_mp2_leaves_on_a_real_cutout(name):
     """
     encoded = reduced(name)
 
-    assert encoded.ncas == encoded.nmax
-    assert encoded.energy_cas < encoded.energy
+    assert encoded.active_space_size == encoded.nmax
+    assert encoded.shci_energy < encoded.energy
     occupations = encoded.occupations
-    assert len(occupations) == encoded.ncas
+    assert len(occupations) == encoded.active_space_size
     assert np.all(occupations > -1e-8)
     assert np.all(occupations < 2 + 1e-8)
     assert np.all(np.diff(occupations) <= 1e-8)
-    assert occupations.sum() == pytest.approx(encoded.nelecas, abs=1e-6)
+    assert occupations.sum() == pytest.approx(encoded.active_electrons, abs=1e-6)
 
 
 @pytest.mark.dice
@@ -415,7 +415,7 @@ def test_the_window_leaves_the_subset_a_space_a_vqe_could_carry(name):
 
     occupations = encoded.occupations
     kept = occupations[(occupations >= lo) & (occupations <= hi)]
-    nelecas = encoded.nelecas - 2 * int((occupations > hi).sum())
+    nelecas = encoded.active_electrons - 2 * int((occupations > hi).sum())
 
     assert 2 <= len(kept) <= SIMULABLE_ORBITALS
     assert 0 < nelecas < 2 * len(kept)

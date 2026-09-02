@@ -183,10 +183,10 @@ def test_avas_returns_a_closed_shell_active_space():
 
     encoded.AVAS()
 
-    assert encoded.ncas >= 1
-    assert encoded.nelecas >= 0
-    assert not encoded.nelecas % 2
-    assert encoded.nelecas <= 2 * encoded.ncas
+    assert encoded.active_space_size >= 1
+    assert encoded.active_electrons >= 0
+    assert not encoded.active_electrons % 2
+    assert encoded.active_electrons <= 2 * encoded.active_space_size
 
 
 def test_avas_keeps_every_orbital_of_the_molecule():
@@ -197,7 +197,7 @@ def test_avas_keeps_every_orbital_of_the_molecule():
 
     encoded.AVAS()
 
-    orbitals = encoded.orbitals
+    orbitals = encoded.orbital_initial
     assert orbitals.shape == (encoded.mol.nao, encoded.mol.nao)
     overlap = encoded.mol.intor("int1e_ovlp")
     assert np.allclose(orbitals.T @ overlap @ orbitals, np.eye(encoded.mol.nao), atol=1e-8)
@@ -211,8 +211,8 @@ def test_avas_active_space_is_smaller_than_the_molecule():
 
     encoded.AVAS()
 
-    assert encoded.ncas < encoded.mol.nao
-    assert encoded.nelecas < encoded.mol.nelectron
+    assert encoded.active_space_size < encoded.mol.nao
+    assert encoded.active_electrons < encoded.mol.nelectron
 
 
 def test_avas_grows_with_the_targets_it_is_given():
@@ -229,7 +229,7 @@ def test_avas_grows_with_the_targets_it_is_given():
     sizes = []
     for count in (1, 2, 4):
         encoded.AVAS(targets=[f"{index} C 2p" for index in carbons[:count]])
-        sizes.append(encoded.ncas)
+        sizes.append(encoded.active_space_size)
 
     assert sizes == sorted(sizes)
     assert sizes[-1] > sizes[0]
@@ -242,11 +242,11 @@ def test_avas_is_reproducible():
     encoded = solved(fragment())
 
     encoded.AVAS()
-    first = (encoded.ncas, encoded.nelecas, encoded.orbitals.copy())
+    first = (encoded.active_space_size, encoded.active_electrons, encoded.orbital_initial.copy())
     encoded.AVAS()
 
-    assert (encoded.ncas, encoded.nelecas) == first[:2]
-    assert np.allclose(encoded.orbitals, first[2])
+    assert (encoded.active_space_size, encoded.active_electrons) == first[:2]
+    assert np.allclose(encoded.orbital_initial, first[2])
 
 
 def test_avas_refuses_before_the_scf_has_run():
@@ -274,7 +274,7 @@ def test_avas_builds_an_active_space_over_the_subset(name):
 
     encoded.AVAS()
 
-    assert encoded.ncas >= 1
-    assert not encoded.nelecas % 2
-    assert encoded.nelecas <= 2 * encoded.ncas
-    assert encoded.ncas < encoded.mol.nao
+    assert encoded.active_space_size >= 1
+    assert not encoded.active_electrons % 2
+    assert encoded.active_electrons <= 2 * encoded.active_space_size
+    assert encoded.active_space_size < encoded.mol.nao

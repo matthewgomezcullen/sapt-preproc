@@ -75,7 +75,7 @@ echo "[$(date +%T)] Host      $(hostname)"
 # failure is either the same failure again or a step that cannot run without it. A solve that dies
 # is not repeated from scratch any more, since it leaves a checkpoint the next attempt resumes
 # from, but there is still no reason to spend the rest of the wall clock finding that out.
-echo "[$(date +%T)] Running the encoding tests for $NAME"
-pytest tests --encode --hpc -k "$NAME" -v -x --durations=0
+echo "[$(date +%T)] Running the tests for $NAME"
+pytest tests --long-protonate --hpc -k "$NAME" -v -x --durations=0
 
 echo "[$(date +%T)] Done"

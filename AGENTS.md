@@ -8,6 +8,6 @@ The experiment will run on HPC clusters that only I have access to. Save large e
 
 In chat, write equations following TeX syntax (\mu instead of μ) and use escaped parentheses and fenced math blocks to delimit your equations, so they render correctly.
 
-`test_protonate` takes a long time to run. Do not run these without my permission. Instead, run `pytest tests --fast`
+See testing in the README file. Don't run any long tests, unless I explicitly permit you to.
 
 For changes that only touch encoding, use `pytest tests --encode`

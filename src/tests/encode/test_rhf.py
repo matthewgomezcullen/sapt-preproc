@@ -110,7 +110,7 @@ def test_rhf_rejects_an_scf_that_did_not_converge():
 @pytest.mark.parametrize("name", SUBSET)
 def test_rhf_converges_over_the_subset(name):
     """
-    A converged, stable, closed-shell SCF over a cutout of the bin.
+    A converged, closed-shell SCF over a cutout of the bin.
     """
     prepared = prepare(name)
 
@@ -120,7 +120,20 @@ def test_rhf_converges_over_the_subset(name):
     assert set(np.unique(encoded.mean_field.mo_occ)) <= {0.0, 2.0}
     assert int(encoded.mean_field.mo_occ.sum()) == prepared.electrons
 
+
+@pytest.mark.hpc
+@pytest.mark.stability
+@pytest.mark.parametrize("name", SUBSET)
+def test_the_subset_reference_is_a_minimum_rather_than_a_saddle_point(name):
+    """
+    Ensure the converged solution is stable.
+
+    Computationally very expensive, to split out behind its own flag.
+    """
+    encoded = solved(prepare(name))
+
     internal, _ = encoded.mean_field.stability()
+
     assert np.allclose(internal, encoded.mean_field.mo_coeff)
 
 

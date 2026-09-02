@@ -55,6 +55,14 @@ def pytest_addoption(parser):
              "each and are left out of every ordinary run.",
     )
     parser.addoption(
+        "--stability",
+        action="store_true",
+        help="Also run the tests marked stability, which check that a subset cutout's converged "
+             "SCF is a minimum rather than a saddle point. Six to ten hours each, an order of "
+             "magnitude more than the SCF itself, and needed once per cutout rather than once per "
+             "run. Needs --hpc as well.",
+    )
+    parser.addoption(
         "--encode",
         action="store_true",
         help="Run only the encoding tests, for a change that touches nothing before them.",
@@ -71,6 +79,10 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "dice: needs the Dice executable; skipped wherever it is not on the PATH"
     )
+    config.addinivalue_line(
+        "markers",
+        "stability: analyses a subset cutout's converged SCF; run only under --hpc --stability",
+    )
 
 
 # The encoding tests are a directory now, so the flag selects on that rather than a filename.
@@ -82,6 +94,8 @@ def pytest_collection_modifyitems(config, items):
     `slow` is opt-out and `hpc` is opt-in.
 
     A slow test is a minute of preparation, an hpc test is hours of SCF.
+
+    `stability` is opt-in on top of `hpc`, and carries both marks.
 
     Dice is an external program that only builds on Linux
 
@@ -105,6 +119,12 @@ def pytest_collection_modifyitems(config, items):
         skipped = pytest.mark.skip(reason="needs --hpc")
         for item in items:
             if "hpc" in item.keywords:
+                item.add_marker(skipped)
+
+    if not config.getoption("--stability"):
+        skipped = pytest.mark.skip(reason="needs --stability")
+        for item in items:
+            if "stability" in item.keywords:
                 item.add_marker(skipped)
 
     if not config.getoption("--fast"):

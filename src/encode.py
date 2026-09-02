@@ -162,7 +162,7 @@ class EncodeProtein:
             self.orbital_initial,
             self.active_space_size,
             self.active_electrons,
-            density_fit,
+            self.density_fit,
             verbose=self.verbose,
         )
         self.active_space_size, self.active_electrons, self.orbital_initial, self.occupations = encode.cap(

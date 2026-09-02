@@ -173,6 +173,10 @@ def mp2(mean_field, orbitals, ncas, nelecas, density_fit=False, verbose=0):
         mean_field.mo_energy = energies
         correlated = mp.MP2(mean_field, frozen=frozen or None)
         if density_fit:
+            # Freezing shrinks the MO indices but not the transformation underneath, which still
+            # contracts over every AO and spools the half-transformed integrals to disk. Fitting
+            # them replaces that with an auxiliary-basis contraction: on a cutout of the bin it is
+            # the difference between a hundred gigabytes of scratch and under one.
             correlated = correlated.density_fit()
         correlated.verbose = verbose
         correlation = correlated.kernel()[0]

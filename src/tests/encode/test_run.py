@@ -234,6 +234,118 @@ def test_force_solves_it_again(tmp_path):
     assert again.ncas == FRAGMENT_NMAX
 
 
+def test_dices_log_is_copied_out_of_the_scratch(tmp_path):
+    """
+    Dice's log is in scratch and thrown away. Copy this over.
+    """
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    (scratch / "output.dat").write_text("what Dice said")
+    destination = str(tmp_path / "kept.out")
+
+    run.keep(str(scratch), destination)
+
+    assert open(destination).read() == "what Dice said"
+
+
+def test_a_missing_log_is_not_an_error(tmp_path):
+    """
+    Dice can raise before writing anything, which should not cause more errors.
+    """
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    destination = str(tmp_path / "kept.out")
+
+    run.keep(str(scratch), destination)
+
+    assert not os.path.exists(destination)
+
+
+def test_the_log_sits_beside_the_result(tmp_path):
+    """
+    Logs sit with the complex.
+    """
+    out = str(tmp_path)
+
+    assert os.path.dirname(run.log(FRAGMENT, out)) == os.path.dirname(run.path(FRAGMENT, out))
+
+
+@pytest.mark.dice
+def test_the_run_says_what_it_is_doing(tmp_path, capfd):
+    """
+    Log contents are correct.
+    """
+    run.run(
+        FRAGMENT, str(tmp_path), prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX
+    )
+
+    printed = capfd.readouterr().out
+    for step in ("RHF", "AVAS", "MP2", "SHCI"):
+        assert step in printed
+
+
+@pytest.mark.dice
+def test_the_run_reports_the_space_it_reached(tmp_path, capfd):
+    """
+    Log the active space.
+    """
+    result = run.run(
+        FRAGMENT, str(tmp_path), prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX
+    )
+
+    printed = capfd.readouterr().out
+    assert f"{result.nelecas}e" in printed
+    assert f"{result.ncas}o" in printed
+
+
+@pytest.mark.dice
+def test_a_run_is_quiet_by_default(tmp_path):
+    """
+    Default does not log the SCF table.
+    """
+    result = run.run(
+        FRAGMENT, str(tmp_path), prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX
+    )
+
+    assert result.mol.verbose == 0
+    assert result.mean_field.verbose == 0
+
+
+@pytest.mark.dice
+def test_verbosity_reaches_pyscf(tmp_path):
+    """
+    Asserted on the objects, not the output: PySCF binds its stream at import, before pytest's
+        capture is in place, so neither capsys nor capfd can read back what it prints.
+    """
+    result = run.run(
+        FRAGMENT,
+        str(tmp_path),
+        prepared=fragment(),
+        targets=all_carbons,
+        nmax=FRAGMENT_NMAX,
+        verbose=4,
+    )
+
+    assert result.verbose == 4
+    assert result.mol.verbose == 4
+    assert result.mean_field.verbose == 4
+
+
+@pytest.mark.dice
+def test_a_finished_run_keeps_dices_log_and_nothing_else(tmp_path):
+    """
+    The integrals and the wavefunction should not be kept.
+    """
+    out = str(tmp_path)
+
+    result = run.run(
+        FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX
+    )
+
+    assert os.path.isfile(run.log(FRAGMENT, out))
+    assert not os.path.exists(result.scratch)
+
+
 # --------------------------------------------------------------------------------------------
 # The bin. Hours each, for the cluster.
 # --------------------------------------------------------------------------------------------

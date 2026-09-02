@@ -70,9 +70,9 @@ export PYSCF_TMPDIR="${TMPDIR:-/tmp}"
 # rank, ask SLURM for the tasks and set this to "srun". Its scratch goes to TMPDIR, node-local.
 export MPIPREFIX="${MPIPREFIX:-}"
 
-# Where the SCF checkpoints and the finished active spaces go. Both default into $DATA, which
-# outlives the node; the checkpoint is what makes a killed job worth having run.
-CHECKPOINTS="${SCF_CHECKPOINTS:-$DATA/scf}"
+# Where the SCF checkpoints and the finished active spaces go. Both default into $DATA.
+# Exported for `utils.encode.store`
+export SCF_CHECKPOINTS="${SCF_CHECKPOINTS:-$DATA/scf}"
 SPACES="${SPACES:-$DATA/spaces}"
 
 echo "[$(date +%T)] Complex   $NAME  (task $SLURM_ARRAY_TASK_ID of ${#SUBSET[@]})"
@@ -80,13 +80,15 @@ echo "[$(date +%T)] Threads   $OMP_NUM_THREADS"
 echo "[$(date +%T)] Memory    ${PYSCF_MAX_MEMORY} MB of ${SLURM_MEM_PER_NODE:-?} MB"
 echo "[$(date +%T)] Scratch   $PYSCF_TMPDIR"
 echo "[$(date +%T)] Dice      $(command -v Dice || echo 'not on the PATH')  ${MPIPREFIX:+under $MPIPREFIX}"
-BANKED=$(ls -1 "$CHECKPOINTS" 2>/dev/null | wc -l | tr -d ' ')
-echo "[$(date +%T)] Store     $CHECKPOINTS  ($BANKED banked)"
+
+BANKED=0
+if [ -d "$SCF_CHECKPOINTS" ]; then
+    BANKED=$(find "$SCF_CHECKPOINTS" -maxdepth 1 -name '*.chk' | wc -l | tr -d ' ')
+fi
+echo "[$(date +%T)] Store     $SCF_CHECKPOINTS  ($BANKED banked)"
 echo "[$(date +%T)] Spaces    $SPACES"
 echo "[$(date +%T)] Host      $(hostname)"
 
-# Say what this job is about to do, which after a killed first submission is the thing worth
-# knowing: a result already there means nothing to do, and a checkpoint means the SCF is free.
 if [ -f "$SPACES/$NAME.npz" ]; then
     echo "[$(date +%T)] $NAME already has an active space; this job will do nothing"
 else

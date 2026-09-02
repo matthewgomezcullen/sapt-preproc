@@ -15,6 +15,9 @@ What is stored is the whole window Dice returned, untruncated. Choosing an occup
 
 import argparse
 import os
+import shutil
+import tempfile
+import time
 
 import numpy as np
 
@@ -31,6 +34,9 @@ SPACES = "spaces"
 # The window the driver solves under. See the module docstring.
 EVERYTHING = (0.0, 2.0)
 
+# What Dice calls its own log, inside the scratch it is given.
+OUTPUT = "output.dat"
+
 
 def spaces():
     """
@@ -45,6 +51,30 @@ def path(name, out):
     The file this complex's active space takes in `out`.
     """
     return os.path.join(out, f"{name}.npz")
+
+
+def log(name, out):
+    """
+    The file Dice's own log takes in `out`, beside the result it belongs to.
+    """
+    return os.path.join(out, f"{name}.dice.out")
+
+
+def keep(scratch, destination):
+    """
+    Dice's log, lifted out of the scratch before the scratch goes.
+    """
+    written = os.path.join(scratch, OUTPUT)
+    if os.path.isfile(written):
+        os.makedirs(os.path.dirname(destination) or ".", exist_ok=True)
+        shutil.copyfile(written, destination)
+
+
+def _say(message):
+    """
+    One line of progress.
+    """
+    print(f"[{time.strftime('%H:%M:%S')}] {message}", flush=True)
 
 
 def save(encoded, name, destination):
@@ -107,7 +137,7 @@ def _complex(name):
     return PrepareComplex(proteins[0], poses)
 
 
-def run(name, out, prepared=None, targets=None, nmax=None, eps1=1e-4, force=False):
+def run(name, out, prepared=None, targets=None, nmax=None, eps1=1e-4, verbose=0, force=False):
     """
     Carry one complex the whole way and keep what comes out, or nothing if it is already there.
 
@@ -116,6 +146,9 @@ def run(name, out, prepared=None, targets=None, nmax=None, eps1=1e-4, force=Fals
     `targets` is handed to AVAS. None lets it work them out from the poses, which is the pipeline;
         a callable is given the built molecule, which is how a cutout with no pose near its
         contact can still be run.
+
+    `verbose` reaches PySCF, whose SCF table is per-cycle energies and timings. The step lines are
+        printed by default.
     """
     if not force and done(name, out):
         return None
@@ -125,13 +158,30 @@ def run(name, out, prepared=None, targets=None, nmax=None, eps1=1e-4, force=Fals
         encoded.prepared.prepare()
     if nmax is not None:
         encoded.nmax = nmax
+    encoded.verbose = verbose
+    encoded.scratch = tempfile.mkdtemp(prefix=f"dice-{name}-")
 
     encoded.RHF()
+    _say(f"RHF    E = {encoded.energy:.9f} over {encoded.mol.nao} basis functions")
+
     encoded.AVAS(targets(encoded.mol) if callable(targets) else targets)
+    _say(f"AVAS   ({encoded.nelecas}e, {encoded.ncas}o)")
+
     encoded.MP2()
-    encoded.SHCI(eps1=eps1, lo=EVERYTHING[0], hi=EVERYTHING[1])
+    _say(f"MP2    ({encoded.nelecas}e, {encoded.ncas}o) capped at {encoded.nmax}, "
+         f"correlation {encoded.correlation:.9f}")
+
+    try:
+        encoded.SHCI(eps1=eps1, lo=EVERYTHING[0], hi=EVERYTHING[1])
+    finally:
+        # In a finally because a Dice that failed is exactly when its log is worth reading.
+        keep(encoded.scratch, log(name, out))
+        shutil.rmtree(encoded.scratch, ignore_errors=True)
+    _say(f"SHCI   ({encoded.nelecas}e, {encoded.ncas}o) E = {encoded.energy_cas:.9f}, "
+         f"n from {encoded.occupations.max():.6f} to {encoded.occupations.min():.6f}")
 
     save(encoded, name, path(name, out))
+    _say(f"Wrote  {path(name, out)}")
     return encoded
 
 
@@ -154,6 +204,12 @@ if __name__ == "__main__":
         help="Dice's selection threshold. Larger selects fewer determinants and costs less.",
     )
     parser.add_argument(
+        "--verbose",
+        type=int,
+        default=0,
+        help="PySCF's own logging level. 4 prints the SCF table, cycle by cycle.",
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="Run even where a result is already stored, overwriting it.",
@@ -166,6 +222,7 @@ if __name__ == "__main__":
         out,
         nmax=arguments.nmax,
         eps1=arguments.eps1,
+        verbose=arguments.verbose,
         force=arguments.force,
     )
     if encoded is None:

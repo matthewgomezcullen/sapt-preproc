@@ -11,32 +11,75 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from pyscf import gto
 
 import run
 from cutouts import FRAGMENT, SUBSET, all_carbons, fragment
 from encode import EncodingError
+from utils import encode
 
-# The window the driver solves under. Truncating is arithmetic on the occupations, so one stored 
+# The window the driver solves under. Truncating is arithmetic on the occupations, so one stored
 # run answers for any window.
 EVERYTHING = (0.0, 2.0)
 
 # Small enough that the cap has to cut, and quick enough to run here.
 FRAGMENT_NMAX = 8
 
+# The stand-in's active space. Two electrons in two of its four orbitals, so it is closed-shell and
+# has an excitation in it.
+NCAS = 2
+NELECAS = 2
+
+POSES = ["somewhere/rank1_confidence-0.71.sdf", "somewhere/rank2_confidence-0.77.sdf"]
+
+
+def molecule():
+    """
+    Returns a molecule.
+    """
+    return gto.M(atom="H 0 0 0; H 0 0 0.74", basis="6-31G", verbose=0)
+
 
 def finished():
     """
     An encoder that has been the whole way.
     """
+    mol = molecule()
     return SimpleNamespace(
-        active_space_size=4,
-        active_electrons=12,
-        orbital_initial=np.arange(nao * nao, dtype=float).reshape(nao, nao),
-        occupations=np.linspace(1.99, 0.01, ncas),
+        mol=mol,
+        mean_field=None,
+        active_space_size=NCAS,
+        active_electrons=NELECAS,
+        orbital_initial=np.arange(mol.nao * mol.nao, dtype=float).reshape(mol.nao, mol.nao),
+        occupations=np.linspace(1.99, 0.01, NCAS),
         energy=-570.5,
         shci_energy=-570.52,
         correlation=-0.31,
+        prepared=SimpleNamespace(poses_paths=list(POSES)),
     )
+
+
+def over_the_fragment():
+    """
+    A finished run over the fragment's molecule.
+    """
+    mol = encode.molecule(fragment(), 0)
+    written = finished()
+    written.mol = mol
+    written.orbital_initial = np.eye(mol.nao)
+    written.prepared = fragment()
+    return written
+
+
+def strip(path, *drop, **replace):
+    """
+    Rewrite a stored result without some of its keys, as older runs wrote.
+    """
+    stored = run.load(path)
+    for key in drop:
+        stored.pop(key, None)
+    stored.update(replace)
+    np.savez(path, **stored)
 
 
 def test_the_results_follow_data(monkeypatch):
@@ -223,6 +266,126 @@ def test_a_result_that_cannot_be_read_is_not_finished(tmp_path):
         handle.write(b"not an npz")
 
     assert not run.done(FRAGMENT, out)
+
+
+def test_the_molecule_is_stored(tmp_path):
+    """
+    The geometry, basis, charge, spin and atom ordering are stored.
+    """
+    written = finished()
+    path = run.path(FRAGMENT, str(tmp_path))
+
+    run.save(written, FRAGMENT, path)
+
+    assert run.load(path)["molecule"] == written.mol.dumps()
+
+
+def test_the_stored_molecule_rebuilds(tmp_path):
+    """
+    Rebuild stored molecule correctly.
+    """
+    written = finished()
+    path = run.path(FRAGMENT, str(tmp_path))
+    run.save(written, FRAGMENT, path)
+
+    rebuilt = gto.loads(run.load(path)["molecule"])
+
+    assert rebuilt.nao == written.mol.nao
+    assert rebuilt.nelectron == written.mol.nelectron
+    assert np.allclose(rebuilt.atom_coords(), written.mol.atom_coords())
+
+
+def test_the_checkpoint_digest_is_stored(tmp_path):
+    """
+    The checkpoint digest is stored correctly.
+    """
+    written = finished()
+    path = run.path(FRAGMENT, str(tmp_path))
+
+    run.save(written, FRAGMENT, path)
+
+    assert run.load(path)["digest"] == encode.digest(written.mol)
+
+
+def test_the_digest_survives_a_rebuild():
+    """
+    A molecule through dumps and loads keeps its digest.
+    """
+    mol = molecule()
+
+    assert encode.digest(gto.loads(mol.dumps())) == encode.digest(mol)
+
+
+def test_the_poses_are_stored(tmp_path):
+    """
+    Which poses defined the cutout. Monomer B comes from these.
+    """
+    path = run.path(FRAGMENT, str(tmp_path))
+
+    run.save(finished(), FRAGMENT, path)
+
+    assert list(run.load(path)["poses"]) == POSES
+
+
+def test_a_stored_run_resumes_without_preparing_anything(tmp_path):
+    """
+    A result holding its molecule doesn't need perparation.
+    """
+    out = str(tmp_path)
+    written = finished()
+    run.save(written, FRAGMENT, run.path(FRAGMENT, out))
+
+    resumed = run.resume(FRAGMENT, out, roots=(str(tmp_path / "nothing"),))
+
+    assert resumed.active_space_size == NCAS
+    assert resumed.active_electrons == NELECAS
+    assert resumed.mol.nao == written.mol.nao
+    assert np.array_equal(resumed.orbital_initial, written.orbital_initial)
+
+
+def test_a_resumed_run_reaches_its_hamiltonian(tmp_path):
+    """
+    A resumed run produces its hamiltonian.
+    """
+    out = str(tmp_path)
+    run.save(finished(), FRAGMENT, run.path(FRAGMENT, out))
+
+    resumed = run.resume(FRAGMENT, out, roots=(str(tmp_path / "nothing"),))
+
+    assert resumed.H().num_qubits == 2 * NCAS
+
+
+def test_resuming_a_complex_that_was_never_run_says_so(tmp_path):
+    with pytest.raises(EncodingError):
+        run.resume(FRAGMENT, str(tmp_path))
+
+
+def test_a_stored_run_without_a_molecule_is_prepared_again(tmp_path):
+    """
+    The three complexes solved before the molecule was stored are prepared again.
+    """
+    out = str(tmp_path)
+    path = run.path(FRAGMENT, out)
+    run.save(over_the_fragment(), FRAGMENT, path)
+    strip(path, "molecule")
+
+    resumed = run.resume(FRAGMENT, out, prepared=fragment())
+
+    assert resumed.active_space_size == NCAS
+    assert resumed.mol.nao == resumed.orbital_initial.shape[0]
+
+
+def test_a_geometry_that_no_longer_matches_is_refused(tmp_path):
+    """
+    Ensure preparation reproduces exactly.
+    """
+    out = str(tmp_path)
+    path = run.path(FRAGMENT, out)
+    run.save(over_the_fragment(), FRAGMENT, path)
+    strip(path, "molecule", digest="0" * 64)
+
+    with pytest.raises(EncodingError):
+        run.resume(FRAGMENT, out, prepared=fragment())
 
 
 @pytest.mark.dice

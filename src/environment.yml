@@ -15,6 +15,9 @@ dependencies:
   - gemmi=0.7.4
   - rdkit=2026.03.5
   - pytest=8.4.2
+  - qiskit=2.5.2
   - pip
   - jupyter
   - ipykernel
+  - pip:
+      - qiskit-nature==0.8.0

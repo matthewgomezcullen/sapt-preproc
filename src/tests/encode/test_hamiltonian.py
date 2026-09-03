@@ -216,7 +216,7 @@ def test_jordan_wigner_is_the_mapping_by_default():
 
 def test_another_mapping_is_another_operator():
     """
-    A different mapping holds the same spectrum, so the energy is asserted too.
+    A different mapping holds the same spectrum.
     """
     encoded = capped()
 
@@ -224,8 +224,10 @@ def test_another_mapping_is_another_operator():
     parity = encoded.H(mapping="parity")
 
     assert parity != jordan_wigner
-    assert lowest(parity, encoded.active_electrons) == pytest.approx(
-        exact().e_tot, abs=ENERGY
+    assert np.allclose(
+        np.linalg.eigvalsh(parity.to_matrix()),
+        np.linalg.eigvalsh(jordan_wigner.to_matrix()),
+        atol=ENERGY,
     )
 
 

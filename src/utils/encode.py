@@ -6,7 +6,7 @@ import numpy as np
 from prepare import PrepareComplex
 from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 
-from pyscf import gto, mcscf, mp, scf
+from pyscf import ao2mo, gto, mcscf, mp, scf
 
 # What `$DATA` is joined with by default
 CHECKPOINTS = "scf"
@@ -48,9 +48,9 @@ def _method(mean_field):
     auxbasis = getattr(getattr(mean_field, "with_df", None), "auxbasis", None)
     return f"{name}/{auxbasis}" if auxbasis else name
 
-def checkpoint(mol, store, mean_field=None):
+def digest(mol, mean_field=None):
     """
-    The path this molecule's SCF takes in `store`.
+    What identifies this molecule's SCF.
 
     `mean_field` of None is the exact RHF the pipeline has always run. Fitting the two-electron
         integrals moves the energy by a few times 1e-6 Ha, which is small, systematic, and exactly
@@ -71,7 +71,13 @@ def checkpoint(mol, store, mean_field=None):
         },
         sort_keys=True,
     )
-    return os.path.join(store, f"{hashlib.sha256(payload.encode()).hexdigest()}.chk")
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+def checkpoint(mol, store, mean_field=None):
+    """
+    The path this molecule's SCF takes in `store`.
+    """
+    return os.path.join(store, f"{digest(mol, mean_field)}.chk")
 
 def rhf(mol, max_cycle, store=None, density_fit=False):
     """
@@ -276,10 +282,78 @@ def window(orbitals, density, ncas, nelecas, core, lo, hi):
     occupations, rotation = np.clip(occupations[::-1], 0.0, 2.0), rotation[:, ::-1]
     natural = orbitals[:, core:core + ncas] @ rotation
 
+    return select(
+        np.hstack([orbitals[:, :core], natural, orbitals[:, core + ncas:]]),
+        occupations,
+        nelecas,
+        lo,
+        hi,
+    )
+
+def select(orbitals, occupations, nelecas, lo, hi):
+    """
+    The orbitals a window admits, and the space they leave.
+
+    The occupations are descending and the orbitals in their order, so those above the window are
+        the first of the active columns and retire into the core, and those below it are the last
+        and join the virtuals.
+    """
     kept = (occupations >= lo) & (occupations <= hi)
     return (
         int(kept.sum()),
         nelecas - 2 * int((occupations > hi).sum()),
-        np.hstack([orbitals[:, :core], natural, orbitals[:, core + ncas:]]),
+        orbitals,
         occupations[kept],
     )
+
+def integrals(mean_field, orbitals, ncas, nelecas):
+    """
+    The active-space integrals, as CASCI builds them.
+
+    Returns the core energy, which holds the nuclear repulsion and the frozen electrons; the
+        one-electron integrals with the core's Coulomb and exchange folded in; and the two-electron
+        integrals over the active orbitals.
+    """
+    correlated = mcscf.CASCI(mean_field, ncas, nelecas)
+    correlated.mo_coeff = orbitals
+    h1, e_core = correlated.get_h1eff()
+    return e_core, h1, ao2mo.restore(1, correlated.get_h2eff(), ncas)
+
+def qubits(e_core, h1, h2, mapping="jordan_wigner"):
+    """
+    The active-space Hamiltonian as a qubit operator.
+
+    RHF is closed shell, so the alpha integrals answers both spins and the operator carries two
+        qubits per orbital.
+
+    The core energy is not part of the second-quantised operator, so it is added as the identity.
+        Without it the energies do not compare between poses.
+    """
+    from qiskit.quantum_info import SparsePauliOp
+    from qiskit_nature.second_q.hamiltonians import ElectronicEnergy
+
+    mapper = _mapper(mapping)
+    operator = mapper.map(ElectronicEnergy.from_raw_integrals(h1, h2).second_q_op())
+    identity = SparsePauliOp("I" * operator.num_qubits, e_core)
+    return (operator + identity).simplify()
+
+def _mapper(mapping):
+    """
+    One of the fermion-to-qubit mappings, by name.
+    """
+    from qiskit_nature.second_q.mappers import (
+        BravyiKitaevMapper,
+        JordanWignerMapper,
+        ParityMapper,
+    )
+
+    mappers = {
+        "jordan_wigner": JordanWignerMapper,
+        "parity": ParityMapper,
+        "bravyi_kitaev": BravyiKitaevMapper,
+    }
+    if mapping not in mappers:
+        raise ValueError(
+            f"{mapping} is not a mapping; it is one of {', '.join(sorted(mappers))}"
+        )
+    return mappers[mapping]()

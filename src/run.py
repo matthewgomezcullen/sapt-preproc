@@ -17,10 +17,12 @@ import tempfile
 import time
 
 import numpy as np
+from pyscf import gto, scf
 
 from encode import EncodeProtein, EncodingError
 from filter import FAIL, POSE
 from prepare import PrepareComplex
+from utils import encode
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(ROOT, "out")
@@ -99,6 +101,9 @@ def save(encoded, name, destination):
         energy_cas=encoded.shci_energy,
         correlation=encoded.correlation,
         window=np.array(EVERYTHING),
+        molecule=encoded.mol.dumps(),
+        digest=encode.digest(encoded.mol, encoded.mean_field),
+        poses=np.array(encoded.prepared.poses_paths),
     )
 
 
@@ -159,6 +164,44 @@ def find(name, roots=ROOTS):
         f"{name} is in none of {', '.join(roots)}. The benchmark set is not tracked; see README.md "
         "for where to download it, or pass --data."
     )
+
+
+def resume(name, out, prepared=None, roots=ROOTS):
+    """
+    A stored run, as an encoder ready to go on with.
+
+    A result written before the molecule was stored is prepared again
+    """
+    if not done(name, out):
+        raise EncodingError(
+            f"{name} has no readable result in {out}, so there is nothing to resume"
+        )
+    stored = load(path(name, out))
+
+    if "molecule" in stored:
+        mol = gto.loads(stored["molecule"])
+    else:
+        if prepared is None:
+            prepared = find(name, roots)
+            prepared.prepare()
+        mol = encode.molecule(prepared, 0)
+        if encode.digest(mol) != stored.get("digest"):
+            raise EncodingError(
+                f"{name} prepares to a different molecule than it was solved over, so the stored "
+                "orbitals do not belong to it"
+            )
+
+    encoded = EncodeProtein(prepared)
+    encoded.mol = mol
+    encoded.mean_field = scf.RHF(mol)
+    encoded.energy = stored["energy"]
+    encoded.correlation = stored["correlation"]
+    encoded.shci_energy = stored["energy_cas"]
+    encoded.active_space_size = stored["ncas"]
+    encoded.active_electrons = stored["nelecas"]
+    encoded.orbital_initial = stored["orbitals"]
+    encoded.occupations = stored["occupations"]
+    return encoded
 
 
 def run(name, out, prepared=None, targets=None, nmax=None, eps1=1e-4, verbose=0, force=False,

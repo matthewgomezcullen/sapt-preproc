@@ -62,6 +62,10 @@ class EncodeProtein:
         # under SLURM, or "mpirun -np <ranks>"
         self.scratch = None # where to write integrals, wavefunction and RDMs.
 
+        # Hamiltonian
+        self.e_core = None # nuclear repulsion and the energy of the frozen electrons
+        self.hamiltonian = None # the active space as a qubit operator
+
     def RHF(self):
         """
         Solves RHF over the prepared protein for initial molecular orbitals. Computationally
@@ -230,16 +234,46 @@ class EncodeProtein:
         self.active_space_size, self.active_electrons = ncas, nelecas
         return self.active_space_size, self.active_electrons, self.orbital_initial
 
-    def H_fermionic(self):
+    def rewindow(self, lo: float, hi: float):
         """
-        Construct the active space fermionic Hamiltonian.
+        Choose another occupation window over a space already solved.
         """
-        ...
+        if self.shci_energy is None:
+            raise EncodingError("Cannot rewindow before SHCI has solved the space")
 
-    def H_JW(self):
+        ncas, nelecas, orbitals, occupations = encode.select(
+            self.orbital_initial, self.occupations, self.active_electrons, lo, hi
+        )
+        if ncas == 0 or nelecas == 0 or nelecas == 2 * ncas:
+            raise EncodingError(
+                f"The window {lo} <= n <= {hi} leaves ({nelecas}e, {ncas}o) of "
+                f"({self.active_electrons}e, {self.active_space_size}o), which has no excitation in it to correct"
+            )
+
+        self.orbital_initial, self.occupations = orbitals, occupations
+        self.active_space_size, self.active_electrons = ncas, nelecas
+        return self.active_space_size, self.active_electrons, self.orbital_initial
+
+    def H(self, mapping: str = "jordan_wigner"):
         """
-        Maps fermionic electronic-structure Hamiltonian into a qubit Hamiltonian following the
-            Jordan-Wigner transformation.
+        Map the active space onto qubits.
+
+        The integrals CASCI builds over the window are handed to `mapping`, which is Jordan-Wigner
+            by default. Two qubits per orbital, and the core energy carried as the identity so the
+            eigenvalues are total energies.
         """
-        ...
+        if self.active_space_size is None:
+            raise EncodingError("Cannot build the Hamiltonian before an active space is chosen")
+
+        self.e_core, h1, h2 = encode.integrals(
+            self.mean_field,
+            self.orbital_initial,
+            self.active_space_size,
+            self.active_electrons,
+        )
+        try:
+            self.hamiltonian = encode.qubits(self.e_core, h1, h2, mapping)
+        except ValueError as error:
+            raise EncodingError(str(error)) from error
+        return self.hamiltonian
 

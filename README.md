@@ -102,7 +102,8 @@ Solving RHF for large cutouts is computationally very expensive. Also, highly ch
 1. Run Semistochastic Heat-Bath Configuration Interaction (SHCI) with Dice over the space MP2 capped, diagonalise its one-particle density, and keep the natural orbitals with $\text{lo} \le n_{i} \le \text{hi}$. An orbital above the window is doubly occupied and retires its pair to the core; one below it is empty and joins the virtuals.
     1. (*) The window is $0.01 \le n_{i} \le 1.99$, not the paper's $0.02 \le n_{i} \le 1.97$. See the deviations below.
     1. (*) A window fixes no size, so it can leave a space with no excitation in it, whose correction to SAPT is exactly zero. That is rejected rather than handed on.
-1. Finally, map the active-space fermionic Hamiltonian to a qubit Hamiltonian following the Jordan-Wigner transformation.
+1. Finally, map the active-space fermionic Hamiltonian to a qubit Hamiltonian following the Jordan-Wigner transformation. CASCI supplies the three ingredients: the core energy $E_{\text{core}}$, which holds the nuclear repulsion and the frozen electrons; the one-electron integrals $h_{pq}$ with the core's Coulomb and exchange folded in; and the two-electron integrals $(pq|rs)$ over the active orbitals. `qiskit-nature` maps them, and the core energy is carried as the identity so the eigenvalues are total energies.
+    1. (*) Jordan-Wigner instead of Bravyi-Kitaev.
 
 #### Chemically relevant atomic valence orbitals
 
@@ -239,5 +240,10 @@ Among accepted complexes, many cutouts are highly charged, as counter-charges th
 
 ## `run.py`
 
-Runs a complex through the entire pipeline. After SHCI, the `name`, `ncas` (`active_space_size`), `nelecas` (`active_electrons`), and `orbitals` (the coefficient matrix for active orbitals), `occupations`, `energy` (RHF total), `energy_cas` (SHCI total), `correlation` (MP2), and `window` (typically, (0.0, 2.0)) are recorded in a `.npz` file under `$DATA/spaces/<name>$` or `out/spaces/<name>`. Resuming from an `.npz` file requires repreparing the complex to retrieve the geometry, basis, charge, and the atom ordering.
-- *TODO*: store the geometry with `.npz`.
+Runs a complex through the entire pipeline. After SHCI, the `name`, `ncas` (`active_space_size`), `nelecas` (`active_electrons`), `orbitals`, `occupations`, `energy` (RHF total), `energy_cas` (SHCI total), `correlation` (MP2), `window` (typically, (0.0, 2.0)), `molecule`, `digest` and `poses` are recorded in a `.npz` file under `$DATA/spaces/<name>.npz` or `out/spaces/<name>.npz`. Dice's own log is kept beside it as `<name>.dice.out`.
+
+`orbitals` is the whole $n_{ao} \times n_{ao}$ coefficient matrix.
+
+`molecule` is `mol.dumps()`: the geometry, basis, charge, spin and atom ordering in one lossless field, around 130 KiB for a cutout of the bin. Storing the geometry alone would not do: the basis, charge, spin and ordering are all needed.
+
+`digest` ties the result to the SCF checkpoint it came out of. `run.resume` uses it on the three complexes solved before `molecule` was stored, which have to be prepared again. A geometry that has moved is refused rather than answered with orbitals that no longer belong to it.

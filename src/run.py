@@ -3,12 +3,9 @@ Run the encoding pipeline over one complex and keep what it produces.
 
 RHF over a cutout of the bin is eight to twelve hours and nothing above it is free either, so a
     finished run writes its active space to <out>/<name>.npz and a run that finds one already
-    there does nothing. The SCF underneath is checkpointed separately by `utils.encode`, so a job
-    killed part way through still leaves the expensive half behind.
+    there does nothing. The SCF underneath is checkpointed separately by `utils.encode`.
 
-What is stored is the whole window Dice returned, untruncated. Choosing an occupation window is
-    then arithmetic on those numbers rather than another solve, which is what makes it safe to run
-    this before the window has been settled.
+Stores the whole window Dice returned. Occupation windows are arithmetic on those numbers.
 
     python run.py --complex 7USH_82V
 """
@@ -33,10 +30,10 @@ OUT = os.path.join(ROOT, "out")
 # a clone.
 ROOTS = (os.path.join(ROOT, "data"), os.path.join(ROOT, "tests", "data"))
 
-# What `$DATA` is joined with, and what `out/` is joined with off the cluster.
+# What `$DATA` or `out/` is joined with.
 SPACES = "spaces"
 
-# The window the driver solves under. See the module docstring.
+# The window the driver solves under.
 EVERYTHING = (0.0, 2.0)
 
 # What Dice calls its own log, inside the scratch it is given.
@@ -118,9 +115,7 @@ def load(source):
 
 def done(name, out):
     """
-    Whether this complex already has a result worth keeping.
-
-    A file cut off mid-write is not one, and says so by failing to read.
+    Whether this complex already has a valid result.
     """
     try:
         load(path(name, out))

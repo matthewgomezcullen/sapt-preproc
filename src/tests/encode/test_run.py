@@ -24,13 +24,13 @@ EVERYTHING = (0.0, 2.0)
 FRAGMENT_NMAX = 8
 
 
-def finished(ncas=4, nao=12):
+def finished():
     """
     An encoder that has been the whole way.
     """
     return SimpleNamespace(
-        active_space_size=ncas,
-        active_electrons=ncas,
+        active_space_size=4,
+        active_electrons=12,
         orbital_initial=np.arange(nao * nao, dtype=float).reshape(nao, nao),
         occupations=np.linspace(1.99, 0.01, ncas),
         energy=-570.5,
@@ -41,7 +41,7 @@ def finished(ncas=4, nao=12):
 
 def test_the_results_follow_data(monkeypatch):
     """
-    A run on the cluster belongs beside the checkpoints it was built from.
+    Results are put in the $DATA directory.
     """
     monkeypatch.setenv("DATA", "/data/somewhere")
 
@@ -50,7 +50,7 @@ def test_the_results_follow_data(monkeypatch):
 
 def test_the_results_land_locally_without_data(monkeypatch):
     """
-    Off the cluster there is still somewhere to put them, beside the screen's own table.
+    By default, results are put in OUT.
     """
     monkeypatch.delenv("DATA", raising=False)
 
@@ -59,15 +59,14 @@ def test_the_results_land_locally_without_data(monkeypatch):
 
 def test_each_complex_gets_its_own_file():
     """
-    The array runs one task per complex, and they don't land on each other.
+    The array runs one task per complex, and each have their own output dir.
     """
     assert run.path("7USH_82V", "/out") != run.path("7W06_ITN", "/out")
 
 
 def test_a_complex_resolves_from_the_tracked_fixtures():
     """
-    The full benchmark set is not tracked, so a fresh clone has only these. The cluster is a fresh
-        clone, and resolving only against `src/data` is why the first run of the driver died.
+    The full benchmark set is not tracked, so a fresh clone has only those in `tests`.
     """
     tracked = os.path.join(run.ROOT, "tests", "data")
 
@@ -79,7 +78,7 @@ def test_a_complex_resolves_from_the_tracked_fixtures():
 
 def test_a_complex_kept_beside_its_own_poses_resolves():
     """
-    The fragment is stored whole rather than split across the two benchmark directories.
+    Fragment is found.
     """
     tracked = os.path.join(run.ROOT, "tests", "data")
 
@@ -91,7 +90,7 @@ def test_a_complex_kept_beside_its_own_poses_resolves():
 
 def test_the_first_root_holding_a_complex_wins(tmp_path):
     """
-    A machine with the whole set downloaded uses it; a clone falls back to what it has.
+    Prioritise data over tests.
     """
     tracked = os.path.join(run.ROOT, "tests", "data")
 
@@ -102,8 +101,7 @@ def test_the_first_root_holding_a_complex_wins(tmp_path):
 
 def test_a_complex_that_is_nowhere_says_where_it_looked(tmp_path):
     """
-    The failure this replaces was a FileNotFoundError out of `os.listdir`, naming one directory
-        that the reader had no reason to expect.
+    Raise appropriate EncodingError.
     """
     with pytest.raises(EncodingError) as raised:
         run.find("not_a_complex", roots=(str(tmp_path),))
@@ -113,7 +111,7 @@ def test_a_complex_that_is_nowhere_says_where_it_looked(tmp_path):
 
 def test_a_root_that_does_not_exist_is_passed_over(tmp_path):
     """
-    `src/data` is absent wherever the set has not been downloaded, which is the ordinary case.
+    Pass over empty data dir.
     """
     tracked = os.path.join(run.ROOT, "tests", "data")
 
@@ -124,7 +122,7 @@ def test_a_root_that_does_not_exist_is_passed_over(tmp_path):
 
 def test_what_is_saved_is_what_comes_back(tmp_path):
     """
-    Every array survives the round trip exactly.
+    Fragment loaded matches the original.
     """
     written = finished()
     path = run.path(FRAGMENT, str(tmp_path))
@@ -156,7 +154,7 @@ def test_what_is_saved_is_enough_to_go_on_with(tmp_path):
 
 def test_the_window_it_was_solved_under_is_recorded(tmp_path):
     """
-    A reader has to know the occupations were never truncated, or it cannot re-window them.
+    Store the window.
     """
     path = run.path(FRAGMENT, str(tmp_path))
 
@@ -167,7 +165,7 @@ def test_the_window_it_was_solved_under_is_recorded(tmp_path):
 
 def test_the_numbers_come_back_as_numbers(tmp_path):
     """
-    A scalar out of an npz is a zero-dimensional array, which compares oddly and prints worse.
+    Correct data types stored.
     """
     path = run.path(FRAGMENT, str(tmp_path))
     run.save(finished(), FRAGMENT, path)
@@ -192,7 +190,7 @@ def test_the_directory_is_made_if_it_is_not_there(tmp_path):
 
 def test_an_unfinished_run_is_not_saved(tmp_path):
     """
-    A space that never reached Dice is not a result.
+    An unfinished run is not saved.
     """
     unfinished = finished()
     unfinished.shci_energy = None
@@ -217,7 +215,7 @@ def test_an_unstarted_complex_is_not_finished(tmp_path):
 
 def test_a_result_that_cannot_be_read_is_not_finished(tmp_path):
     """
-    A file cut off mid-write is not a result.
+    An unreadble file is not used.
     """
     out = str(tmp_path)
     os.makedirs(out, exist_ok=True)
@@ -230,7 +228,7 @@ def test_a_result_that_cannot_be_read_is_not_finished(tmp_path):
 @pytest.mark.dice
 def test_the_driver_carries_a_complex_the_whole_way(tmp_path):
     """
-    Every step, and a file at the end of it holding what the steps produced.
+    Every step, and a file at the end of it holding the result.
     """
     out = str(tmp_path)
 
@@ -372,8 +370,8 @@ def test_a_run_is_quiet_by_default(tmp_path):
 @pytest.mark.dice
 def test_verbosity_reaches_pyscf(tmp_path):
     """
-    Asserted on the objects, not the output: PySCF binds its stream at import, before pytest's
-        capture is in place, so neither capsys nor capfd can read back what it prints.
+    Asserted on the objects, because PySCF binds its stream at import, before pytest's capture is 
+        in place, so we cannot read back what it prints.
     """
     result = run.run(
         FRAGMENT,
@@ -414,7 +412,7 @@ def test_a_finished_run_keeps_dices_log_and_nothing_else(tmp_path):
 @pytest.mark.parametrize("name", SUBSET)
 def test_the_driver_carries_a_cutout_of_the_bin_the_whole_way(tmp_path, name):
     """
-    What the cluster is being asked to do, and what it leaves behind.
+    Full run on the subset of the bin.
     """
     out = str(tmp_path)
 

@@ -15,6 +15,11 @@ dependencies:
   - gemmi=0.7.4
   - rdkit=2026.03.5
   - pytest=8.4.2
+  - qiskit=2.5.2
   - pip
   - jupyter
   - ipykernel
+  # qiskit-nature owns the mapping from the active-space integrals onto qubits. It has no
+  # conda-forge package, and pins qiskit>=1.4,<3.0, which the pin above satisfies.
+  - pip:
+      - qiskit-nature==0.8.0

@@ -367,6 +367,84 @@ def test_the_default_window_leaves_a_space_worth_correcting():
 
 
 # --------------------------------------------------------------------------------------------
+# Rewindowing, which is what storing the whole window is for.
+# --------------------------------------------------------------------------------------------
+
+
+@pytest.mark.dice
+def test_rewindowing_a_stored_space_matches_solving_at_that_window():
+    """
+    Narrowing a space solved at EVERYTHING gives what solving at that window gives.
+
+    Without this, a stored run answers for one window only and the driver would have to solve
+        again for every other.
+    """
+    stored, direct = capped(), capped()
+    stored.SHCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
+    direct.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
+
+    stored.rewindow(NARROW[0], NARROW[1])
+
+    assert (stored.active_electrons, stored.active_space_size) == (
+        direct.active_electrons,
+        direct.active_space_size,
+    )
+    assert np.allclose(stored.occupations, direct.occupations, atol=OCCUPATION)
+    assert np.allclose(stored.orbital_initial, direct.orbital_initial, atol=1e-8)
+
+
+@pytest.mark.dice
+def test_rewindowing_needs_no_second_solve():
+    """
+    The energy is the one the first solve found, not a new one.
+    """
+    encoded = capped()
+    encoded.SHCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
+    solved_energy = encoded.shci_energy
+
+    encoded.rewindow(NARROW[0], NARROW[1])
+
+    assert encoded.shci_energy == solved_energy
+
+
+@pytest.mark.dice
+def test_rewindowing_twice_narrows_from_where_it_left_off():
+    """
+    Widening after narrowing cannot recover what the first window discarded.
+    """
+    encoded = capped()
+    encoded.SHCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
+
+    encoded.rewindow(NARROW[0], NARROW[1])
+    narrowed = encoded.active_space_size
+    encoded.rewindow(WIDE[0], WIDE[1])
+
+    assert encoded.active_space_size == narrowed
+
+
+@pytest.mark.dice
+def test_rewindowing_refuses_a_window_that_leaves_nothing_to_correct():
+    """
+    The same rejection SHCI makes, for the same reason.
+    """
+    encoded = capped()
+    encoded.SHCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
+
+    with pytest.raises(EncodingError):
+        encoded.rewindow(1.0, 1.0)
+
+
+def test_rewindowing_refuses_before_a_space_is_solved():
+    """
+    There are no occupations to select on yet.
+    """
+    encoded = capped()
+
+    with pytest.raises(EncodingError):
+        encoded.rewindow(NARROW[0], NARROW[1])
+
+
+# --------------------------------------------------------------------------------------------
 # The bin. Needs the SCF, the cap and a fifty-orbital solve, so for the cluster.
 # --------------------------------------------------------------------------------------------
 

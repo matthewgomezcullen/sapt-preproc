@@ -190,7 +190,29 @@ To provide a deterministic pipeline, we provide `seed = 1` to OpenMM and use a r
 
 However, this drastically reduces the performance of `_protonate`, so this can be reversed.
 
-### Tests
+## Notes on Encoding
+
+AVAS produces an active space that is too large. We use MP2 to pick the most correlated active orbitals.
+
+`MP2` requires storing four-index electron-repulsion integrals, $(ij|ab)$, which scales $O(N^{4})$ in the number of orbitals. We use density fitting instead, scaling at $O(N^{3})$ instead.
+
+## Setup
+
+```bash
+cd src
+conda env create -f environment.yml
+conda activate sapt-preproc
+pytest tests
+```
+
+### Data
+
+PoseBusters Benchmark set: https://zenodo.org/records/8278563/files/posebusters_paper_data.zip?download=1
+- `posebusters_paper_data/posebusters_benchmark_set` -> `src/data/posebusters`
+DiffDock-L Predictions: https://zenodo.org/records/11477766/files/diffdock_benchmark_method_predictions.tar.gz?download=1
+- `forks/DiffDock/inference/diffdock_posebusters_benchmark_output_3` -> `src/data/diffdock`
+
+## Tests
 
 `pytest tests` runs everything quick. Every long-running test sits behind a flag that adds it.
 
@@ -215,24 +237,7 @@ Dice itself is not behind a flag. It is an external program that only builds on 
 
 Among accepted complexes, many cutouts are highly charged, as counter-charges that neutralise these sites in the real protein are truncated away. Large charges make electrostatics and induction dominate the SAPT decomposition, and those terms are large and basis-sensitive. Interaction energies may not be comparable across complexes even if they rank poses fine within one, and may lead to difficult SCF cases. May be worth implementing a charge cap, `|q_A| < Q`.
 
-## Notes on Encoding
+## `run.py`
 
-AVAS produces an active space that is too large. We use MP2 to pick the most correlated active orbitals.
-
-`MP2` requires storing four-index electron-repulsion integrals, $(ij|ab)$, which scales $O(N^{4})$ in the number of orbitals. We use density fitting instead, scaling at $O(N^{3})$ instead.
-
-## Setup
-
-```bash
-cd src
-conda env create -f environment.yml
-conda activate sapt-preproc
-pytest tests
-```
-
-### Data
-
-PoseBusters Benchmark set: https://zenodo.org/records/8278563/files/posebusters_paper_data.zip?download=1
-- `posebusters_paper_data/posebusters_benchmark_set` -> `src/data/posebusters`
-DiffDock-L Predictions: https://zenodo.org/records/11477766/files/diffdock_benchmark_method_predictions.tar.gz?download=1
-- `forks/DiffDock/inference/diffdock_posebusters_benchmark_output_3` -> `src/data/diffdock`
+Runs a complex through the entire pipeline. After SHCI, the `name`, `ncas` (`active_space_size`), `nelecas` (`active_electrons`), and `orbitals` (the coefficient matrix for active orbitals), `occupations`, `energy` (RHF total), `energy_cas` (SHCI total), `correlation` (MP2), and `window` (typically, (0.0, 2.0)) are recorded in a `.npz` file under `$DATA/spaces/<name>$` or `out/spaces/<name>`. Resuming from an `.npz` file requires repreparing the complex to retrieve the geometry, basis, charge, and the atom ordering.
+- *TODO*: store the geometry with `.npz`.

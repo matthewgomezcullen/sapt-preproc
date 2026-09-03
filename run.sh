@@ -9,9 +9,9 @@
 # means the resubmission starts at the correlated steps rather than from the beginning.
 
 #SBATCH --clusters=htc
-#SBATCH --partition=medium
+#SBATCH --partition=short
 #SBATCH --job-name=sapt-encode
-#SBATCH --time=48:00:00
+#SBATCH --time=12:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=32G

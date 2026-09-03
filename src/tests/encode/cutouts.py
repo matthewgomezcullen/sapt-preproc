@@ -30,7 +30,7 @@ EXPECTED = {
 }
 
 # A capped run lifted whole out of 5S8I_2LY's cutout, which is one chain of ten of them. Small
-# enough to solve here, and real: the coordinates are the ones the pipeline produced.
+# enough to solve here, and using the coordinates are the ones the pipeline produced.
 FRAGMENT = "5S8I_2LY"
 FRAGMENT_SLICE = (4, 7)
 FRAGMENT_RESIDUES = ["ACE", "VAL", "NME"]

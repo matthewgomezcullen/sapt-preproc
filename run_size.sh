@@ -1,20 +1,21 @@
 #!/bin/bash
 
-# Carry each complex of the bin through the whole pipeline and keep the active space it produces.
+# Carry the eight neutral cutouts through the whole pipeline, to measure how the cost of it
+# scales with size.
 #
-# Run setup.sh once from a login node first, then: sbatch run.sh
+# Run setup.sh once from a login node first, then: sbatch run_size.sh
 
 #SBATCH --clusters=htc
 #SBATCH --partition=medium
 #SBATCH --job-name=sapt-encode-size
-#SBATCH --time=24:00:00
+#SBATCH --time=48:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=32G
 # No GPU: none of PySCF, Dice or the SCF underneath them uses one, and asking for an idle GPU only
 # makes the job harder to schedule.
-#SBATCH --array=0-2
-#SBATCH --output=sapt-encode-%A_%a.out
+#SBATCH --array=0-7
+#SBATCH --output=sapt-encode-size-%A_%a.out
 
 set -euo pipefail
 
@@ -25,7 +26,7 @@ REPO="${REPO:-${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}
 
 if [ ! -d "$REPO/src" ]; then
     echo "REPO is $REPO, which has no src/. Submit from the repo root, or set REPO explicitly:" \
-         "REPO=\"\$DATA/thesis-experiments/sapt-tests\" sbatch run.sh" >&2
+         "REPO=\"\$DATA/thesis-experiments/sapt-tests\" sbatch run_size.sh" >&2
     exit 1
 fi
 
@@ -39,20 +40,20 @@ conda activate "$PREFIX"
 
 cd "$REPO/src"
 
-# The bin under test, which is the three complexes tracked as fixtures. `filter.py --reuse` names
-# the other nine of Q1; to run those instead, pass them in rather than editing this:
+# The eight eligible cutouts of zero charge, in ascending size.
 #
-#   COMPLEXES="7BJJ_TVW 6YQW_82I" sbatch --array=0-1 run.sh
+#   COMPLEXES="7BJJ_TVW 6YQW_82I" sbatch --array=0-1 run_size.sh
 if [ -z "${COMPLEXES:-}" ]; then
-    COMPLEXES=$(python -c "import sys; sys.path[:0] = ['.', 'tests', 'tests/encode']; from cutouts import SUBSET; print(' '.join(SUBSET))")
+    COMPLEXES="6YQW_82I 7R59_I5F 7LOE_Y84 7NSW_HC4 7XFA_D9J 6ZC3_JOR 7XBV_APC 7ZHP_IQY"
 fi
-read -r -a SUBSET <<< "$COMPLEXES"
-if [ "${#SUBSET[@]}" -ne "$(( SLURM_ARRAY_TASK_MAX - SLURM_ARRAY_TASK_MIN + 1 ))" ]; then
-    echo "The array is ${SLURM_ARRAY_TASK_MIN}-${SLURM_ARRAY_TASK_MAX} but there are" \
-         "${#SUBSET[@]} complexes. Pass --array to match, or set COMPLEXES." >&2
+read -r -a NAMES <<< "$COMPLEXES"
+# `sbatch --array=5,6,7 run_size.sh`, addresses the same list this one did.
+if [ "$SLURM_ARRAY_TASK_ID" -ge "${#NAMES[@]}" ]; then
+    echo "Task $SLURM_ARRAY_TASK_ID is past the end of ${#NAMES[@]} complexes. Pass --array" \
+         "within 0-$(( ${#NAMES[@]} - 1 )), or set COMPLEXES." >&2
     exit 1
 fi
-NAME="${SUBSET[$SLURM_ARRAY_TASK_ID]}"
+NAME="${NAMES[$SLURM_ARRAY_TASK_ID]}"
 
 # PySCF reads both of these. Every thread it uses comes from OMP.
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
@@ -71,7 +72,9 @@ export MPIPREFIX="${MPIPREFIX:-}"
 export SCF_CHECKPOINTS="${SCF_CHECKPOINTS:-$DATA/scf}"
 SPACES="${SPACES:-$DATA/spaces}"
 
-echo "[$(date +%T)] Complex   $NAME  (task $SLURM_ARRAY_TASK_ID of ${#SUBSET[@]})"
+echo "[$(date +%T)] Complex   $NAME  (task $SLURM_ARRAY_TASK_ID of ${#NAMES[@]})"
+# From the screen filter.py already wrote
+echo "[$(date +%T)] Size      $(python -c "import filter; r = {x['name']: x for x in filter.read()}.get('$NAME'); print(f\"{r['heavy_atoms']} heavy atoms, {r['electrons']} electrons\" if r else 'not in out/filter.csv')")"
 echo "[$(date +%T)] Threads   $OMP_NUM_THREADS"
 echo "[$(date +%T)] Memory    ${PYSCF_MAX_MEMORY} MB of ${SLURM_MEM_PER_NODE:-?} MB"
 echo "[$(date +%T)] Scratch   $PYSCF_TMPDIR"
@@ -91,8 +94,14 @@ else
     echo "[$(date +%T)] Running the pipeline for $NAME"
 fi
 
+# GNU time reports peak resident memory. Its report goes to stderr, merged into this log.
+TIME=""
+if [ -x /usr/bin/time ]; then
+    TIME="/usr/bin/time -v"
+fi
+
 # --verbose 4 puts one line per SCF cycle in the log. Without it nothing is printed between the
 # banner and the RHF step line.
-python run.py --complex "$NAME" --out "$SPACES" --verbose 4
+$TIME python run.py --complex "$NAME" --out "$SPACES" --verbose 4
 
 echo "[$(date +%T)] Done"

@@ -23,11 +23,13 @@ class EncodeProtein:
     """
     EncodeProtein takes a PreparedComplex, solves RHF then encodes a tractable active space for
         SAPT(VQE) corrections.
+
+    `prepared` is None for a run read back off disk
     """
 
     def __init__(
         self,
-        prepared: PrepareComplex,
+        prepared: PrepareComplex | None,
     ):
         self.prepared = prepared
         self.mol = None
@@ -64,6 +66,8 @@ class EncodeProtein:
 
         # Hamiltonian
         self.e_core = None # nuclear repulsion and the energy of the frozen electrons
+        self.h1 = None # one-electron integrals, the core's Coulomb and exchange folded in
+        self.h2 = None # two-electron integrals over the active orbitals
         self.hamiltonian = None # the active space as a qubit operator
 
     def RHF(self):
@@ -96,6 +100,10 @@ class EncodeProtein:
         The geometry is taken in `prepared.atoms()` order, which is the order AVAS addresses its
             targets by. PySCF assumes a molecule it is given no charge by default.
         """
+        if self.prepared is None:
+            raise PrepareError(
+                "Cannot build the molecule for a run read back off disk, which has one already"
+            )
         if self.prepared.charge is None:
             raise PrepareError("Cannot build the molecule before the charge is known")
         self.mol = encode.molecule(self.prepared, self.verbose)
@@ -174,7 +182,7 @@ class EncodeProtein:
         )
         return self.active_space_size, self.active_electrons, self.orbital_initial
 
-    def SHCI(self, eps1: float = 1e-4, lo: float = 0.01, hi: float = 1.99):
+    def SHCI(self, eps1: float = 1e-4, lo: float = 0.02, hi: float = 1.97):
         """
         Truncate the active space to the correlated orbitals.
 
@@ -187,7 +195,8 @@ class EncodeProtein:
         `eps1` is the selection threshold, below which a determinant is left out of the variational 
             space. Smaller is nearer exact and costs more.
 
-        The window may deviate from the paper's 0.02 <= n_i <= 1.97, due to a lack of correlation.
+        The window defaults to the paper's. A cutout with no pi system on the contact has too
+            little correlation for it and needs a wider one; see the deviations in README.
 
         The window can leave a space with no excitation in it, whose correction to SAPT is exactly 
             zero. Rejected.
@@ -261,18 +270,21 @@ class EncodeProtein:
         The integrals CASCI builds over the window are handed to `mapping`, which is Jordan-Wigner
             by default. Two qubits per orbital, and the core energy carried as the identity so the
             eigenvalues are total energies.
+
+        The integrals are kept as well as the operator. They are what the driver writes, because
+            they rebuild the operator under any mapping and are much smaller than it.
         """
         if self.active_space_size is None:
             raise EncodingError("Cannot build the Hamiltonian before an active space is chosen")
 
-        self.e_core, h1, h2 = encode.integrals(
+        self.e_core, self.h1, self.h2 = encode.integrals(
             self.mean_field,
             self.orbital_initial,
             self.active_space_size,
             self.active_electrons,
         )
         try:
-            self.hamiltonian = encode.qubits(self.e_core, h1, h2, mapping)
+            self.hamiltonian = encode.qubits(self.e_core, self.h1, self.h2, mapping)
         except ValueError as error:
             raise EncodingError(str(error)) from error
         return self.hamiltonian

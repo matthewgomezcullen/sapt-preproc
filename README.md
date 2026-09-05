@@ -100,10 +100,11 @@ Solving RHF for large cutouts is computationally very expensive. Also, highly ch
 1. ~XXX Run Semistochastic Heat-Bath Configuration Interaction (SHCI) with Dice on AVAS active space, and restrict orbitals to $\text{lo} \le n_{i} \le \text{hi}$.~
     1. ~XXX (*) Matching the original occupation window does not guarantee $(8e, 8o)$, as in the original paper. _TBC_~
 1. Run Semistochastic Heat-Bath Configuration Interaction (SHCI) with Dice over the space MP2 capped, diagonalise its one-particle density, and keep the natural orbitals with $\text{lo} \le n_{i} \le \text{hi}$. An orbital above the window is doubly occupied and retires its pair to the core; one below it is empty and joins the virtuals.
-    1. (*) The window is $0.01 \le n_{i} \le 1.99$, not the paper's $0.02 \le n_{i} \le 1.97$. See the deviations below.
+    1. (*) `run.py` solves at $0.0 \le n_{i} \le 2.0$ and keeps the whole space Dice returned, then applies the paper's $0.02 \le n_{i} \le 1.97$ at the next step. Narrowing is arithmetic on the occupations, so one solve answers for any window. `EncodeProtein.SHCI` called directly cuts at the paper's window by default.
     1. (*) A window fixes no size, so it can leave a space with no excitation in it, whose correction to SAPT is exactly zero. That is rejected rather than handed on.
-1. Finally, map the active-space fermionic Hamiltonian to a qubit Hamiltonian following the Jordan-Wigner transformation. CASCI supplies the three ingredients: the core energy $E_{\text{core}}$, which holds the nuclear repulsion and the frozen electrons; the one-electron integrals $h_{pq}$ with the core's Coulomb and exchange folded in; and the two-electron integrals $(pq|rs)$ over the active orbitals. `qiskit-nature` maps them, and the core energy is carried as the identity so the eigenvalues are total energies.
+1. Finally, narrow the solved space to the paper's window and map the active-space fermionic Hamiltonian to a qubit Hamiltonian following the Jordan-Wigner transformation. CASCI supplies the three ingredients: the core energy $E_{\text{core}}$, which holds the nuclear repulsion and the frozen electrons; the one-electron integrals $h_{pq}$ with the core's Coulomb and exchange folded in; and the two-electron integrals $(pq|rs)$ over the active orbitals. `qiskit-nature` maps them, and the core energy is carried as the identity so the eigenvalues are total energies.
     1. (*) Jordan-Wigner instead of Bravyi-Kitaev.
+    1. (*) The three integrals are what is stored, not the operator. They rebuild it under any mapping and are smaller than it by orders of magnitude.
 
 #### Chemically relevant atomic valence orbitals
 
@@ -153,7 +154,6 @@ The following deviations apply relative to the KDM5A workflow in the original pa
 - **AVAS targets:** the original selected Fe $3d$ orbitals and particular O $2p$ and N $2p$ orbitals from the metal centre, two waters, glutamate, and histidines. The automatic MVP instead targets chemically nontrivial protein atoms using the distance rule above.
 - **MCP filter:** Novel contribution to ensure the active space is tractable and the AOs chosen are the most correlated.
 - **Electronic-structure software:** the original used TeraChem/Lightspeed for classical SCF and integral generation, Gaussian for structural calculations, and in-house quantum code. This implementation substitutes PySCF, and Dice for the SHCI as the original did. Dice has no conda package and only builds on Linux, so `setup.sh` builds it on the cluster and installs it into the environment; nothing else knows where it is, because `encode.py` finds it on the PATH.
-- **Occupation window:** the original window $0.02\le n_i\le1.97$ produced $(8e,8o)$ for KDM5A, whose active space is built round an open-shell iron centre. A saturated peptide has no static correlation for it to find: on the ACE-VAL-NME fragment the natural occupations run $1.9933$ to $1.9761$ and $0.0240$ to $0.0066$, and the window falls in the gap between them, keeping one orbital and no electrons at all. It keeps one or two orbitals of every space from eight to twenty orbitals, and never any electrons. The same measurement on benzene and phenol keeps six of eight, so what decides it is whether a $\pi$ system sits on the contact, not the size of the space MP2 hands over.
 - **Final active-space size:** neither window fixes a size, and no automatic truncation to eight orbitals is attributed to the original method. Nothing in the pipeline bounds what the window returns, so a $\pi$-rich contact can leave more than a simulator can carry.
 - **Perturbative correction:** Dice is run variationally, with the schedule tightening onto $\epsilon_1$ over six iterations and `nPTiter 0`. The semistochastic perturbative correction is an energy correction and is not variational, and nothing downstream reads the energy: the natural occupations that decide the window are those of the variational wavefunction either way.
 
@@ -226,7 +226,7 @@ DiffDock-L Predictions: https://zenodo.org/records/11477766/files/diffdock_bench
 | `--hpc` | RHF, AVAS and the MP2 cap over a real cutout of the bin | about an hour a cutout cold, minutes (MP2) against a checkpoint |
 | `--hpc-long-stab` | the stability analysis of a cutout's converged SCF | six to ten hours each, an order of magnitude beyond the solve it checks |
 | `--hpc-long-dice` | Dice over the fifty orbitals MP2 leaves on a cutout | unmeasured; this is what the flag exists to find out |
-| `--hpc-long-run` | the driver, end to end over a cutout | repeats AVAS, MP2 and Dice rather than sharing the cached ones |
+| `--hpc-long-run` | the driver, end to end over a cutout, as far as the Hamiltonian | repeats AVAS, MP2 and Dice rather than sharing the cached ones |
 
 Every test carries exactly one of these marks: `pytest tests --encode --hpc --hpc-long-dice` solves a cutout and runs Dice over it, without also paying for the stability analysis or a second pass through the driver.
 
@@ -240,10 +240,19 @@ Among accepted complexes, many cutouts are highly charged, as counter-charges th
 
 ## `run.py`
 
-Runs a complex through the entire pipeline. After SHCI, the `name`, `ncas` (`active_space_size`), `nelecas` (`active_electrons`), `orbitals`, `occupations`, `energy` (RHF total), `energy_cas` (SHCI total), `correlation` (MP2), `window` (typically, (0.0, 2.0)), `molecule`, `digest` and `poses` are recorded in a `.npz` file under `$DATA/spaces/<name>.npz` or `out/spaces/<name>.npz`. Dice's own log is kept beside it as `<name>.dice.out`.
+Runs a complex through the entire pipeline, from preparation to the Hamiltonian, into a `.npz` file under `$DATA/spaces/<name>.npz` or `out/spaces/<name>.npz`. Dice's own log is kept beside it as `<name>.dice.out`.
+
+The file is written in two halves:
+
+1. The first half is the space Dice returned, banked the moment it lands: `name`, `ncas` (`active_space_size`), `nelecas` (`active_electrons`), `orbitals`, `occupations`, `energy` (RHF total), `energy_cas` (SHCI total), `correlation` (MP2), `window` (`(0.0, 2.0)`), `molecule`, `digest` and `poses`.
+2. The second half is what the Hamiltonian is built from, added after the space is narrowed to `--window`, the paper's $0.02 \le n_{i} \le 1.97$ by default: `e_core`, `h1`, `h2`, and the space they are over as `hamiltonian_ncas`, `hamiltonian_nelecas` and `hamiltonian_window`. The first half is not rewritten, so any other window only requires arithmetic.
+
+`run.done` means both halves are there. A run that has only the first picks it back up through `run.resume` and goes on from the narrowing, without preparing the complex or reaching Dice again.
+
+The qubit operator is built and not stored. `utils.encode.qubits(e_core, h1, h2)` rebuilds it exactly, under any of the three mappings.
 
 `orbitals` is the whole $n_{ao} \times n_{ao}$ coefficient matrix.
 
 `molecule` is `mol.dumps()`: the geometry, basis, charge, spin and atom ordering in one lossless field, around 130 KiB for a cutout of the bin. Storing the geometry alone would not do: the basis, charge, spin and ordering are all needed.
 
-`digest` ties the result to the SCF checkpoint it came out of. `run.resume` uses it on the three complexes solved before `molecule` was stored, which have to be prepared again. A geometry that has moved is refused rather than answered with orbitals that no longer belong to it.
+`digest` names the SCF checkpoint the result came out of, which is `$SCF_CHECKPOINTS/<digest>.chk`.

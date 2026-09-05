@@ -336,30 +336,28 @@ def test_shci_refuses_a_window_that_leaves_nothing_to_correct(lo, hi):
 
 
 @pytest.mark.dice
-def test_the_paper_window_is_too_narrow_for_a_saturated_cutout():
+def test_the_paper_window_is_too_narrow_for_the_fragment():
     """
     The original window keeps one orbital of the fragment, at n = 0.024, so (0e, 1o).
 
     The window was set on KDM5A, whose active space is built round an open-shell iron centre. A
         saturated peptide has no static correlation for it to find: the fragment's occupations run
-        1.9933 to 1.9761 and 0.0240 to 0.0066, and the window falls in the gap between them. The
-        same measurement on benzene and phenol keeps six of eight, so what decides this is whether
-        a pi system sits on the contact, not the size of the space MP2 hands over.
+        1.9933 to 1.9761 and 0.0240 to 0.0066, and the window falls in the gap between them.
     """
     encoded = capped()
 
     with pytest.raises(EncodingError):
-        encoded.SHCI(eps1=SELECTION, lo=PAPER[0], hi=PAPER[1])
+        encoded.SHCI(eps1=SELECTION)
 
 
 @pytest.mark.dice
-def test_the_default_window_leaves_a_space_worth_correcting():
+def test_the_wider_window_leaves_an_acceptable_space_on_the_fragment():
     """
-    The window has to survive a cutout with no pi system on it, forced by the test above.
+    With a wider window, the fragment passes.
     """
     encoded = capped()
 
-    encoded.SHCI()
+    encoded.SHCI(lo=WIDE[0], hi=WIDE[1])
 
     assert encoded.active_space_size >= 2
     assert 0 < encoded.active_electrons < 2 * encoded.active_space_size

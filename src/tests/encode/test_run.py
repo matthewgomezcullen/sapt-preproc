@@ -170,7 +170,7 @@ def test_what_is_saved_is_what_comes_back(tmp_path):
     written = finished_shci()
     path = run.path(FRAGMENT, str(tmp_path))
 
-    run.save(written, FRAGMENT, path)
+    run.save_active(written, FRAGMENT, path)
     read = run.load(path)
 
     assert np.array_equal(read["orbitals"], written.orbital_initial)
@@ -185,7 +185,7 @@ def test_what_is_saved_is_enough_to_go_on_with(tmp_path):
     written = finished()
     path = run.path(FRAGMENT, str(tmp_path))
 
-    run.save(written, FRAGMENT, path)
+    run.save_active(written, FRAGMENT, path)
     run.finish(written, path, EVERYTHING)
     read = run.load(path)
 
@@ -209,7 +209,7 @@ def test_the_window_it_was_solved_under_is_recorded(tmp_path):
     """
     path = run.path(FRAGMENT, str(tmp_path))
 
-    run.save(finished_shci(), FRAGMENT, path)
+    run.save_active(finished_shci(), FRAGMENT, path)
 
     assert tuple(run.load(path)["window"]) == EVERYTHING
 
@@ -219,7 +219,7 @@ def test_the_numbers_come_back_as_numbers(tmp_path):
     Correct data types stored.
     """
     path = run.path(FRAGMENT, str(tmp_path))
-    run.save(finished_shci(), FRAGMENT, path)
+    run.save_active(finished_shci(), FRAGMENT, path)
 
     read = run.load(path)
 
@@ -234,7 +234,7 @@ def test_the_directory_is_made_if_it_is_not_there(tmp_path):
     """
     out = str(tmp_path / "not" / "yet")
 
-    run.save(finished_shci(), FRAGMENT, run.path(FRAGMENT, out))
+    run.save_active(finished_shci(), FRAGMENT, run.path(FRAGMENT, out))
 
     assert os.path.isdir(out)
 
@@ -250,9 +250,9 @@ def test_an_unfinished_run_is_not_saved(tmp_path):
     unmapped.h2 = None
 
     with pytest.raises(EncodingError):
-        run.save(unfinished, FRAGMENT, path)
+        run.save_active(unfinished, FRAGMENT, path)
 
-    run.save(finished_shci(), FRAGMENT, path)
+    run.save_active(finished_shci(), FRAGMENT, path)
     with pytest.raises(EncodingError):
         run.finish(unmapped, path, EVERYTHING)
 
@@ -265,7 +265,7 @@ def test_a_finished_complex_is_left_alone(tmp_path):
     written = finished()
     path = run.path(FRAGMENT, out)
 
-    run.save(written, FRAGMENT, path)
+    run.save_active(written, FRAGMENT, path)
     assert run.solved(FRAGMENT, out)
     assert not run.done(FRAGMENT, out)
 
@@ -296,7 +296,7 @@ def test_the_molecule_is_stored(tmp_path):
     written = finished_shci()
     path = run.path(FRAGMENT, str(tmp_path))
 
-    run.save(written, FRAGMENT, path)
+    run.save_active(written, FRAGMENT, path)
 
     assert run.load(path)["molecule"] == written.mol.dumps()
 
@@ -307,7 +307,7 @@ def test_the_stored_molecule_rebuilds(tmp_path):
     """
     written = finished_shci()
     path = run.path(FRAGMENT, str(tmp_path))
-    run.save(written, FRAGMENT, path)
+    run.save_active(written, FRAGMENT, path)
 
     rebuilt = gto.loads(run.load(path)["molecule"])
 
@@ -323,7 +323,7 @@ def test_the_checkpoint_digest_is_stored(tmp_path):
     written = finished_shci()
     path = run.path(FRAGMENT, str(tmp_path))
 
-    run.save(written, FRAGMENT, path)
+    run.save_active(written, FRAGMENT, path)
 
     assert run.load(path)["digest"] == encode.digest(written.mol)
 
@@ -343,7 +343,7 @@ def test_the_poses_are_stored(tmp_path):
     """
     path = run.path(FRAGMENT, str(tmp_path))
 
-    run.save(finished_shci(), FRAGMENT, path)
+    run.save_active(finished_shci(), FRAGMENT, path)
 
     assert list(run.load(path)["poses"]) == POSES
 
@@ -354,7 +354,7 @@ def test_a_stored_run_resumes_without_preparing_anything(tmp_path):
     """
     out = str(tmp_path)
     written = finished_shci()
-    run.save(written, FRAGMENT, run.path(FRAGMENT, out))
+    run.save_active(written, FRAGMENT, run.path(FRAGMENT, out))
 
     resumed = run.resume(FRAGMENT, out)
 
@@ -369,7 +369,7 @@ def test_a_resumed_run_reaches_its_hamiltonian(tmp_path):
     A resumed run produces its hamiltonian.
     """
     out = str(tmp_path)
-    run.save(finished_shci(), FRAGMENT, run.path(FRAGMENT, out))
+    run.save_active(finished_shci(), FRAGMENT, run.path(FRAGMENT, out))
 
     resumed = run.resume(FRAGMENT, out)
 

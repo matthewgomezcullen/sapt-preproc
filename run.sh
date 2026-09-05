@@ -90,7 +90,7 @@ echo "[$(date +%T)] Spaces    $SPACES"
 echo "[$(date +%T)] Host      $(hostname)"
 
 if [ -f "$SPACES/$NAME.npz" ]; then
-    echo "[$(date +%T)] $NAME already has an active space; this job will do nothing"
+    echo "[$(date +%T)] $NAME already has a result; the run will finish it, or do nothing if it is complete"
 else
     echo "[$(date +%T)] Running the pipeline for $NAME"
 fi

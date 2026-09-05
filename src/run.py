@@ -5,7 +5,11 @@ RHF over a cutout of the bin is eight to twelve hours and nothing above it is fr
     finished run writes its active space to <out>/<name>.npz and a run that finds one already
     there does nothing. The SCF underneath is checkpointed separately by `utils.encode`.
 
-Stores the whole window Dice returned. Occupation windows are arithmetic on those numbers.
+The file is written in two halves. The space Dice returned is stored at the whole window, because 
+    occupation windows are arithmetic on those numbers. The integrals the Hamiltonian is built 
+    from are added after, over the
+    paper's window. A run that dies between the two picks the banked space back up rather than
+    paying for Dice again.
 
     python run.py --complex 7USH_82V
 """
@@ -35,8 +39,20 @@ ROOTS = (os.path.join(ROOT, "data"), os.path.join(ROOT, "tests", "data"))
 # What `$DATA` or `out/` is joined with.
 SPACES = "spaces"
 
-# The window the driver solves under.
+# The window the driver solves under, which keeps everything Dice returned.
 EVERYTHING = (0.0, 2.0)
+
+PAPER = (0.02, 1.97)
+
+# The second half of the file. A result carrying these has been the whole way.
+HAMILTONIAN = (
+    "e_core",
+    "h1",
+    "h2",
+    "hamiltonian_ncas",
+    "hamiltonian_nelecas",
+    "hamiltonian_window",
+)
 
 # What Dice calls its own log, inside the scratch it is given.
 OUTPUT = "output.dat"
@@ -81,9 +97,12 @@ def _say(message):
     print(f"[{time.strftime('%H:%M:%S')}] {message}", flush=True)
 
 
-def save(encoded, name, destination):
+def save_active(encoded, name, destination):
     """
-    Everything a later experiment needs from a finished run.
+    The space Dice returned, stored before anything is done to it.
+
+    `finish` adds the rest. This half is written at EVERYTHING and never rewritten, so narrowing
+        the encoder afterwards leaves the file describing both spaces.
     """
     if encoded.shci_energy is None:
         raise EncodingError(
@@ -107,6 +126,28 @@ def save(encoded, name, destination):
     )
 
 
+def finish(encoded, destination, window):
+    """
+    The integrals SAPT is handed.
+
+    Only the qubit operator is thrown away: it is easily rebuilt from these under any mapping.
+    """
+    if encoded.e_core is None or encoded.h1 is None or encoded.h2 is None:
+        raise EncodingError(
+            f"{destination} has no integrals to add, so H() has not been run over the window"
+        )
+    stored = load(destination)
+    stored.update(
+        e_core=encoded.e_core,
+        h1=encoded.h1,
+        h2=encoded.h2,
+        hamiltonian_ncas=encoded.active_space_size,
+        hamiltonian_nelecas=encoded.active_electrons,
+        hamiltonian_window=np.array(window),
+    )
+    np.savez(destination, **stored)
+
+
 def load(source):
     """
     A stored run, with its scalars as scalars rather than as zero-dimensional arrays.
@@ -118,15 +159,29 @@ def load(source):
     }
 
 
+def solved(name, out):
+    """
+    Whether this complex has a readable space, whether or not it reached its Hamiltonian.
+    """
+    return _stored(name, out) is not None
+
+
 def done(name, out):
     """
-    Whether this complex already has a valid result.
+    Whether this complex has a finished result: the space, and the integrals over the window.
+    """
+    stored = _stored(name, out)
+    return stored is not None and all(key in stored for key in HAMILTONIAN)
+
+
+def _stored(name, out):
+    """
+    What is readable at this complex's path, or None where nothing is.
     """
     try:
-        load(path(name, out))
+        return load(path(name, out))
     except (OSError, ValueError, KeyError):
-        return False
-    return True
+        return None
 
 
 def _candidates(directory):
@@ -166,32 +221,21 @@ def find(name, roots=ROOTS):
     )
 
 
-def resume(name, out, prepared=None, roots=ROOTS):
+def resume(name, out):
     """
     A stored run, as an encoder ready to go on with.
 
-    A result written before the molecule was stored is prepared again
+    The mean field is left unsolved. `utils.encode.integrals` reads only the molecule off it, so a
+        window can be moved and a Hamiltonian built without the SCF checkpoint.
     """
-    if not done(name, out):
+    if not solved(name, out):
         raise EncodingError(
             f"{name} has no readable result in {out}, so there is nothing to resume"
         )
     stored = load(path(name, out))
+    mol = gto.loads(stored["molecule"])
 
-    if "molecule" in stored:
-        mol = gto.loads(stored["molecule"])
-    else:
-        if prepared is None:
-            prepared = find(name, roots)
-            prepared.prepare()
-        mol = encode.molecule(prepared, 0)
-        if encode.digest(mol) != stored.get("digest"):
-            raise EncodingError(
-                f"{name} prepares to a different molecule than it was solved over, so the stored "
-                "orbitals do not belong to it"
-            )
-
-    encoded = EncodeProtein(prepared)
+    encoded = EncodeProtein(None)
     encoded.mol = mol
     encoded.mean_field = scf.RHF(mol)
     encoded.energy = stored["energy"]
@@ -204,8 +248,8 @@ def resume(name, out, prepared=None, roots=ROOTS):
     return encoded
 
 
-def run(name, out, prepared=None, targets=None, nmax=None, eps1=1e-4, verbose=0, force=False,
-        roots=ROOTS):
+def run(name, out, prepared=None, targets=None, nmax=None, eps1=1e-4, window=PAPER, verbose=0,
+        force=False, roots=ROOTS):
     """
     Carry one complex the whole way and keep what comes out, or nothing if it is already there.
 
@@ -215,12 +259,42 @@ def run(name, out, prepared=None, targets=None, nmax=None, eps1=1e-4, verbose=0,
         a callable is given the built molecule, which is how a cutout with no pose near its
         contact can still be run.
 
+    `window` is the occupation window the Hamiltonian is built over. SHCI always is solved at 
+    EVERYTHING, so narrowing to it is arithmetic on the occupations rather than a second solve.
+
     `verbose` reaches PySCF, whose SCF table is per-cycle energies and timings. The step lines are
         printed by default.
     """
     if not force and done(name, out):
         return None
 
+    if not force and solved(name, out):
+        encoded = resume(name, out)
+        encoded.verbose = verbose
+        _say(f"Read   ({encoded.active_electrons}e, {encoded.active_space_size}o) banked in "
+             f"{path(name, out)}")
+    else:
+        encoded = _solve(name, out, prepared, targets, nmax, eps1, verbose, roots)
+        save_active(encoded, name, path(name, out))
+        _say(f"Banked {path(name, out)}")
+
+    encoded.rewindow(*window)
+    _say(f"WINDOW ({encoded.active_electrons}e, {encoded.active_space_size}o) at "
+         f"{window[0]} <= n <= {window[1]}")
+
+    hamiltonian = encoded.H()
+    _say(f"H      integrals over {encoded.active_space_size} orbitals, "
+         f"{hamiltonian.num_qubits} qubits, E_core = {encoded.e_core:.9f}")
+
+    finish(encoded, path(name, out), window)
+    _say(f"Wrote  {path(name, out)}")
+    return encoded
+
+
+def _solve(name, out, prepared, targets, nmax, eps1, verbose, roots):
+    """
+    Everything up to and including Dice, which is everything that costs anything.
+    """
     if prepared is None:
         prepared = find(name, roots)
         prepared.prepare()
@@ -248,9 +322,6 @@ def run(name, out, prepared=None, targets=None, nmax=None, eps1=1e-4, verbose=0,
         shutil.rmtree(encoded.scratch, ignore_errors=True)
     _say(f"SHCI   ({encoded.active_electrons}e, {encoded.active_space_size}o) E = {encoded.shci_energy:.9f}, "
          f"n from {encoded.occupations.max():.6f} to {encoded.occupations.min():.6f}")
-
-    save(encoded, name, path(name, out))
-    _say(f"Wrote  {path(name, out)}")
     return encoded
 
 
@@ -271,6 +342,15 @@ if __name__ == "__main__":
         type=float,
         default=1e-4,
         help="Dice's selection threshold. Larger selects fewer determinants and costs less.",
+    )
+    parser.add_argument(
+        "--window",
+        type=float,
+        nargs=2,
+        metavar=("LO", "HI"),
+        default=PAPER,
+        help="The occupation window the Hamiltonian is built over. Dice is solved over the whole "
+             f"of the space whatever this is. Defaults to the paper's {PAPER[0]} to {PAPER[1]}.",
     )
     parser.add_argument(
         "--data",
@@ -296,6 +376,7 @@ if __name__ == "__main__":
         out,
         nmax=arguments.nmax,
         eps1=arguments.eps1,
+        window=tuple(arguments.window),
         verbose=arguments.verbose,
         roots=(arguments.data, *ROOTS) if arguments.data else ROOTS,
         force=arguments.force,
@@ -305,5 +386,6 @@ if __name__ == "__main__":
     else:
         print(
             f"{arguments.complex}: ({encoded.active_electrons}e, {encoded.active_space_size}o) "
-            f"E = {encoded.shci_energy:.9f} written to {path(arguments.complex, out)}"
+            f"mapped at {tuple(arguments.window)}, E = {encoded.shci_energy:.9f}, "
+            f"written to {path(arguments.complex, out)}"
         )

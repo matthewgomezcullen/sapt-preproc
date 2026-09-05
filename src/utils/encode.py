@@ -52,9 +52,7 @@ def digest(mol, mean_field=None):
     """
     What identifies this molecule's SCF.
 
-    `mean_field` of None is the exact RHF the pipeline has always run. Fitting the two-electron
-        integrals moves the energy by a few times 1e-6 Ha, which is small, systematic, and exactly
-        the sort of difference nothing would notice if the two shared a file.
+    `mean_field` of None is the exact RHF the pipeline has always run.
     """
     if not mol._built:
         mol.build()

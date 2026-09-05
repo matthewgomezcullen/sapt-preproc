@@ -221,9 +221,10 @@ def run(name, out, prepared=None, targets=None, nmax=None, eps1=1e-4, verbose=0,
     if not force and done(name, out):
         return None
 
-    encoded = EncodeProtein(prepared if prepared is not None else find(name, roots))
     if prepared is None:
-        encoded.prepared.prepare()
+        prepared = find(name, roots)
+        prepared.prepare()
+    encoded = EncodeProtein(prepared)
     if nmax is not None:
         encoded.nmax = nmax
     encoded.verbose = verbose

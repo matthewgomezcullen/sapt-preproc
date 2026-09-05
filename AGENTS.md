@@ -11,3 +11,5 @@ In chat, write equations following TeX syntax (\mu instead of μ) and use escape
 See testing in the README file. Don't run any long tests, unless I explicitly permit you to.
 
 For changes that only touch encoding, use `pytest tests --encode`
+
+Don't use worktrees.

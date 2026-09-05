@@ -3,6 +3,8 @@ The driver that runs the pipeline over one complex and keeps what it produces.
 
 These are about what is written and what is read back, not about the physics.
 
+The file is written in two halves: the space Dice returned, then the integrals for the Hamiltonian.
+
 `run` itself reaches Dice, so it is marked. Nothing above it is.
 """
 
@@ -22,6 +24,12 @@ from utils import encode
 # run answers for any window.
 EVERYTHING = (0.0, 2.0)
 
+# The window the Hamiltonian is built over.
+PAPER = (0.02, 1.97)
+
+# What the fragment is mapped at instead.
+NARROW, NARROWED = (0.015, 1.985), (4, 4)  # (lo, hi), (nelecas, ncas)
+
 # Small enough that the cap has to cut, and quick enough to run here.
 FRAGMENT_NMAX = 8
 
@@ -29,6 +37,9 @@ FRAGMENT_NMAX = 8
 # has an excitation in it.
 NCAS = 2
 NELECAS = 2
+
+# The stand-in's core energy.
+E_CORE = -569.75
 
 POSES = ["somewhere/rank1_confidence-0.71.sdf", "somewhere/rank2_confidence-0.77.sdf"]
 
@@ -40,9 +51,9 @@ def molecule():
     return gto.M(atom="H 0 0 0; H 0 0 0.74", basis="6-31G", verbose=0)
 
 
-def finished():
+def finished_shci():
     """
-    An encoder that has been the whole way.
+    An encoder that has been through SHCI.
     """
     mol = molecule()
     return SimpleNamespace(
@@ -59,27 +70,16 @@ def finished():
     )
 
 
-def over_the_fragment():
+def finished():
     """
-    A finished run over the fragment's molecule.
+    An encoder that has been through its Hamiltonian.
+
     """
-    mol = encode.molecule(fragment(), 0)
-    written = finished()
-    written.mol = mol
-    written.orbital_initial = np.eye(mol.nao)
-    written.prepared = fragment()
+    written = finished_shci()
+    written.e_core = E_CORE
+    written.h1 = np.arange(NCAS * NCAS, dtype=float).reshape(NCAS, NCAS)
+    written.h2 = np.arange(NCAS ** 4, dtype=float).reshape((NCAS,) * 4)
     return written
-
-
-def strip(path, *drop, **replace):
-    """
-    Rewrite a stored result without some of its keys, as older runs wrote.
-    """
-    stored = run.load(path)
-    for key in drop:
-        stored.pop(key, None)
-    stored.update(replace)
-    np.savez(path, **stored)
 
 
 def test_the_results_follow_data(monkeypatch):
@@ -167,7 +167,7 @@ def test_what_is_saved_is_what_comes_back(tmp_path):
     """
     Fragment loaded matches the original.
     """
-    written = finished()
+    written = finished_shci()
     path = run.path(FRAGMENT, str(tmp_path))
 
     run.save(written, FRAGMENT, path)
@@ -179,12 +179,14 @@ def test_what_is_saved_is_what_comes_back(tmp_path):
 
 def test_what_is_saved_is_enough_to_go_on_with(tmp_path):
     """
-    The active space, the energies behind it, and which complex it belongs to.
+    The active space, the energies behind it, the integrals SAPT is handed, and which complex it
+        all belongs to.
     """
     written = finished()
     path = run.path(FRAGMENT, str(tmp_path))
 
     run.save(written, FRAGMENT, path)
+    run.finish(written, path, EVERYTHING)
     read = run.load(path)
 
     assert read["name"] == FRAGMENT
@@ -193,6 +195,12 @@ def test_what_is_saved_is_enough_to_go_on_with(tmp_path):
     assert read["energy"] == written.energy
     assert read["energy_cas"] == written.shci_energy
     assert read["correlation"] == written.correlation
+    assert read["e_core"] == written.e_core
+    assert np.array_equal(read["h1"], written.h1)
+    assert np.array_equal(read["h2"], written.h2)
+    assert read["hamiltonian_ncas"] == written.active_space_size
+    assert read["hamiltonian_nelecas"] == written.active_electrons
+    assert tuple(read["hamiltonian_window"]) == EVERYTHING
 
 
 def test_the_window_it_was_solved_under_is_recorded(tmp_path):
@@ -201,7 +209,7 @@ def test_the_window_it_was_solved_under_is_recorded(tmp_path):
     """
     path = run.path(FRAGMENT, str(tmp_path))
 
-    run.save(finished(), FRAGMENT, path)
+    run.save(finished_shci(), FRAGMENT, path)
 
     assert tuple(run.load(path)["window"]) == EVERYTHING
 
@@ -211,7 +219,7 @@ def test_the_numbers_come_back_as_numbers(tmp_path):
     Correct data types stored.
     """
     path = run.path(FRAGMENT, str(tmp_path))
-    run.save(finished(), FRAGMENT, path)
+    run.save(finished_shci(), FRAGMENT, path)
 
     read = run.load(path)
 
@@ -226,29 +234,42 @@ def test_the_directory_is_made_if_it_is_not_there(tmp_path):
     """
     out = str(tmp_path / "not" / "yet")
 
-    run.save(finished(), FRAGMENT, run.path(FRAGMENT, out))
+    run.save(finished_shci(), FRAGMENT, run.path(FRAGMENT, out))
 
     assert os.path.isdir(out)
 
 
 def test_an_unfinished_run_is_not_saved(tmp_path):
     """
-    An unfinished run is not saved.
+    Neither half is written before the step behind it has produced anything.
     """
-    unfinished = finished()
+    path = run.path(FRAGMENT, str(tmp_path))
+    unfinished = finished_shci()
     unfinished.shci_energy = None
+    unmapped = finished()
+    unmapped.h2 = None
 
     with pytest.raises(EncodingError):
-        run.save(unfinished, FRAGMENT, run.path(FRAGMENT, str(tmp_path)))
+        run.save(unfinished, FRAGMENT, path)
+
+    run.save(finished_shci(), FRAGMENT, path)
+    with pytest.raises(EncodingError):
+        run.finish(unmapped, path, EVERYTHING)
 
 
 def test_a_finished_complex_is_left_alone(tmp_path):
     """
-    A rerun does not recompute.
+    A rerun does not recompute, and a run that stopped after SHCI is solved but not finished.
     """
     out = str(tmp_path)
-    run.save(finished(), FRAGMENT, run.path(FRAGMENT, out))
+    written = finished()
+    path = run.path(FRAGMENT, out)
 
+    run.save(written, FRAGMENT, path)
+    assert run.solved(FRAGMENT, out)
+    assert not run.done(FRAGMENT, out)
+
+    run.finish(written, path, EVERYTHING)
     assert run.done(FRAGMENT, out)
 
 
@@ -272,7 +293,7 @@ def test_the_molecule_is_stored(tmp_path):
     """
     The geometry, basis, charge, spin and atom ordering are stored.
     """
-    written = finished()
+    written = finished_shci()
     path = run.path(FRAGMENT, str(tmp_path))
 
     run.save(written, FRAGMENT, path)
@@ -284,7 +305,7 @@ def test_the_stored_molecule_rebuilds(tmp_path):
     """
     Rebuild stored molecule correctly.
     """
-    written = finished()
+    written = finished_shci()
     path = run.path(FRAGMENT, str(tmp_path))
     run.save(written, FRAGMENT, path)
 
@@ -299,7 +320,7 @@ def test_the_checkpoint_digest_is_stored(tmp_path):
     """
     The checkpoint digest is stored correctly.
     """
-    written = finished()
+    written = finished_shci()
     path = run.path(FRAGMENT, str(tmp_path))
 
     run.save(written, FRAGMENT, path)
@@ -322,7 +343,7 @@ def test_the_poses_are_stored(tmp_path):
     """
     path = run.path(FRAGMENT, str(tmp_path))
 
-    run.save(finished(), FRAGMENT, path)
+    run.save(finished_shci(), FRAGMENT, path)
 
     assert list(run.load(path)["poses"]) == POSES
 
@@ -332,10 +353,10 @@ def test_a_stored_run_resumes_without_preparing_anything(tmp_path):
     A result holding its molecule doesn't need perparation.
     """
     out = str(tmp_path)
-    written = finished()
+    written = finished_shci()
     run.save(written, FRAGMENT, run.path(FRAGMENT, out))
 
-    resumed = run.resume(FRAGMENT, out, roots=(str(tmp_path / "nothing"),))
+    resumed = run.resume(FRAGMENT, out)
 
     assert resumed.active_space_size == NCAS
     assert resumed.active_electrons == NELECAS
@@ -348,9 +369,9 @@ def test_a_resumed_run_reaches_its_hamiltonian(tmp_path):
     A resumed run produces its hamiltonian.
     """
     out = str(tmp_path)
-    run.save(finished(), FRAGMENT, run.path(FRAGMENT, out))
+    run.save(finished_shci(), FRAGMENT, run.path(FRAGMENT, out))
 
-    resumed = run.resume(FRAGMENT, out, roots=(str(tmp_path / "nothing"),))
+    resumed = run.resume(FRAGMENT, out)
 
     assert resumed.H().num_qubits == 2 * NCAS
 
@@ -360,61 +381,45 @@ def test_resuming_a_complex_that_was_never_run_says_so(tmp_path):
         run.resume(FRAGMENT, str(tmp_path))
 
 
-def test_a_stored_run_without_a_molecule_is_prepared_again(tmp_path):
-    """
-    The three complexes solved before the molecule was stored are prepared again.
-    """
-    out = str(tmp_path)
-    path = run.path(FRAGMENT, out)
-    run.save(over_the_fragment(), FRAGMENT, path)
-    strip(path, "molecule")
-
-    resumed = run.resume(FRAGMENT, out, prepared=fragment())
-
-    assert resumed.active_space_size == NCAS
-    assert resumed.mol.nao == resumed.orbital_initial.shape[0]
-
-
-def test_a_geometry_that_no_longer_matches_is_refused(tmp_path):
-    """
-    Ensure preparation reproduces exactly.
-    """
-    out = str(tmp_path)
-    path = run.path(FRAGMENT, out)
-    run.save(over_the_fragment(), FRAGMENT, path)
-    strip(path, "molecule", digest="0" * 64)
-
-    with pytest.raises(EncodingError):
-        run.resume(FRAGMENT, out, prepared=fragment())
-
-
 @pytest.mark.dice
 def test_the_driver_carries_a_complex_the_whole_way(tmp_path):
     """
-    Every step, and a file at the end of it holding the result.
+    Every step, and a file at the end of it holding the space and the Hamiltonian built over it.
     """
     out = str(tmp_path)
+    nelecas, ncas = NARROWED
 
     result = run.run(
-        FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX
+        FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX,
+        window=NARROW,
     )
 
     assert run.done(FRAGMENT, out)
     read = run.load(run.path(FRAGMENT, out))
-    assert read["ncas"] == result.active_space_size == FRAGMENT_NMAX
+    assert read["ncas"] == FRAGMENT_NMAX
     assert read["orbitals"].shape[0] == result.mol.nao
-    assert len(read["occupations"]) == result.active_space_size
+    assert len(read["occupations"]) == FRAGMENT_NMAX
     assert read["energy_cas"] < read["energy"]
+
+    assert (result.active_electrons, result.active_space_size) == (nelecas, ncas)
+    assert (read["hamiltonian_nelecas"], read["hamiltonian_ncas"]) == (nelecas, ncas)
+    assert tuple(read["hamiltonian_window"]) == NARROW
+    assert read["h1"].shape == (ncas, ncas)
+    assert read["h2"].shape == (ncas,) * 4
 
 
 @pytest.mark.dice
 def test_the_whole_window_is_kept(tmp_path):
     """
-    The driver truncates nothing.
+    The driver truncates nothing it stores; the narrowing the Hamiltonian needs is not written
+        back over it.
     """
     out = str(tmp_path)
 
-    run.run(FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX)
+    run.run(
+        FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX,
+        window=NARROW,
+    )
 
     occupations = run.load(run.path(FRAGMENT, out))["occupations"]
     assert len(occupations) == FRAGMENT_NMAX
@@ -428,10 +433,14 @@ def test_a_second_run_reads_rather_than_solves(tmp_path):
     Resumes previous jobs.
     """
     out = str(tmp_path)
-    run.run(FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX)
+    run.run(
+        FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX,
+        window=NARROW,
+    )
 
     again = run.run(
-        FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX
+        FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX,
+        window=NARROW,
     )
 
     assert again is None
@@ -443,14 +452,48 @@ def test_force_solves_it_again(tmp_path):
     Alternative force to not resume previous runs. 
     """
     out = str(tmp_path)
-    run.run(FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX)
+    run.run(
+        FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX,
+        window=NARROW,
+    )
 
     again = run.run(
-        FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX, force=True
+        FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX,
+        window=NARROW, force=True,
     )
 
     assert again is not None
-    assert again.active_space_size == FRAGMENT_NMAX
+    assert again.active_space_size == NARROWED[1]
+
+
+@pytest.mark.dice
+def test_a_run_that_stopped_before_its_hamiltonian_picks_up_where_it_left_off(tmp_path, capfd):
+    """
+    Banking after SHCI only pays if the next attempt reads it rather than paying Dice again.
+
+    No `prepared`, and the roots point nowhere, so a run that reached for the complex at all would
+        raise rather than quietly prepare it a second time.
+    """
+    out = str(tmp_path)
+    path = run.path(FRAGMENT, out)
+    run.run(
+        FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX,
+        window=NARROW,
+    )
+    stored = run.load(path)
+    for key in run.HAMILTONIAN:
+        stored.pop(key)
+    np.savez(path, **stored)
+    assert not run.done(FRAGMENT, out)
+    capfd.readouterr()
+
+    again = run.run(FRAGMENT, out, window=NARROW, roots=(str(tmp_path / "nothing"),))
+
+    printed = capfd.readouterr().out
+    assert again is not None
+    assert run.done(FRAGMENT, out)
+    assert "RHF" not in printed
+    assert "SHCI" not in printed
 
 
 def test_dices_log_is_copied_out_of_the_scratch(tmp_path):
@@ -495,11 +538,14 @@ def test_the_run_says_what_it_is_doing(tmp_path, capfd):
     Log contents are correct.
     """
     run.run(
-        FRAGMENT, str(tmp_path), prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX
+        FRAGMENT, str(tmp_path), prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX,
+        window=NARROW,
     )
 
     printed = capfd.readouterr().out
-    for step in ("RHF", "AVAS", "MP2", "SHCI"):
+    # "integrals" rather than "H", which is a substring of "RHF", and rather than the qubits,
+    # which the step builds and does not keep.
+    for step in ("RHF", "AVAS", "MP2", "SHCI", "WINDOW", "integrals"):
         assert step in printed
 
 
@@ -509,7 +555,8 @@ def test_the_run_reports_the_space_it_reached(tmp_path, capfd):
     Log the active space.
     """
     result = run.run(
-        FRAGMENT, str(tmp_path), prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX
+        FRAGMENT, str(tmp_path), prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX,
+        window=NARROW,
     )
 
     printed = capfd.readouterr().out
@@ -523,7 +570,8 @@ def test_a_run_is_quiet_by_default(tmp_path):
     Default does not log the SCF table.
     """
     result = run.run(
-        FRAGMENT, str(tmp_path), prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX
+        FRAGMENT, str(tmp_path), prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX,
+        window=NARROW,
     )
 
     assert result.mol.verbose == 0
@@ -542,6 +590,7 @@ def test_verbosity_reaches_pyscf(tmp_path):
         prepared=fragment(),
         targets=all_carbons,
         nmax=FRAGMENT_NMAX,
+        window=NARROW,
         verbose=4,
     )
 
@@ -558,7 +607,8 @@ def test_a_finished_run_keeps_dices_log_and_nothing_else(tmp_path):
     out = str(tmp_path)
 
     result = run.run(
-        FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX
+        FRAGMENT, out, prepared=fragment(), targets=all_carbons, nmax=FRAGMENT_NMAX,
+        window=NARROW,
     )
 
     assert os.path.isfile(run.log(FRAGMENT, out))
@@ -575,13 +625,21 @@ def test_a_finished_run_keeps_dices_log_and_nothing_else(tmp_path):
 @pytest.mark.parametrize("name", SUBSET)
 def test_the_driver_carries_a_cutout_of_the_bin_the_whole_way(tmp_path, name):
     """
-    Full run on the subset of the bin.
+    Full run on the subset of the bin, at the paper's window, which a real cutout survives where
+        the saturated fragment does not.
     """
     out = str(tmp_path)
 
     result = run.run(name, out)
 
     read = run.load(run.path(name, out))
-    assert read["ncas"] == result.active_space_size == result.nmax
+    assert read["ncas"] == result.nmax
     assert read["orbitals"].shape[0] == result.mol.nao
     assert 0 < read["nelecas"] < 2 * read["ncas"]
+    assert tuple(read["hamiltonian_window"]) == PAPER
+
+    ncas = read["hamiltonian_ncas"]
+    assert ncas == result.active_space_size < read["ncas"]
+    assert 0 < read["hamiltonian_nelecas"] < 2 * ncas
+    assert read["h1"].shape == (ncas, ncas)
+    assert read["h2"].shape == (ncas,) * 4

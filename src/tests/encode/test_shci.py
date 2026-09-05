@@ -26,7 +26,7 @@ from encode import EncodeProtein, EncodingError
 # SHCI is asked to select within can also be diagonalised exactly.
 CAP = 8
 
-# The original paper's window, and the default in the signature.
+# The original paper's window. The driver maps its Hamiltonian over this.
 PAPER = (0.02, 1.97)
 
 # Windows cut against the fragment's own exact spectrum, which runs

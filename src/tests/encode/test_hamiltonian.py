@@ -198,14 +198,17 @@ def test_the_coefficients_are_real():
 
 def test_the_hamiltonian_is_kept_on_the_encoder():
     """
-    Like every other step, which stores what it produced.
+    Like every other step, which stores what it produced. The integrals are kept, not the operator. 
     """
     encoded = capped()
+    ncas = encoded.active_space_size
 
     returned = encoded.H()
 
     assert encoded.hamiltonian is returned
     assert encoded.e_core is not None
+    assert encoded.h1.shape == (ncas, ncas)
+    assert encoded.h2.shape == (ncas,) * 4
 
 
 def test_jordan_wigner_is_the_mapping_by_default():

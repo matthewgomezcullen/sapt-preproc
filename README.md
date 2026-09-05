@@ -4,8 +4,6 @@ This repository contains experimental code for preprocessing for SAPT0 and activ
 
 Experiments will be run using DiffDock's generated poses for the PoseBusters Benchmark set. Poses will be filtered according to the scope defined below. This work should not concern over physical validity; physically invalid poses will be screened with PoseBusters and ignored before SAPT preprocessing.
 
-Background reading is under `literature`. The most relevant papers are SAPT_VQE_PL(.md/pdf), DiffDock-L(.md/pdf), and PoseBusters(.md/pdf).
-
 ## Pre-processing
 
 Given a protein structure and candidate poses, `prepare.py` prepares the protein, then `encode.py` solves RHF for molecular orbitals and encodes a tractable active space for SAPT with VQE/CASCI as a Hamiltonian. The implementation aims to map as closely as possible to the original [SAPT(VQE) paper](https://arxiv.org/abs/2110.01589), while remaining applicable to any protein-ligand complex and across several candidate poses.
@@ -14,7 +12,7 @@ An extended list of these deviations from the original paper are detailed in a s
 
 ### Scope
 
-Some complexes require adjustments that either: A) Add too much complexity to the code, B) Currently require manual overrides to overcome their problems, or C) Are incompatible with the assumptions underlying this method. These proteins are out-of-scope for this project (see `filter.py` for how `prepare.py` rejections filter the dataset). For example, the paper's target complex, KDM5A, is unsupported because it contains an open-shell metal ion.
+Some complexes require adjustments that either: A) Require expert chemical knowledge to employ manual overrides that overcome their problems, or B) Are incompatible with the assumptions underlying this method. These proteins are out-of-scope for this project (see `filter.py` for how `prepare.py` rejections filter the dataset). For example, the paper's target complex, KDM5A, is unsupported because it contains an open-shell metal ion.
 
 Preparation assumes spin, $S = 0$, and Encoding solves RHF, which forces every electron into a doubly-occupied spatial orbital.
 
@@ -36,7 +34,7 @@ Practical considerations/exclusions:
 
 - **Incomplete residues or missing atoms in the cutout**. Could be repaired by PDBFixer. Missing terminal atoms do not matter.
     - For v1: reject.
-- **Zero-occupancy atoms**: Zero occupancy means the coordinates up to the crystallographers. Creates epistemic uncertainty that can be treated.
+- **Zero-occupancy atoms**: Zero occupancy means the coordinates are up to the crystallographers. Creates epistemic uncertainty that can be treated.
     - For v1: reject.
 - **Disulfides split by cutout**. If the cutout catches one Cys and not its S-S partner, we either cap a covalent bond or drag in a distant residue.
     - For v1: reject.
@@ -55,6 +53,7 @@ Protein structure is given by $A = \{\text{element}_I, R_I\}^{N_{A}}_{I=1}$.
 
 1. Load the full protein and poses.
 1. Provisional cutout (see step 4) and reject/adjust the complex according to scope. If accept, fix missing residues, atoms, and terminal atoms, and remove problematic molecules (heterogens that exist outside the cutout).
+    1. for v1, don't fix missing residues.
 1. Protonate the entire protein (default plasma/extracellular, `pH=7.4`), mapping sites to their protonation state.
     1. (*) The original paper used Protonate3D, which is commercial.
 1. Given a protein, $A$, and candidate poses, $\{B_i\}$, truncate $A$ to complete residues which contain at least one atom within 4.5 Å of a pose $\rightarrow A'^{\cup}$
@@ -88,7 +87,7 @@ Failed 0
 
 ### Binning
 
-Solving RHF for large cutouts is computationally very expensive. Also, highly charged cutouts form difficult SCF cases. Instead of encoding all 110 complexes, we bin complexes by ...
+Solving RHF for large cutouts is computationally very expensive. Also, highly charged cutouts form difficult SCF cases. Instead of encoding all 110 complexes, we bin complexes by size (quartiles) and charge ($|q_{A}| > 1 \coloneqq \text{charged}$)
 
 ### Encoding
 
@@ -96,13 +95,13 @@ Solving RHF for large cutouts is computationally very expensive. Also, highly ch
 1. Run Atomic Valence Active Space (AVAS) over the MOs, returning the number of active orbitals, active electrons, and transformed molecular orbitals. PySCF supports this on the SCF object. AVAS requires targeted atomic orbitals (AOs).
     1. (*) The original paper selected a system-specific set of Fe $3d$, O $2p$, and N $2p$ orbitals using chemical knowledge of KDM5A. In this work, we provide a minimal deterministic default for in-scope proteins.
 1. Run MP2 to correlate the AVAS space and keep the $N_{max}$ most fractional active orbitals. More on this below.
-    1. (*) This is an original contribution beyond the paper. The paper uses an hand-picked target set that produces roughly a dozen AOs. We replace this with every $p$ orbital of every contact atom. The blow-up leads to an active space that is intractable for SHCI. MP2-filtering caps the size of the active space based on correlation (motivating a CASCI/VQE correction), while the generated target set ensures the AOs are pose-relevant.
+    1. (*) This is a major deviation from the paper. The paper uses an hand-picked target set that produces roughly a dozen AOs. We replace this with every $p$ orbital of every contact atom. The blow-up leads to an active space that is intractable for SHCI. MP2-filtering caps the size of the active space based on correlation (motivating a CASCI/VQE correction), while the generated target set ensures the AOs are pose-relevant.
 1. ~XXX Run Semistochastic Heat-Bath Configuration Interaction (SHCI) with Dice on AVAS active space, and restrict orbitals to $\text{lo} \le n_{i} \le \text{hi}$.~
     1. ~XXX (*) Matching the original occupation window does not guarantee $(8e, 8o)$, as in the original paper. _TBC_~
 1. Run Semistochastic Heat-Bath Configuration Interaction (SHCI) with Dice over the space MP2 capped, diagonalise its one-particle density, and keep the natural orbitals with $\text{lo} \le n_{i} \le \text{hi}$. An orbital above the window is doubly occupied and retires its pair to the core; one below it is empty and joins the virtuals.
     1. (*) `run.py` solves at $0.0 \le n_{i} \le 2.0$ and keeps the whole space Dice returned, then applies the paper's $0.02 \le n_{i} \le 1.97$ at the next step. Narrowing is arithmetic on the occupations, so one solve answers for any window. `EncodeProtein.SHCI` called directly cuts at the paper's window by default.
-    1. (*) A window fixes no size, so it can leave a space with no excitation in it, whose correction to SAPT is exactly zero. That is rejected rather than handed on.
-1. Finally, narrow the solved space to the paper's window and map the active-space fermionic Hamiltonian to a qubit Hamiltonian following the Jordan-Wigner transformation. CASCI supplies the three ingredients: the core energy $E_{\text{core}}$, which holds the nuclear repulsion and the frozen electrons; the one-electron integrals $h_{pq}$ with the core's Coulomb and exchange folded in; and the two-electron integrals $(pq|rs)$ over the active orbitals. `qiskit-nature` maps them, and the core energy is carried as the identity so the eigenvalues are total energies.
+    1. (*) A window fixes no size, so it can leave a space with no excitation in it, whose correction to SAPT is exactly zero. That is rejected.
+1. Finally, narrow the solved space to the paper's window and map the active-space fermionic Hamiltonian to a qubit Hamiltonian following the Jordan-Wigner transformation. CASCI supplies the core energy $E_{\text{core}}$, which holds the nuclear repulsion and the frozen electrons; the one-electron integrals $h_{pq}$ with the core's Coulomb and exchange folded in; and the two-electron integrals $(pq|rs)$ over the active orbitals. `qiskit-nature` maps them, and the core energy is carried as the identity so the eigenvalues are total energies.
     1. (*) Jordan-Wigner instead of Bravyi-Kitaev.
     1. (*) The three integrals are what is stored, not the operator. They rebuild it under any mapping and are smaller than it by orders of magnitude.
 
@@ -120,22 +119,13 @@ The default rule is:
 1. Generate an atom-specific PySCF AVAS label for each retained atom using its final, fixed, zero-based PySCF atom index.
 1. Run AVAS with fixed and recorded settings.
 
-This MVP deliberately does not infer $d$-orbital targets, metal oxidation states, and ligand-field splittings.
+This MVP deliberately does not infer $d$-orbital targets or metal oxidation states.
 
 #### MP2-filtering
 
 Due to the generally chosen target AOs above, AVAS produces an active space that is intractable for SHCI. The chosen target AOs ensure the active space is pose-relevant, while MP2 caps the size based on correlation.
 
-We also considered swapping AVAS for the top AOs chosen by AP2. Although logically simpler, this loses pose relevance, so highly correlated AOs far from any poses may be incorrectly prioritised. A hybrid pipeline (as we do with MP2) is more plausible. A comparison is shown below:
-
-| | AVAS → MP2-NO | AVAS → APC-2 |
-|---|---|---|
-| Size bound | yes (N_max) | yes (`max_size`) |
-| Ranking metric | exact 2nd-order amplitudes → NO occupations | approximate pair coefficients (cheaper estimate of similar information) |
-| Basis handed to SHCI | rotated natural orbitals | unrotated AVAS orbitals (selection only) |
-| Small-gap robustness | MP2 denominators can blow up | designed to survive near-degeneracy |
-| PySCF surface | documented top-level API (`mp.MP2`, `mcscf.addons.make_natural_orbitals`) | `apc` internals + `Chooser` (less documented) |
-| Paper mapping | same currency as the SHCI step (natural-occupation filtering) | different currency (entropy ranking) |
+We also considered swapping AVAS for the top AOs chosen by AP2. Although logically simpler, this loses pose relevance, so highly correlated AOs far from any poses may be incorrectly prioritised. A hybrid pipeline (as we do with MP2) is more plausible.
 
 MP2-NO is computationally more expensive, but entirely tractable thanks to the reductions we have already made. Using MP2 sacrifices accuracy for computational gains we don't realise. MP2-NO rotates the natural orbits, whereas APC only selects. The rotated natural-order basis enables better convergence for SHCI.
 
@@ -156,46 +146,6 @@ The following deviations apply relative to the KDM5A workflow in the original pa
 - **Electronic-structure software:** the original used TeraChem/Lightspeed for classical SCF and integral generation, Gaussian for structural calculations, and in-house quantum code. This implementation substitutes PySCF, and Dice for the SHCI as the original did. Dice has no conda package and only builds on Linux, so `setup.sh` builds it on the cluster and installs it into the environment; nothing else knows where it is, because `encode.py` finds it on the PATH.
 - **Final active-space size:** neither window fixes a size, and no automatic truncation to eight orbitals is attributed to the original method. Nothing in the pipeline bounds what the window returns, so a $\pi$-rich contact can leave more than a simulator can carry.
 - **Perturbative correction:** Dice is run variationally, with the schedule tightening onto $\epsilon_1$ over six iterations and `nPTiter 0`. The semistochastic perturbative correction is an energy correction and is not variational, and nothing downstream reads the energy: the natural occupations that decide the window are those of the variational wavefunction either way.
-
-## Notes on Preparation
-
-PoseBusters Benchmark set does not contain SEQRES records, so `PDBFixer.FindMissingResidues` cannot find missing residues. For v1, this is ignored. Thus, missing residues may be contained in the cutout.
-
-`_fix` writes heterogens into separate chains that reuse the polymer names. Residues are stored by `(chain.name, seqid.num)`, leading to ambiguity; after deleted the heterogens, these duplicates must be removed.
-
-`_fix` destroys occupancy information, so zero-occupancy checks must happen before.
-
-Some protein PDBs contain crystal copies of the docked ligand. These should also be removed.
-
-Some complexes contain zero-occupancy atoms inside the cutout.
-
-Some complexes have zero poses after dropping `confidence-1000.00`. These are flagged by `_fetch`.
-
-PDBFixer does not return protonation state. Either count hydrogens manually, or call Modeller.addHydrogens directly.
-
-Non-standard residues are poorly handled by `PDBFixer`. For v1, these are replaced with `replaceNonstandardResidues`.
-
-`_reduce` caps unconditionally. `7LMO_NYO` has a real terminal that is capped. Distinguishing real from broken residues requires SEQRES; for v1, terminal ends are not capped. Broken residues incur extra charge, instead.
-
-Histidines with $pK_{a} \approx 6.5$ are set to neutral in protonation by default. Disulfides are also handled by `PDBFixer`.
-
-Single-residue gaps create two atoms at teh same coordinates from capping. Two nuclei at one position give a divergent repulsion and a linearly dependent basis.
-
-Capping adds many heavy atoms, so the size cutoff must be verified again after.
-
-### Nondeterminism
-
-`_fix` and `_protonate` place atoms by minimising from a **random** start. Random seeds land atoms generated by `PDBFixer.addMissingAtom` up to 6 Å apart between runs, and hydrogens generated by `Modeller.addHydrogens` 0.6 Å apart.
-
-To provide a deterministic pipeline, we provide `seed = 1` to OpenMM and use a reference platform. The CPU platform followed thread/lane completion order, and the dynamics path amplifies that into whole angstroms.
-
-However, this drastically reduces the performance of `_protonate`, so this can be reversed.
-
-## Notes on Encoding
-
-AVAS produces an active space that is too large. We use MP2 to pick the most correlated active orbitals.
-
-`MP2` requires storing four-index electron-repulsion integrals, $(ij|ab)$, which scales $O(N^{4})$ in the number of orbitals. We use density fitting instead, scaling at $O(N^{3})$ instead.
 
 ## Setup
 
@@ -256,3 +206,44 @@ The qubit operator is built and not stored. `utils.encode.qubits(e_core, h1, h2)
 `molecule` is `mol.dumps()`: the geometry, basis, charge, spin and atom ordering in one lossless field, around 130 KiB for a cutout of the bin. Storing the geometry alone would not do: the basis, charge, spin and ordering are all needed.
 
 `digest` names the SCF checkpoint the result came out of, which is `$SCF_CHECKPOINTS/<digest>.chk`.
+
+## Notes on Preparation
+
+PoseBusters Benchmark set does not contain SEQRES records, so `PDBFixer.FindMissingResidues` cannot find missing residues. For v1, this is ignored. Thus, missing residues may be contained in the cutout.
+
+`_fix` writes heterogens into separate chains that reuse the polymer names. Residues are stored by `(chain.name, seqid.num)`, leading to ambiguity; after deleted the heterogens, these duplicates must be removed.
+
+`_fix` destroys occupancy information, so zero-occupancy checks must happen before.
+
+Some protein PDBs contain crystal copies of the docked ligand. These should also be removed.
+
+Some complexes contain zero-occupancy atoms inside the cutout.
+
+Some complexes have zero poses after dropping `confidence-1000.00`. These are flagged by `_fetch`.
+
+PDBFixer does not return protonation state. Either count hydrogens manually, or call Modeller.addHydrogens directly.
+
+Non-standard residues are poorly handled by `PDBFixer`. For v1, these are replaced with `replaceNonstandardResidues`.
+
+`_reduce` caps unconditionally. `7LMO_NYO` has a real terminal that is capped. Distinguishing real from broken residues requires SEQRES; for v1, terminal ends are not capped. Broken residues incur extra charge, instead.
+
+Histidines with $pK_{a} \approx 6.5$ are set to neutral in protonation by default. Disulfides are also handled by `PDBFixer`.
+
+Single-residue gaps create two atoms at teh same coordinates from capping. Two nuclei at one position give a divergent repulsion and a linearly dependent basis.
+
+Capping adds many heavy atoms, so the size cutoff must be verified again after.
+
+### Nondeterminism
+
+`_fix` and `_protonate` place atoms by minimising from a **random** start. Random seeds land atoms generated by `PDBFixer.addMissingAtom` up to 6 Å apart between runs, and hydrogens generated by `Modeller.addHydrogens` 0.6 Å apart.
+
+To provide a deterministic pipeline, we provide `seed = 1` to OpenMM and use a reference platform. The CPU platform followed thread/lane completion order, and the dynamics path amplifies that into whole angstroms.
+
+However, this drastically reduces the performance of `_protonate`, so this can be reversed.
+
+## Notes on Encoding
+
+AVAS produces an active space that is too large. We use MP2 to pick the most correlated active orbitals.
+
+`MP2` requires storing four-index electron-repulsion integrals, $(ij|ab)$, which scales $O(N^{4})$ in the number of orbitals. We use density fitting instead, scaling at $O(N^{3})$ instead.
+

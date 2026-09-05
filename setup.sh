@@ -2,7 +2,7 @@
 
 # Build the sapt-preproc environment on a Linux HPC node.
 #
-# Run once from a login node, then submit test.sh. Safe to re-run: it replaces the environment.
+# Run once from a login node. Safe to re-run: it replaces the environment.
 #
 # Dice is the SHCI program the encoding step solves with, an MPI C++ program with no conda package, 
 # so it is built here against the environment's own Boost, HDF5 and OpenMPI and installed into its 
@@ -106,11 +106,11 @@ echo "[$(date +%T)] Checking the environment"
 python - <<'PY'
 import shutil
 
-import numpy, scipy, gemmi, openmm, pyscf, rdkit
+import numpy, scipy, gemmi, openmm, pyscf, qiskit, qiskit_nature, rdkit
 from pyscf import gto, scf
 
 print(f"  python {__import__('sys').version.split()[0]}")
-for module in (numpy, scipy, gemmi, pyscf, rdkit):
+for module in (numpy, scipy, gemmi, pyscf, qiskit, rdkit):
     print(f"  {module.__name__:8s} {module.__version__}")
 print(f"  openmm   {openmm.__version__}")
 
@@ -130,6 +130,17 @@ pyscf.__config__.shci_SHCISCRATCHDIR = "."
 from pyscf.shciscf import shci
 assert shci.SHCI(mol).executable == dice
 print(f"  Dice     {dice}")
+
+from qiskit.quantum_info import SparsePauliOp
+from qiskit_nature.second_q.hamiltonians import ElectronicEnergy
+from qiskit_nature.second_q.mappers import JordanWignerMapper
+
+operator = JordanWignerMapper().map(
+    ElectronicEnergy.from_raw_integrals(numpy.eye(2), numpy.zeros((2,) * 4)).second_q_op()
+)
+operator = (operator + SparsePauliOp("I" * operator.num_qubits, -1.5)).simplify()
+assert operator.num_qubits == 4, f"two orbitals are four qubits, not {operator.num_qubits}"
+print(f"  qiskit-nature {qiskit_nature.__version__}, two orbitals to {operator.num_qubits} qubits")
 PY
 
 echo "[$(date +%T)] Done. Submit with: sbatch $REPO/test.sh"

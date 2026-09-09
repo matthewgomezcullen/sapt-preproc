@@ -150,7 +150,7 @@ def finish(encoded, destination, window):
 
 def load(source):
     """
-    A stored run, with its scalars as scalars rather than as zero-dimensional arrays.
+    Load a stored run.
     """
     with np.load(source, allow_pickle=False) as stored:
         result = {key: stored[key] for key in stored.files}

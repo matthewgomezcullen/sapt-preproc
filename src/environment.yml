@@ -9,11 +9,13 @@ dependencies:
   - python=3.11
   - numpy=2.4.6
   - scipy=1.17.1
+  - pandas=3.0.5
   - pyscf=2.14.0
   - openmm=8.6.0
   - pdbfixer=1.12
   - gemmi=0.7.4
   - rdkit=2026.03.5
+  - posebusters=0.6.5
   - pytest=8.4.2
   - qiskit=2.5.2
   - pip

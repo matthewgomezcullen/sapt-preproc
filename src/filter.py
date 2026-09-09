@@ -13,6 +13,9 @@ import re
 import statistics
 from collections import Counter
 
+from posebusters import PoseBusters, check_rmsd
+from rdkit import Chem
+
 from prepare import PrepareComplex, OutOfScopeError, PrepareError
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -29,10 +32,21 @@ POSE = re.compile(r"^rank\d+_confidence-?\d+\.\d+\.sdf$")
 
 FAIL = "confidence-1000"
 
-FIELDS = ["name", "status", "heavy_atoms", "charge", "electrons", "rejection"]
+VALIDITY = "dock"
+
+NEAR_NATIVE = 2.0
+
+# Why an ensemble leaves the screen before its complex is ever prepared.
+GENERATOR = "no near-native pose generated"
+VALIDITY_FAILURE = "every near-native pose is physically invalid"
+
+FIELDS = [
+    "name", "status", "heavy_atoms", "charge", "electrons", "poses", "excluded", "near_native",
+    "rejection",
+]
 
 # The numeric columns, which csv hands back as strings.
-COUNTS = ["heavy_atoms", "charge", "electrons"]
+COUNTS = ["heavy_atoms", "charge", "electrons", "poses", "excluded", "near_native"]
 
 
 def _protein(name):
@@ -92,12 +106,42 @@ def inventory():
     complexes = []
     incomplete = []
     for name in names:
-        proteins, poses = _protein(name), _poses(name)
-        if len(proteins) != 1 or not poses:
+        proteins, poses, natives = _protein(name), _poses(name), _native(name)
+        if len(proteins) != 1 or not poses or len(natives) != 1:
             incomplete.append(name)
             continue
-        complexes.append((name, proteins[0], poses))
+        complexes.append((name, proteins[0], poses, natives[0]))
     return complexes, incomplete
+
+
+def _near_native(poses, native, threshold=NEAR_NATIVE):
+    """
+    The poses sitting within `threshold` of the deposited ligand.
+
+    RMSD is symmetry-corrected and over heavy atoms.
+    """
+    crystal = Chem.MolFromMolFile(native) # pyright: ignore[reportAttributeAccessIssue]
+    if crystal is None:
+        return set()
+
+    near = set()
+    for pose in poses:
+        docked = Chem.MolFromMolFile(pose) # pyright: ignore[reportAttributeAccessIssue]
+        if docked is None:
+            continue
+        results = check_rmsd(docked, crystal, rmsd_threshold=threshold)["results"]
+        if results["rmsd_within_threshold"]:
+            near.add(pose)
+    return near
+
+
+def _valid(buster, poses, protein):
+    """
+    The poses PoseBusters finds physically plausible.
+    """
+    table = buster.bust(poses, None, protein)
+    passed = {file for (file, _, _), ok in table.all(axis=1).items() if ok}
+    return [pose for pose in poses if pose in passed]
 
 
 def bust_poses(complexes):
@@ -107,24 +151,43 @@ def bust_poses(complexes):
     Physically implausible poses are excluded and recorded. Sets with no near-native poses are 
         rejected.
 
-    'dock' checks for physical plausibility.
-    'redock' ensures a near-native pose exists.
-
-    Returns complexes as (name, protein, poses, native, num_excluded)
+    Returns complexes as (name, protein, poses, native, excluded, near_native), and the ensembles
+        dropped as (name, why).
     """
-    ...
+    buster = PoseBusters(VALIDITY)
+    kept, incorrect = [], []
+    for i, (name, protein, poses, native) in enumerate(complexes, start=1):
+        near = _near_native(poses, native)
+        if not near:
+            incorrect.append((name, GENERATOR))
+        else:
+            valid = _valid(buster, poses, protein)
+            usable = near.intersection(valid)
+            if not usable:
+                incorrect.append((name, VALIDITY_FAILURE))
+            else:
+                kept.append(
+                    (name, protein, valid, native, len(poses) - len(valid), len(usable))
+                )
+        if i % 25 == 0:
+            print(f'File {i} busted')
+    return kept, incorrect
 
 
-def _row(name, status, prepared, rejection=""):
+def _row(name, status, prepared, ensemble, rejection=""):
     """
-    One complex's screening result.
+    One complex's and PoseBusters' screening result.
     """
+    poses, excluded, near_native = ensemble
     return {
         "name": name,
         "status": status,
         "heavy_atoms": "" if prepared.heavy_atoms is None else prepared.heavy_atoms,
         "charge": "" if prepared.charge is None else prepared.charge,
         "electrons": "" if prepared.electrons is None else prepared.electrons,
+        "poses": poses,
+        "excluded": excluded,
+        "near_native": near_native,
         "rejection": rejection,
     }
 
@@ -138,16 +201,17 @@ def screen(complexes):
     """
     rows = []
     eligible = []
-    for i, (name, protein, poses) in enumerate(complexes, start=1):
+    for i, (name, protein, poses, _, excluded, near_native) in enumerate(complexes, start=1):
+        ensemble = (len(poses), excluded, near_native)
         prepared = PrepareComplex(protein, poses)
         try:
             prepared.prepare()
         except OutOfScopeError as error:
-            rows.append(_row(name, "rejected", prepared, error.error_type.value))
+            rows.append(_row(name, "rejected", prepared, ensemble, error.error_type.value))
         except PrepareError as error:
-            rows.append(_row(name, "failed", prepared, str(error)))
+            rows.append(_row(name, "failed", prepared, ensemble, str(error)))
         else:
-            rows.append(_row(name, "eligible", prepared))
+            rows.append(_row(name, "eligible", prepared, ensemble))
             eligible.append((name, prepared))
         if i % 25 == 0:
             print(f'File {i} screened')
@@ -177,7 +241,7 @@ def read(path=TABLE):
     return rows
 
 
-def _summarise(rows, incomplete, incorrect):
+def _summarise(rows, incomplete=(), incorrect=()):
     counted = Counter(row["status"] for row in rows)
     print('Screened', len(rows))
     print('Eligible', counted["eligible"])
@@ -189,8 +253,22 @@ def _summarise(rows, incomplete, incorrect):
     for row in rows:
         if row["status"] == "failed":
             print(f'  {row["name"]}: {row["rejection"]}')
+    if incorrect:
+        print('Busted', len(incorrect))
+        for why, count in Counter(why for _, why in incorrect).most_common():
+            print(f'  {count:4d}  {why}')
     if incomplete:
         print('Incomplete', len(incomplete), sorted(incomplete))
+
+    eligible = [row for row in rows if row["status"] == "eligible"]
+    counted = [row for row in eligible if row["poses"] is not None]
+    if counted:
+        kept = sum(row["poses"] for row in counted)
+        excluded = sum(row["excluded"] for row in counted)
+        near = sum(row["near_native"] for row in counted)
+        print(f'\nPoses {kept + excluded} over {len(counted)} eligible complexes')
+        print(f'  {excluded:4d}  excluded by PoseBusters')
+        print(f'  {kept:4d}  kept, {near} of them near-native')
 
 
 def quartiles(sizes):

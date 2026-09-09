@@ -105,10 +105,6 @@ Solving RHF for large cutouts is computationally very expensive. Also, highly ch
     1. (*) Jordan-Wigner instead of Bravyi-Kitaev.
     1. (*) The three integrals are what is stored, not the operator. They rebuild it under any mapping and are smaller than it by orders of magnitude.
 
-### Ligand Preparation and Encoding
-
-...
-
 #### Chemically relevant atomic valence orbitals
 
 **Note**: this is not the focus of experiment. The aim is only to provide a reproducible MVP for generating plausible AVAS target atomic orbitals from an arbitrary prepared protein cutout and its candidate-pose ensemble. AVAS uses the chosen atomic orbitals to identify the corresponding molecular-orbital subspace.
@@ -150,6 +146,14 @@ The following deviations apply relative to the KDM5A workflow in the original pa
 - **Electronic-structure software:** the original used TeraChem/Lightspeed for classical SCF and integral generation, Gaussian for structural calculations, and in-house quantum code. This implementation substitutes PySCF, and Dice for the SHCI as the original did. Dice has no conda package and only builds on Linux, so `setup.sh` builds it on the cluster and installs it into the environment; nothing else knows where it is, because `encode.py` finds it on the PATH.
 - **Final active-space size:** neither window fixes a size, and no automatic truncation to eight orbitals is attributed to the original method. Nothing in the pipeline bounds what the window returns, so a $\pi$-rich contact can leave more than a simulator can carry.
 - **Perturbative correction:** Dice is run variationally, with the schedule tightening onto $\epsilon_1$ over six iterations and `nPTiter 0`. The semistochastic perturbative correction is an energy correction and is not variational, and nothing downstream reads the energy: the natural occupations that decide the window are those of the variational wavefunction either way.
+
+### Ligand Preparation and Encoding
+
+The original protein-ligand experiment used monomer-centered bases, treated every ligand at RHF, and applied VQE only to the protein encoding. Thus, encoding the ligand is much simpler. Per pose:
+
+1. Take poses from `PrepareComplex.poses`.
+2. Verify that the number of electrons is even: $$N_{e}^{B_{i}} = \sum_{I} Z_{I} - q_{B_{i}}$$.
+3. Prepare explicit hydrogens.
 
 ## Setup
 

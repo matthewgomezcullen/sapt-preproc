@@ -59,12 +59,21 @@ def _poses(name):
     ]
 
 
+def _native(name):
+    """
+    The native ligand pose.
+    """
+    directory = os.path.join(POSEBUSTERS, name)
+    return [
+        os.path.join(directory, f)
+        for f in sorted(os.listdir(directory))
+        if f.endswith("_ligand.sdf")
+    ]
+
+
 def inventory():
     """
-    The complexes on disk, as (name, protein, poses), and the names of those missing a half.
-
-    A complex is screened only where both halves are present: DIFFDOCK also holds bust_results.csv,
-        and POSEBUSTERS holds complexes DiffDock was never run on.
+    Return complexes on disk (name, protein, poses, native)
     """
     for directory in (POSEBUSTERS, DIFFDOCK):
         if not os.path.isdir(directory):
@@ -89,6 +98,21 @@ def inventory():
             continue
         complexes.append((name, proteins[0], poses))
     return complexes, incomplete
+
+
+def bust_poses(complexes):
+    """
+    Reviews complex poses with PoseBusters.
+
+    Physically implausible poses are excluded and recorded. Sets with no near-native poses are 
+        rejected.
+
+    'dock' checks for physical plausibility.
+    'redock' ensures a near-native pose exists.
+
+    Returns complexes as (name, protein, poses, native, num_excluded)
+    """
+    ...
 
 
 def _row(name, status, prepared, rejection=""):
@@ -153,10 +177,7 @@ def read(path=TABLE):
     return rows
 
 
-def _summarise(rows, incomplete=()):
-    """
-    How many complexes were looked at, and what became of each.
-    """
+def _summarise(rows, incomplete, incorrect):
     counted = Counter(row["status"] for row in rows)
     print('Screened', len(rows))
     print('Eligible', counted["eligible"])
@@ -231,13 +252,13 @@ if __name__ == "__main__":
     arguments = parser.parse_args()
 
     if arguments.reuse:
-        # A stored screen carries the numbers but not the objects, which is all the tables need.
         rows = read()
         eligible = []
         _summarise(rows)
     else:
         complexes, incomplete = inventory()
+        complexes, incorrect = bust_poses(complexes)
         rows, eligible = screen(complexes)
         write(rows)
-        _summarise(rows, incomplete)
+        _summarise(rows, incomplete, incorrect)
     report(rows)

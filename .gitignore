@@ -4,6 +4,5 @@
 **/*.pdf
 **/temp.md
 
-# The full benchmark set filter.py screens, unpacked locally. The complexes the tests need are
-# tracked separately, under src/tests/data.
 /src/data/
+releases/

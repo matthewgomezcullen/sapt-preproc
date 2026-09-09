@@ -105,6 +105,10 @@ Solving RHF for large cutouts is computationally very expensive. Also, highly ch
     1. (*) Jordan-Wigner instead of Bravyi-Kitaev.
     1. (*) The three integrals are what is stored, not the operator. They rebuild it under any mapping and are smaller than it by orders of magnitude.
 
+### Ligand Preparation and Encoding
+
+...
+
 #### Chemically relevant atomic valence orbitals
 
 **Note**: this is not the focus of experiment. The aim is only to provide a reproducible MVP for generating plausible AVAS target atomic orbitals from an arbitrary prepared protein cutout and its candidate-pose ensemble. AVAS uses the chosen atomic orbitals to identify the corresponding molecular-orbital subspace.

@@ -122,9 +122,10 @@ class PrepareComplex:
         self._fix()
         self._clean()
         self._protonate()
-        self._mm_poses()
+        self._minimise()
         self._bust()
         self._reduce()
+        self._reverify()
         self._calculate_charge()
         self._verify_num_electrons()
 
@@ -288,13 +289,13 @@ class PrepareComplex:
         """
         self.whole, self.protonation = protonate.hydrogens(self.whole, self.pH, self.seed)
     
-    def _mm_poses(self):
+    def _minimise(self):
         """
         TODO: Energy minimise the poses to avoid clashes.
         """
         ...
 
-    def bust(self):
+    def _bust(self):
         """
         TODO: Run PoseBusters to screen physically impluasible poses.
 
@@ -354,6 +355,12 @@ class PrepareComplex:
                 OutOfScopeErrorType.SIZE_CAP,
                 f"capped cutout holds {self.heavy_atoms} heavy atoms, over the cap of {self.size_cap}",
             )
+
+    def _reverify(self):
+        """
+        TOOD: Reverify.
+        """
+        ...
 
     def _calculate_charge(self):
         """

@@ -1,0 +1,80 @@
+name,status,heavy_atoms,charge,electrons,poses,excluded,near_native,rejection
+5SAK_ZRY,eligible,172,-4,1300,8,32,8,
+5SB2_1K2,eligible,281,-2,2182,15,25,15,
+5SD5_HWI,rejected,,,,7,33,5,biological cofactor within the cutoff of a pose
+6M73_FNR,eligible,309,3,2338,35,5,35,
+6T88_MWQ,rejected,,,,1,39,1,biological cofactor within the cutoff of a pose
+6XG5_TOP,rejected,,,,27,13,26,biological cofactor within the cutoff of a pose
+6YQW_82I,eligible,116,0,868,38,2,38,
+6YSP_PAL,eligible,207,6,1592,7,33,7,
+6YT6_PKE,eligible,246,-1,1912,5,35,5,
+6Z14_Q4Z,eligible,217,-2,1614,22,18,22,
+6Z1C_7EY,rejected,,,,35,5,28,incomplete residue in the cutout
+6ZCY_QF8,eligible,202,-2,1574,13,27,1,
+7BJJ_TVW,eligible,96,-1,756,39,0,14,
+7BTT_F8R,eligible,185,0,1434,4,36,4,
+7DKT_GLF,eligible,244,-1,1848,29,3,29,
+7DUA_HJ0,eligible,207,-2,1586,10,22,10,
+7EBG_J0L,eligible,162,-1,1252,17,13,3,
+7EPV_FDA,eligible,289,0,2214,2,38,2,
+7F51_BA7,eligible,307,-1,2338,3,37,3,
+7F5D_EUO,eligible,151,-2,1136,12,28,4,
+7JXX_VP7,rejected,,,,3,36,3,metal coordination sphere split by the cutout
+7KB1_WBJ,eligible,266,1,2044,5,34,5,
+7L03_F9F,eligible,257,-1,1970,23,17,23,
+7LT0_ONJ,eligible,236,-1,1822,16,24,2,
+7MY1_IPE,rejected,,,,22,18,22,metal in the retained region
+7MYU_ZR7,eligible,282,0,2138,7,28,7,
+7N03_ZRP,eligible,329,-4,2472,21,19,20,
+7NFB_GEN,eligible,218,0,1718,22,18,22,
+7NGW_UAW,eligible,234,-1,1760,30,5,14,
+7NU0_DCL,rejected,,,,23,15,23,metal in the retained region
+7OEO_V9Z,eligible,178,-1,1358,4,36,3,
+7OSO_0V1,rejected,,,,27,13,16,metal coordination sphere split by the cutout
+7P1F_KFN,eligible,196,2,1498,12,24,12,
+7P1M_4IU,eligible,184,2,1390,2,38,1,
+7PGX_FMN,eligible,286,3,2192,36,4,36,
+7PL1_SFG,rejected,,,,4,36,4,incomplete residue in the cutout
+7PUV_84Z,rejected,,,,8,31,8,metal in the retained region
+7QF4_RBF,eligible,279,1,2130,26,14,26,
+7QPP_VDX,eligible,353,0,2710,14,26,14,
+7R59_I5F,eligible,130,0,982,36,4,25,
+7R7R_AWJ,eligible,198,-1,1542,4,36,4,
+7R9N_F97,eligible,169,-1,1314,16,24,16,
+7RC3_SAH,rejected,,,,16,24,16,metal in the retained region
+7ROR_69X,eligible,303,-3,2312,4,36,4,
+7ROU_66I,eligible,309,-2,2332,2,37,2,
+7RSV_7IQ,eligible,204,1,1548,17,22,17,
+7SCW_GSP,rejected,,,,13,27,13,metal in the retained region
+7T3E_SLB,eligible,218,-1,1670,17,19,17,
+7TM6_GPJ,rejected,,,,1,33,1,non-cofactor heterogen within the cutoff of a pose
+7UJ4_OQ4,rejected,,,,15,25,1,metal in the retained region
+7UQ3_O2U,rejected,,,,5,35,5,metal in the retained region
+7USH_82V,eligible,157,-1,1188,39,0,39,
+7V14_ORU,eligible,238,-1,1832,12,27,12,
+7V3S_5I9,eligible,276,0,2128,1,39,1,
+7V43_C4O,rejected,,,,18,22,4,metal in the retained region
+7VB8_STL,eligible,239,-2,1846,5,35,4,
+7VBU_6I4,eligible,162,-1,1260,30,10,1,
+7VC5_9SF,rejected,,,,1,38,1,non-cofactor heterogen within the cutoff of a pose
+7VKZ_NOJ,eligible,168,-2,1274,21,19,21,
+7VWF_K55,eligible,387,3,2976,3,36,2,
+7VYJ_CA0,rejected,,,,1,38,1,metal in the retained region
+7W05_GMP,eligible,136,-2,1006,4,36,2,
+7WJB_BGC,eligible,239,-4,1794,36,4,36,
+7WPW_F15,eligible,299,2,2290,28,12,28,
+7WQQ_5Z6,eligible,313,1,2412,38,2,38,
+7X9K_8OG,rejected,,,,17,23,9,metal in the retained region
+7XFA_D9J,eligible,199,1,1514,21,19,17,
+7XI7_4RI,eligible,193,-1,1478,40,0,40,
+7Z1Q_NIO,eligible,164,2,1252,2,38,1,
+7Z2O_IAJ,eligible,141,0,1054,22,17,1,
+7ZL5_IWE,rejected,,,,1,37,1,metal in the retained region
+7ZU2_DHT,eligible,265,0,2080,40,0,40,
+8A1H_DLZ,eligible,246,-5,1872,11,29,11,
+8AAU_LH0,rejected,,,,20,20,20,metal coordination sphere split by the cutout
+8AY3_OE3,eligible,294,-1,2228,15,25,4,
+8B8H_OJQ,rejected,,,,2,38,2,ligand with a non-zero formal charge
+8D5D_5DK,rejected,,,,6,34,3,cutout exceeds the heavy-atom cap
+8EYE_X4I,rejected,,,,8,32,8,metal in the retained region
+8SLG_G5A,eligible,326,-4,2482,10,27,10,

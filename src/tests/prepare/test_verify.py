@@ -5,12 +5,27 @@ Each rejection test uses a real complex chosen so that it violates exactly one r
 
 The following aren't tested because the dataset contains no case that violates them: covalent
     ligands, and ligands that are not closed-shell singlets.
+
+_reverify closes the gap _verify leaves once minimisation moves the poses. Its rules read the
+    shell, and by then _clean has deleted the metals and heterogens the shell is judged against and
+    _fix has destroyed the occupancies, so _verify stashes all three on the way past.
 """
 
+import copy
+import functools
+
+import numpy as np
 import pytest
+from rdkit import Chem
+from rdkit.Geometry import Point3D
 
 from conftest import paths
 from prepare import PrepareComplex, OutOfScopeError, OutOfScopeErrorType
+
+# 6TW5_9M2 is accepted, and carries both kinds of stash outside its shell: three loose Mg ions and
+# MYA, a myristoyl chain that is no crystallisation additive.
+STASHED = "6TW5_9M2"
+MYA = "MYA"
 
 
 def rejection(name):
@@ -204,3 +219,151 @@ def test_verify_accepts_zero_occupancy_hydrogens_in_cutout():
     prepared = PrepareComplex(*paths("7YZU_DO7"))
     prepared._fetch()
     prepared._verify()
+
+
+@functools.lru_cache(maxsize=None)
+def _reduced(name):
+    """
+    A complex carried as far as _reverify.
+    """
+    prepared = PrepareComplex(*paths(name))
+    prepared._fetch()
+    prepared._verify()
+    prepared._fix()
+    prepared._clean()
+    prepared._protonate()
+    prepared._minimise()
+    prepared._bust()
+    prepared._reduce()
+    return prepared
+
+
+def reduced(name):
+    """
+    A copy of the shared run.
+    """
+    return copy.copy(_reduced(name))
+
+
+def stashed(prepared, metal):
+    return [position for _, position, is_metal in prepared.deleted if is_metal is metal]
+
+
+def onto(poses, target):
+    """
+    Every pose translated so that its first atom sits on `target`.
+    """
+    moved = []
+    for pose in poses:
+        copied = Chem.Mol(pose) # pyright: ignore[reportAttributeAccessIssue]
+        conformer = copied.GetConformer()
+        shift = np.array(target) - np.array(conformer.GetAtomPosition(0))
+        for index in range(copied.GetNumAtoms()):
+            position = np.array(conformer.GetAtomPosition(index)) + shift
+            conformer.SetAtomPosition(index, Point3D(*position))
+        moved.append(copied)
+    return moved
+
+
+@pytest.mark.long_protonate
+def test_verify_stashes_the_molecules_clean_deletes():
+    prepared = PrepareComplex(*paths(STASHED))
+    prepared._fetch()
+    prepared._verify()
+
+    assert stashed(prepared, metal=True)
+    assert MYA in {name for name, _, _ in prepared.deleted}
+
+    prepared._fix()
+    prepared._clean()
+
+    remaining = {residue.name for chain in prepared.whole for residue in chain}
+    assert MYA not in remaining
+    assert not any(
+        atom.element.is_metal
+        for chain in prepared.whole
+        for residue in chain
+        for atom in residue
+    )
+    assert stashed(prepared, metal=True)
+
+
+@pytest.mark.long_protonate
+def test_reverify_accepts_a_cutout_the_poses_did_not_change():
+    prepared = reduced(STASHED)
+
+    prepared._reverify()
+
+
+@pytest.mark.long_protonate
+def test_reverify_rejects_a_metal_the_moved_poses_reached():
+    """
+    A metal outside the input shell can fall inside it once minimisation has moved the pose.
+    """
+    prepared = reduced(STASHED)
+    prepared.poses = onto(prepared.poses, stashed(prepared, metal=True)[0])
+
+    with pytest.raises(OutOfScopeError) as rejected:
+        prepared._reverify()
+
+    assert rejected.value.error_type is OutOfScopeErrorType.METAL
+
+
+@pytest.mark.long_protonate
+def test_reverify_rejects_a_heterogen_the_moved_poses_reached():
+    prepared = reduced(STASHED)
+    myristoyl = next(position for name, position, _ in prepared.deleted if name == MYA)
+    prepared.poses = onto(prepared.poses, myristoyl)
+
+    with pytest.raises(OutOfScopeError) as rejected:
+        prepared._reverify()
+
+    assert rejected.value.error_type is OutOfScopeErrorType.HETEROGEN
+
+
+@pytest.mark.long_protonate
+def test_reverify_rejects_a_split_metal_coordination_sphere():
+    """
+    This rule reads the retained residues rather than the poses, so the stashed metal is put on one
+        rather than the poses moved onto the metal.
+    """
+    prepared = reduced(STASHED)
+    retained = next(
+        (atom.pos.x, atom.pos.y, atom.pos.z)
+        for chain in prepared.reduced
+        for residue in chain
+        for atom in residue
+        if not atom.element.is_hydrogen
+    )
+    prepared.deleted = [("MG", np.array(retained), True)]
+
+    with pytest.raises(OutOfScopeError) as rejected:
+        prepared._reverify()
+
+    assert rejected.value.error_type is OutOfScopeErrorType.SPLIT_METAL_COORDINATION
+
+
+@pytest.mark.long_protonate
+def test_reverify_rejects_a_zero_occupancy_residue_the_cutout_reached():
+    """
+    _fix destroys the occupancies, so this rule reads a stash of every residue in the structure
+        holding a zero-occupancy heavy atom.
+
+    Which residue is retained depends on where minimisation left the poses, so one of the retained
+        ones is put into the stash rather than a fixture hunted for that happens to have a
+        zero-occupancy atom just outside its shell.
+    """
+    prepared = reduced(STASHED)
+    assert isinstance(prepared.unoccupied, set)
+    retained = next(
+        (chain.name, residue.seqid.num, residue.seqid.icode)
+        for chain in prepared.reduced
+        for residue in chain
+        if residue.name not in {"ACE", "NME"}
+    )
+    prepared.unoccupied = {retained}
+
+    with pytest.raises(OutOfScopeError) as rejected:
+        prepared._reverify()
+
+    assert rejected.value.error_type is OutOfScopeErrorType.ZERO_OCCUPANCY

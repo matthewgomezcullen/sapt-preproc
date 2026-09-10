@@ -29,7 +29,7 @@ import numpy as np
 import pytest
 from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 
-from conftest import paths
+from conftest import paths, verify_protein
 from prepare import PrepareComplex, OutOfScopeError, OutOfScopeErrorType
 from utils import verify
 
@@ -80,7 +80,7 @@ def prepare(name):
     """
     _prepare = PrepareComplex(*paths(name))
     _prepare._fetch()
-    _prepare._verify()
+    verify_protein(_prepare)
     _prepare._fix()
     _prepare._clean()
     _prepare._protonate()

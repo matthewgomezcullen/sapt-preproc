@@ -106,7 +106,6 @@ def test_verify_rejects_other_heterogen_in_shell(name):
         "7OPG_06N",     # two glycerols, GOL A502 and A503
         "7QF4_RBF",     # a chloride ion, CL A203
         "7FB7_8NF",     # MPD, a cryoprotectant of 8 heavy atoms
-        "7TBU_S3P",     # TRS, Tris buffer
     ],
 )
 def test_verify_accepts_crystallisation_additive_in_shell(name):
@@ -153,6 +152,27 @@ def test_verify_rejects_charged_ligand():
     7TXK_LW8 has a ligand with formal charge +1.
     """
     assert rejection("7TXK_LW8") is OutOfScopeErrorType.CHARGED_LIGAND
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "7W06_ITN",     # itaconic acid, two carboxylic acids, a dianion at 7.4
+        "7TBU_S3P",     # shikimate-3-phosphate, a carboxylic acid and a phosphate
+        "7YZU_DO7",     # a sulfonate
+    ],
+)
+def test_verify_rejects_ligand_ionised_at_physiological_pH(name):
+    """
+    These three carry a group that is ionised at 7.4 and encoded as the neutral acid it is not.
+    """
+    assert rejection(name) is OutOfScopeErrorType.ACIDIC_LIGAND
+
+
+def test_verify_accepts_a_ligand_with_no_ionisable_group():
+    prepared = PrepareComplex(*paths("7NFB_GEN"))
+    prepared._fetch()
+    prepared._verify()
 
 
 def test_verify_rejects_oversized_cutout():
@@ -211,14 +231,10 @@ def test_verify_rejects_zero_occupancy_heavy_atom_in_cutout():
 
 def test_verify_accepts_zero_occupancy_hydrogens_in_cutout():
     """
-    The rule is about heavy atoms only. _clean strips every deposited hydrogen before protonation, 
-        so a zero-occupancy hydrogen never reaches the QM region. 
-
-    7YZU_DO7 retains eight zero-occupancy atoms, all of them hydroxyl or imidazole hydrogens.
+    _clean strips every deposited hydrogen before protonation, so a zero-occupancy hydrogen are 
+        never rejected.
     """
-    prepared = PrepareComplex(*paths("7YZU_DO7"))
-    prepared._fetch()
-    prepared._verify()
+    ...
 
 
 @functools.lru_cache(maxsize=None)

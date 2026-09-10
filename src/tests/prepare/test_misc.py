@@ -16,8 +16,8 @@ import functools
 
 import pytest
 
-from conftest import paths
-from prepare import PrepareComplex, PrepareError
+from conftest import paths, verify_protein
+from prepare import PrepareComplex, PrepareError, OutOfScopeError, OutOfScopeErrorType
 
 SIMPLE = "5S8I_2LY"
 CHARGED = "7WPW_F15"
@@ -46,7 +46,7 @@ def prepare(name):
     """
     _prepare = PrepareComplex(*paths(name))
     _prepare._fetch()
-    _prepare._verify()
+    verify_protein(_prepare)
     _prepare._fix()
     _prepare._clean()
     _prepare._protonate()

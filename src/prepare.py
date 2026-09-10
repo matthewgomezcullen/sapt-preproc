@@ -1,3 +1,5 @@
+from collections import Counter
+
 import gemmi
 import numpy as np
 from rdkit import Chem
@@ -5,7 +7,7 @@ from pyscf.gto.basis import load as load_basis
 from pyscf.lib.exceptions import BasisNotFoundError
 from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 from enum import Enum
-from utils import charge, clean, fix, protonate, reduce, verify
+from utils import bust, charge, clean, fix, mm, protonate, reduce, verify
 
 
 # PDB chemical component IDs for the biological cofactors. Decides which rejection is reported. 
@@ -35,11 +37,17 @@ ADDITIVES = frozenset({
 })
 
 
+# Groups whose pKa lies far enough below 7.4 that the SDF's neutral depiction is wrong
+ACIDIC = {
+    "carboxylic acid": Chem.MolFromSmarts("[CX3](=[OX1])[OX2H1,OX1-]"), # pyright: ignore[reportAttributeAccessIssue]
+    "phosphate": Chem.MolFromSmarts("[PX4](=[OX1])[OX2H1,OX1-]"), # pyright: ignore[reportAttributeAccessIssue]
+    "sulfonate": Chem.MolFromSmarts("[SX4](=[OX1])(=[OX1])[OX2H1,OX1-]"), # pyright: ignore[reportAttributeAccessIssue]
+}
+
+
 class OutOfScopeErrorType(Enum):
     """
-    One member per eligibility rule   
-    
-    TODO: Add INVALID_POSES
+    One member per eligibility rule
     """
     METAL = "metal in the retained region"
     COFACTOR = "biological cofactor within the cutoff of a pose"
@@ -52,6 +60,8 @@ class OutOfScopeErrorType(Enum):
     ZERO_OCCUPANCY = "zero-occupancy heavy atom in the cutout"
     CHAIN_BREAK = "chain break in the cutout"
     SPLIT_DISULFIDE = "disulfide split by the cutout"
+    ACIDIC_LIGAND = "ligand carrying a group ionised at pH 7.4"
+    INVALID_POSES = "no physically valid pose"
 
 
 class OutOfScopeError(RuntimeError):
@@ -100,6 +110,12 @@ class PrepareComplex:
         self.charge = None
         self.electrons = None
         self.heavy_atoms = None
+        self.excluded = None
+        self.failed = Counter()
+
+        # What _verify records for _reverify
+        self.deleted = []
+        self.unoccupied = set()
 
         # Scope assumptions
         self.pH = 7.4
@@ -156,6 +172,27 @@ class PrepareComplex:
         """
         if self.poses is None:
             raise PrepareError("Cannot verify the complex without poses")
+        self.deleted = [
+            (
+                residue.name,
+                np.array([atom.pos.x, atom.pos.y, atom.pos.z]),
+                atom.element.is_metal,
+            )
+            for chain in self.whole
+            for residue in chain
+            for atom in residue
+            if not atom.element.is_hydrogen
+            and not _is_amino_acid(residue.name)
+            and not _is_water(residue.name)
+        ]
+        self.unoccupied = {
+            verify.identifier(chain, residue)
+            for chain in self.whole
+            for residue in chain
+            for atom in residue
+            if not atom.element.is_hydrogen and not atom.occ
+        }
+
         retained = verify.cutout(self.whole, self._pose_coordinates(), self.cutoff)
         residues = [(chain, residue) for chain, residue, _, _ in retained]
 
@@ -254,6 +291,14 @@ class PrepareComplex:
                 f"cutout holds {heavy_atoms} heavy atoms, over the cap of {self.size_cap}",
             )
 
+        for path, pose in zip(self.poses_paths, self.poses):
+            for group, pattern in ACIDIC.items():
+                if pose.HasSubstructMatch(pattern):
+                    raise OutOfScopeError(
+                        OutOfScopeErrorType.ACIDIC_LIGAND,
+                        f"pose {path} carries a {group}, drawn neutral but ionised at pH {self.pH}",
+                    )
+
     def _fix(self):
         """
         Fix missing atoms, residues, and terminal atoms.
@@ -283,25 +328,34 @@ class PrepareComplex:
 
     def _protonate(self):
         """
-        Protonates the entire protein, recording the state chosen for each residue.
+        Protonates the entire protein, recording the state chosen for each residue, and assigns
+            every pose explicit hydrogens .
 
-        TODO: Protonate the poses.
+        Modeller has no template for an arbitrary ligand, so use RDKit.
         """
         self.whole, self.protonation = protonate.hydrogens(self.whole, self.pH, self.seed)
-    
+        self.poses = mm.hydrogens(self.poses)
+
     def _minimise(self):
         """
-        TODO: Energy minimise the poses to avoid clashes.
+        Relaxes every pose in the field of the protonated protein, protein fixed and ligand free.
         """
-        ...
+        self.poses = mm.minimise(self.whole, self.poses)
 
     def _bust(self):
         """
-        TODO: Run PoseBusters to screen physically impluasible poses.
+        Drops the poses PoseBusters finds physically implausible.
 
-        Exclude organic cofactors.
+        _clean has deleted every heterogen, so a pose is only ever held against the polymer.
         """
-        ...
+        kept, self.failed = bust.valid(self.whole, self.poses)
+        self.excluded = len(self.poses) - len(kept)
+        if not kept:
+            raise OutOfScopeError(
+                OutOfScopeErrorType.INVALID_POSES,
+                f"PoseBusters rejected all {self.excluded} pose(s)",
+            )
+        self.poses = kept
 
     def _reduce(self):
         """
@@ -320,8 +374,6 @@ class PrepareComplex:
 
         A residue whose side chain _fix rebuilt into the cutout is rejected here. The size cap is 
             applied again
-
-        TODO: definitively reverify.
         """
         keep = {
             verify.identifier(chain, residue)
@@ -358,9 +410,83 @@ class PrepareComplex:
 
     def _reverify(self):
         """
-        TOOD: Reverify.
+        The shell rules again, against the poses minimisation left.
+
+        The size cap and repaired residues are _reduce's and are not repeated here.
         """
-        ...
+        if self.reduced is None:
+            raise PrepareError("Cannot reverify before the protein is reduced")
+
+        poses = cKDTree(self._pose_coordinates())
+        shell = [
+            (name, metal)
+            for name, position, metal in self.deleted
+            if poses.query_ball_point(position, self.cutoff, return_length=True)
+        ]
+        for name, metal in shell:
+            if metal:
+                raise OutOfScopeError(
+                    OutOfScopeErrorType.METAL,
+                    f"{name} within {self.cutoff} A of a minimised pose",
+                )
+
+        heterogens = {name for name, _ in shell} - ADDITIVES
+        cofactors = heterogens & COFACTORS
+        if cofactors:
+            raise OutOfScopeError(
+                OutOfScopeErrorType.COFACTOR,
+                f"cofactor(s) {sorted(cofactors)} within {self.cutoff} A of a minimised pose",
+            )
+        if heterogens:
+            raise OutOfScopeError(
+                OutOfScopeErrorType.HETEROGEN,
+                f"heterogen(s) {sorted(heterogens)} within {self.cutoff} A of a minimised pose",
+            )
+
+        retained = {
+            (chain.name, residue.seqid.num, residue.seqid.icode)
+            for chain in self.reduced
+            for residue in chain
+        }
+        unoccupied = self.unoccupied & retained
+        if unoccupied:
+            raise OutOfScopeError(
+                OutOfScopeErrorType.ZERO_OCCUPANCY,
+                f"{len(unoccupied)} zero-occupancy residue(s) in the cutout, "
+                f"e.g. {min(unoccupied)}",
+            )
+
+        metals = [position for _, position, metal in self.deleted if metal]
+        if metals:
+            coordinates = np.array([
+                (atom.pos.x, atom.pos.y, atom.pos.z)
+                for chain in self.reduced
+                for residue in chain
+                for atom in residue
+                if not atom.element.is_hydrogen
+            ])
+            distances, _ = cKDTree(coordinates).query(metals)
+            if distances.min() < self.metal_coordination_cutoff:
+                raise OutOfScopeError(
+                    OutOfScopeErrorType.SPLIT_METAL_COORDINATION,
+                    f"metal {distances.min():.2f} A from a retained residue",
+                )
+
+        half = verify.split_disulfide(
+            self.whole,
+            [
+                (chain, residue)
+                for chain, residue, _, _ in verify.cutout(
+                    self.whole, self._pose_coordinates(), self.cutoff
+                )
+            ],
+            self.disulfide_cutoff,
+        )
+        if half:
+            raise OutOfScopeError(
+                OutOfScopeErrorType.SPLIT_DISULFIDE,
+                f"cutout retains CYS {half} without its disulfide partner",
+            )
 
     def _calculate_charge(self):
         """

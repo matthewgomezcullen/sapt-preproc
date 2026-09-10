@@ -5,6 +5,8 @@ import sys
 
 import pytest
 
+from prepare import OutOfScopeError, OutOfScopeErrorType
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 # src/, so the tests can import the modules under test. Then this directory, because the tests
@@ -38,6 +40,17 @@ def paths(name):
         if POSE_PATTERN.fullmatch(f) and not f.endswith(DROPPED_CONFIDENCE)
     )
     return protein, poses
+
+
+def verify_protein(prepared):
+    """
+    _verify, tolerating only ligand-problems. 
+    """
+    try:
+        prepared._verify()
+    except OutOfScopeError as rejected:
+        if rejected.error_type is not OutOfScopeErrorType.ACIDIC_LIGAND:
+            raise
 
 
 def pytest_addoption(parser):

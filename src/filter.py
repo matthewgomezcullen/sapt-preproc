@@ -13,7 +13,7 @@ import statistics
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 
-from posebusters import PoseBusters, check_rmsd
+from posebusters import check_rmsd
 from rdkit import Chem
 from tqdm import tqdm
 
@@ -27,14 +27,12 @@ POSEBUSTERS = os.path.join(DATA, "posebusters")
 OUT = os.path.join(ROOT, "out")
 TABLE = os.path.join(OUT, "filter.csv")
 
-VALIDITY = "dock"
-
-FAR = "protein-ligand_maximum_distance"
 NEAR_NATIVE = 2.0
 
-# Why an ensemble leaves the screen before its complex is ever prepared.
+# Minimisation moves a pose a little, so nothing outside this can come back inside NEAR_NATIVE.
+LOOSE = 3.5
+
 GENERATOR = "no near-native pose generated"
-VALIDITY_FAILURE = "every near-native pose is physically invalid"
 
 FIELDS = [
     "name", "status", "heavy_atoms", "charge", "electrons", "poses", "excluded", "near_native",
@@ -110,134 +108,104 @@ def inventory():
     return complexes, incomplete
 
 
-def _near_native(poses, native, threshold=NEAR_NATIVE):
+def near_native(poses, native, threshold=NEAR_NATIVE):
     """
-    The poses sitting within `threshold` of the deposited ligand.
+    The poses sitting within `threshold` of the deposited ligand, given as paths or as molecules.
 
     RMSD is symmetry-corrected and over heavy atoms.
     """
     crystal = Chem.MolFromMolFile(native) # pyright: ignore[reportAttributeAccessIssue]
     if crystal is None:
-        return set()
+        return []
 
-    near = set()
+    near = []
     for pose in poses:
-        docked = Chem.MolFromMolFile(pose) # pyright: ignore[reportAttributeAccessIssue]
+        docked = (
+            Chem.MolFromMolFile(pose) # pyright: ignore[reportAttributeAccessIssue]
+            if isinstance(pose, str)
+            else pose
+        )
         if docked is None:
             continue
-        results = check_rmsd(docked, crystal, rmsd_threshold=threshold)["results"]
-        if results["rmsd_within_threshold"]:
-            near.add(pose)
+        if check_rmsd(docked, crystal, rmsd_threshold=threshold)["results"][
+            "rmsd_within_threshold"
+        ]:
+            near.append(pose)
     return near
 
 
-def _valid(poses, protein):
+def candidates(complexes):
     """
-    The poses PoseBusters finds physically plausible, and the checks the rest of them failed.
+    Complexes whose ensemble holds a pose loosely near the deposited ligand, and those it drops.
 
-    FAR is dropped. We do not exclude based on the distance to the native pose.
     """
-    table = PoseBusters(VALIDITY, max_workers=0).bust(poses, None, protein)
-    table = table.drop(columns=FAR, errors="ignore")
-    passed = {file for (file, _, _), ok in table.all(axis=1).items() if ok}
-    failed = Counter({
-        check: int(count) for check, count in (~table).sum().items() if count
-    })
-    return [pose for pose in poses if pose in passed], failed
+    kept, incorrect = [], []
+    for one in tqdm(complexes, desc="Sampling", unit="complex"):
+        name, _, poses, native = one
+        if near_native(poses, native, LOOSE):
+            kept.append(one)
+        else:
+            incorrect.append((name, GENERATOR))
+    return kept, incorrect
 
 
-def _bust(complex):
+def _row(name, status, prepared, near, rejection=""):
     """
-    One ensemble, reviewed.
-
-    Runs in a process of its own, so it takes and returns paths and counts.
+    One complex's screening result.
     """
-    name, protein, poses, native = complex
-    near = _near_native(poses, native)
-    if not near:
-        return None, (name, GENERATOR), Counter()
-
-    valid, failed = _valid(poses, protein)
-    usable = near.intersection(valid)
-    if not usable:
-        return None, (name, VALIDITY_FAILURE), failed
-    kept = (name, protein, valid, native, len(poses) - len(valid), len(usable))
-    return kept, None, failed
-
-
-def bust_poses(complexes, workers=None):
-    """
-    Reviews complex poses with PoseBusters.
-
-    Physically implausible poses are excluded and recorded. Sets with no near-native poses are
-        rejected.
-
-    Ensembles busted in parallel.
-
-    Returns complexes as (name, protein, poses, native, excluded, near_native), the ensembles
-        dropped as (name, why), and the checks every excluded pose failed.
-    """
-    kept, incorrect, checks = [], [], Counter()
-    with ProcessPoolExecutor(max_workers=workers) as pool:
-        reviewed = tqdm(
-            pool.map(_bust, complexes),
-            total=len(complexes),
-            desc="Busting",
-            unit="complex",
-        )
-        for one, dropped, failed in reviewed:
-            checks.update(failed)
-            if dropped:
-                incorrect.append(dropped)
-            else:
-                kept.append(one)
-    return kept, incorrect, checks
-
-
-def _row(name, status, prepared, ensemble, rejection=""):
-    """
-    One complex's and PoseBusters' screening result.
-    """
-    poses, excluded, near_native = ensemble
     return {
         "name": name,
         "status": status,
         "heavy_atoms": "" if prepared.heavy_atoms is None else prepared.heavy_atoms,
         "charge": "" if prepared.charge is None else prepared.charge,
         "electrons": "" if prepared.electrons is None else prepared.electrons,
-        "poses": poses,
-        "excluded": excluded,
-        "near_native": near_native,
+        "poses": len(prepared.poses) if prepared.poses else "",
+        "excluded": "" if prepared.excluded is None else prepared.excluded,
+        "near_native": near,
         "rejection": rejection,
     }
 
 
-def screen(complexes):
+def _prepare(one):
+    """
+    One complex prepared and then checked for near-native existence. Runs in its own process.
+    """
+    name, protein, poses, native = one
+    prepared = PrepareComplex(protein, poses)
+    try:
+        prepared.prepare()
+    except OutOfScopeError as error:
+        return _row(name, "rejected", prepared, 0, error.error_type.value), prepared.failed
+    except PrepareError as error:
+        return _row(name, "failed", prepared, 0, str(error)), prepared.failed
+
+    near = len(near_native(prepared.poses, native))
+    if not near:
+        return _row(name, "unusable", prepared, near, GENERATOR), prepared.failed
+    return _row(name, "eligible", prepared, near), prepared.failed
+
+
+def screen(complexes, workers=None):
     """
     Prepare every complex.
 
     An OutOfScopeError means the complex is outside the method; a PrepareError means it could not
-        be read or prepared.
+        be read or prepared; `unusable` means the ensemble holds no near-native pose.
 
-    TODO: drop `eligiblel`
+    Parallelised. `map` keeps the rows in the order the complexes came in.
     """
-    rows = []
-    eligible = []
-    for name, protein, poses, _, excluded, near_native in tqdm(
-        complexes, desc="Screening", unit="complex"
-    ):
-        ensemble = (len(poses), excluded, near_native)
-        prepared = PrepareComplex(protein, poses)
-        try:
-            prepared.prepare()
-        except OutOfScopeError as error:
-            rows.append(_row(name, "rejected", prepared, ensemble, error.error_type.value))
-        except PrepareError as error:
-            rows.append(_row(name, "failed", prepared, ensemble, str(error)))
-        else:
-            rows.append(_row(name, "eligible", prepared, ensemble))
-            eligible.append((name, prepared))
-    return rows, eligible
+    rows, checks = [], Counter()
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        prepared = tqdm(
+            pool.map(_prepare, complexes),
+            total=len(complexes),
+            desc="Screening",
+            unit="complex",
+        )
+        for row, failed in prepared:
+            rows.append(row)
+            checks.update(failed)
+    return rows, checks
 
 
 def write(rows, path=TABLE):
@@ -275,10 +243,9 @@ def _summarise(rows, incomplete=(), incorrect=(), checks=()):
     for row in rows:
         if row["status"] == "failed":
             print(f'  {row["name"]}: {row["rejection"]}')
-    if incorrect:
-        print('Busted', len(incorrect))
-        for why, count in Counter(why for _, why in incorrect).most_common():
-            print(f'  {count:4d}  {why}')
+    unusable = counted["unusable"] + len(incorrect)
+    if unusable:
+        print('Unusable', unusable, f'({GENERATOR})')
     if incomplete:
         print('Incomplete', len(incomplete), sorted(incomplete))
 
@@ -293,7 +260,7 @@ def _summarise(rows, incomplete=(), incorrect=(), checks=()):
         print(f'  {kept:4d}  kept, {near} of them near-native')
 
     if checks:
-        print(f'\nChecks failed, by pose. {FAR} is not among them; it is not held against a pose\n')
+        print('\nChecks failed, by pose\n')
         for check, count in Counter(checks).most_common():
             print(f'  {count:5d}  {check}')
 
@@ -358,20 +325,19 @@ if __name__ == "__main__":
         "--workers",
         type=int,
         default=None,
-        help="Processes to review the ensembles with. Defaults to the machine's cores, which under "
-             "a scheduler is the node's rather than what the job was given.",
+        help="Processes to prepare the complexes with. Defaults to the machine's cores, which "
+             "under a scheduler is the node's rather than what the job was given.",
     )
     arguments = parser.parse_args()
 
     if arguments.reuse:
         rows = read()
-        eligible = []
         _summarise(rows)
     else:
         complexes, incomplete = inventory()
         complexes = complexes[:10]
-        complexes, incorrect, checks = bust_poses(complexes, workers=arguments.workers)
-        rows, eligible = screen(complexes)
+        complexes, incorrect = candidates(complexes)
+        rows, checks = screen(complexes, workers=arguments.workers)
         write(rows)
         _summarise(rows, incomplete, incorrect, checks)
     report(rows)

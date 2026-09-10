@@ -38,6 +38,8 @@ ADDITIVES = frozenset({
 class OutOfScopeErrorType(Enum):
     """
     One member per eligibility rule   
+    
+    TODO: Add INVALID_POSES
     """
     METAL = "metal in the retained region"
     COFACTOR = "biological cofactor within the cutoff of a pose"
@@ -94,6 +96,7 @@ class PrepareComplex:
         self.reduced = None
         self.poses = None
         self.protonation = None
+        self.poses_protonation = None # TODO
         self.charge = None
         self.electrons = None
         self.heavy_atoms = None
@@ -119,6 +122,8 @@ class PrepareComplex:
         self._fix()
         self._clean()
         self._protonate()
+        self._mm_poses()
+        self._bust()
         self._reduce()
         self._calculate_charge()
         self._verify_num_electrons()
@@ -278,8 +283,24 @@ class PrepareComplex:
     def _protonate(self):
         """
         Protonates the entire protein, recording the state chosen for each residue.
+
+        TODO: Protonate the poses.
         """
         self.whole, self.protonation = protonate.hydrogens(self.whole, self.pH, self.seed)
+    
+    def _mm_poses(self):
+        """
+        TODO: Energy minimise the poses to avoid clashes.
+        """
+        ...
+
+    def bust(self):
+        """
+        TODO: Run PoseBusters to screen physically impluasible poses.
+
+        Exclude organic cofactors.
+        """
+        ...
 
     def _reduce(self):
         """
@@ -294,10 +315,12 @@ class PrepareComplex:
             and takes its backbone coordinates from the structure, and at a chain end there is no
             such residue to take them from. However, that costs a charge.
 
-        TODO: Separate the cases with the SEQRES records
+        TODO (v2): Separate the cases with the SEQRES records
 
         A residue whose side chain _fix rebuilt into the cutout is rejected here. The size cap is 
             applied again
+
+        TODO: definitively reverify.
         """
         keep = {
             verify.identifier(chain, residue)

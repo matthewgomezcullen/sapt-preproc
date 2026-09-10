@@ -218,6 +218,8 @@ def screen(complexes):
 
     An OutOfScopeError means the complex is outside the method; a PrepareError means it could not
         be read or prepared.
+
+    TODO: drop `eligiblel`
     """
     rows = []
     eligible = []

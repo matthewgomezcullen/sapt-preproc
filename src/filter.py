@@ -9,14 +9,16 @@ import argparse
 import bisect
 import csv
 import os
-import re
 import statistics
 from collections import Counter
+from concurrent.futures import ProcessPoolExecutor
 
 from posebusters import PoseBusters, check_rmsd
 from rdkit import Chem
+from tqdm import tqdm
 
 from prepare import PrepareComplex, OutOfScopeError, PrepareError
+from run import FAIL, POSE
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(ROOT, 'data')
@@ -24,13 +26,6 @@ DIFFDOCK = os.path.join(DATA, "diffdock")
 POSEBUSTERS = os.path.join(DATA, "posebusters")
 OUT = os.path.join(ROOT, "out")
 TABLE = os.path.join(OUT, "filter.csv")
-
-# DiffDock names each pose it kept rank<N>_confidence<X>.sdf. Alongside those it writes a bare
-# rank1.sdf copy of the top-ranked pose and, for some complexes, an energy-minimised
-# rank<N>_confidence<X>_ensemble_relaxed.sdf.
-POSE = re.compile(r"^rank\d+_confidence-?\d+\.\d+\.sdf$")
-
-FAIL = "confidence-1000"
 
 VALIDITY = "dock"
 
@@ -135,42 +130,58 @@ def _near_native(poses, native, threshold=NEAR_NATIVE):
     return near
 
 
-def _valid(buster, poses, protein):
+def _valid(poses, protein):
     """
     The poses PoseBusters finds physically plausible.
     """
-    table = buster.bust(poses, None, protein)
+    table = PoseBusters(VALIDITY, max_workers=0).bust(poses, None, protein)
     passed = {file for (file, _, _), ok in table.all(axis=1).items() if ok}
     return [pose for pose in poses if pose in passed]
 
 
-def bust_poses(complexes):
+def _bust(complex):
+    """
+    One ensemble, reviewed.
+
+    Runs in a process of its own, so it takes and returns paths and counts.
+    """
+    name, protein, poses, native = complex
+    near = _near_native(poses, native)
+    if not near:
+        return None, (name, GENERATOR)
+
+    valid = _valid(poses, protein)
+    usable = near.intersection(valid)
+    if not usable:
+        return None, (name, VALIDITY_FAILURE)
+    return (name, protein, valid, native, len(poses) - len(valid), len(usable)), None
+
+
+def bust_poses(complexes, workers=None):
     """
     Reviews complex poses with PoseBusters.
 
-    Physically implausible poses are excluded and recorded. Sets with no near-native poses are 
+    Physically implausible poses are excluded and recorded. Sets with no near-native poses are
         rejected.
+
+    Ensembles busted in parallel.
 
     Returns complexes as (name, protein, poses, native, excluded, near_native), and the ensembles
         dropped as (name, why).
     """
-    buster = PoseBusters(VALIDITY)
     kept, incorrect = [], []
-    for i, (name, protein, poses, native) in enumerate(complexes, start=1):
-        near = _near_native(poses, native)
-        if not near:
-            incorrect.append((name, GENERATOR))
-        else:
-            valid = _valid(buster, poses, protein)
-            usable = near.intersection(valid)
-            if not usable:
-                incorrect.append((name, VALIDITY_FAILURE))
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        reviewed = tqdm(
+            pool.map(_bust, complexes),
+            total=len(complexes),
+            desc="Busting",
+            unit="complex",
+        )
+        for one, dropped in reviewed:
+            if dropped:
+                incorrect.append(dropped)
             else:
-                kept.append(
-                    (name, protein, valid, native, len(poses) - len(valid), len(usable))
-                )
-        if i % 25 == 0:
-            print(f'File {i} busted')
+                kept.append(one)
     return kept, incorrect
 
 
@@ -201,7 +212,9 @@ def screen(complexes):
     """
     rows = []
     eligible = []
-    for i, (name, protein, poses, _, excluded, near_native) in enumerate(complexes, start=1):
+    for name, protein, poses, _, excluded, near_native in tqdm(
+        complexes, desc="Screening", unit="complex"
+    ):
         ensemble = (len(poses), excluded, near_native)
         prepared = PrepareComplex(protein, poses)
         try:
@@ -213,8 +226,6 @@ def screen(complexes):
         else:
             rows.append(_row(name, "eligible", prepared, ensemble))
             eligible.append((name, prepared))
-        if i % 25 == 0:
-            print(f'File {i} screened')
     return rows, eligible
 
 
@@ -327,6 +338,13 @@ if __name__ == "__main__":
         help=f"Bin a stored screen from {os.path.relpath(TABLE, ROOT)} instead of preparing every "
              "complex again.",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help="Processes to review the ensembles with. Defaults to the machine's cores, which under "
+             "a scheduler is the node's rather than what the job was given.",
+    )
     arguments = parser.parse_args()
 
     if arguments.reuse:
@@ -335,7 +353,7 @@ if __name__ == "__main__":
         _summarise(rows)
     else:
         complexes, incomplete = inventory()
-        complexes, incorrect = bust_poses(complexes)
+        complexes, incorrect = bust_poses(complexes, workers=arguments.workers)
         rows, eligible = screen(complexes)
         write(rows)
         _summarise(rows, incomplete, incorrect)

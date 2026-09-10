@@ -16,6 +16,7 @@ The file is written in two halves. The space Dice returned is stored at the whol
 
 import argparse
 import os
+import re
 import shutil
 import tempfile
 import time
@@ -24,12 +25,18 @@ import numpy as np
 from pyscf import gto, scf
 
 from encode import EncodeProtein, EncodingError
-from filter import FAIL, POSE
 from prepare import PrepareComplex
 from utils import encode
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(ROOT, "out")
+
+# DiffDock names each pose it kept rank<N>_confidence<X>.sdf. Alongside those it writes a bare
+# rank1.sdf copy of the top-ranked pose and, for some complexes, an energy-minimised
+# rank<N>_confidence<X>_ensemble_relaxed.sdf.
+POSE = re.compile(r"^rank\d+_confidence-?\d+\.\d+\.sdf$")
+
+FAIL = "confidence-1000"
 
 # Where the benchmark set is looked for, in order. The whole set is not tracked, so a clone has
 # only the fixtures under tests/data and a machine that has downloaded it has both. The cluster is

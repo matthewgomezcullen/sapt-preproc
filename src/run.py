@@ -1,9 +1,8 @@
 """
 Run the encoding pipeline over one complex and keep what it produces.
 
-RHF over a cutout of the bin is eight to twelve hours and nothing above it is free either, so a
-    finished run writes its active space to <out>/<name>.npz and a run that finds one already
-    there does nothing. The SCF underneath is checkpointed separately by `utils.encode`.
+A finished run writes its active space to <out>/<name>.npz and a run that finds one already there 
+    does nothing. The SCF underneath is checkpointed separately by `utils.encode`.
 
 The file is written in two halves. The space Dice returned is stored at the whole window, because 
     occupation windows are arithmetic on those numbers. The integrals the Hamiltonian is built 

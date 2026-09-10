@@ -40,9 +40,6 @@ def store():
 def _method(mean_field):
     """
     What produced the orbitals, as far as the digest is concerned.
-
-    Taken from the object rather than a flag, so a mean field this module has never heard of still
-        keys apart from the ones it has.
     """
     name = type(mean_field).__name__
     auxbasis = getattr(getattr(mean_field, "with_df", None), "auxbasis", None)

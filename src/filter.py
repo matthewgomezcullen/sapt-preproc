@@ -29,6 +29,7 @@ TABLE = os.path.join(OUT, "filter.csv")
 
 VALIDITY = "dock"
 
+FAR = "protein-ligand_maximum_distance"
 NEAR_NATIVE = 2.0
 
 # Why an ensemble leaves the screen before its complex is ever prepared.
@@ -132,11 +133,17 @@ def _near_native(poses, native, threshold=NEAR_NATIVE):
 
 def _valid(poses, protein):
     """
-    The poses PoseBusters finds physically plausible.
+    The poses PoseBusters finds physically plausible, and the checks the rest of them failed.
+
+    FAR is dropped before the verdict is taken to stop crystal-leakage.
     """
     table = PoseBusters(VALIDITY, max_workers=0).bust(poses, None, protein)
+    table = table.drop(columns=FAR, errors="ignore")
     passed = {file for (file, _, _), ok in table.all(axis=1).items() if ok}
-    return [pose for pose in poses if pose in passed]
+    failed = Counter({
+        check: int(count) for check, count in (~table).sum().items() if count
+    })
+    return [pose for pose in poses if pose in passed], failed
 
 
 def _bust(complex):
@@ -148,13 +155,14 @@ def _bust(complex):
     name, protein, poses, native = complex
     near = _near_native(poses, native)
     if not near:
-        return None, (name, GENERATOR)
+        return None, (name, GENERATOR), Counter()
 
-    valid = _valid(poses, protein)
+    valid, failed = _valid(poses, protein)
     usable = near.intersection(valid)
     if not usable:
-        return None, (name, VALIDITY_FAILURE)
-    return (name, protein, valid, native, len(poses) - len(valid), len(usable)), None
+        return None, (name, VALIDITY_FAILURE), failed
+    kept = (name, protein, valid, native, len(poses) - len(valid), len(usable))
+    return kept, None, failed
 
 
 def bust_poses(complexes, workers=None):
@@ -166,10 +174,10 @@ def bust_poses(complexes, workers=None):
 
     Ensembles busted in parallel.
 
-    Returns complexes as (name, protein, poses, native, excluded, near_native), and the ensembles
-        dropped as (name, why).
+    Returns complexes as (name, protein, poses, native, excluded, near_native), the ensembles
+        dropped as (name, why), and the checks every excluded pose failed.
     """
-    kept, incorrect = [], []
+    kept, incorrect, checks = [], [], Counter()
     with ProcessPoolExecutor(max_workers=workers) as pool:
         reviewed = tqdm(
             pool.map(_bust, complexes),
@@ -177,12 +185,13 @@ def bust_poses(complexes, workers=None):
             desc="Busting",
             unit="complex",
         )
-        for one, dropped in reviewed:
+        for one, dropped, failed in reviewed:
+            checks.update(failed)
             if dropped:
                 incorrect.append(dropped)
             else:
                 kept.append(one)
-    return kept, incorrect
+    return kept, incorrect, checks
 
 
 def _row(name, status, prepared, ensemble, rejection=""):
@@ -252,7 +261,7 @@ def read(path=TABLE):
     return rows
 
 
-def _summarise(rows, incomplete=(), incorrect=()):
+def _summarise(rows, incomplete=(), incorrect=(), checks=()):
     counted = Counter(row["status"] for row in rows)
     print('Screened', len(rows))
     print('Eligible', counted["eligible"])
@@ -280,6 +289,11 @@ def _summarise(rows, incomplete=(), incorrect=()):
         print(f'\nPoses {kept + excluded} over {len(counted)} eligible complexes')
         print(f'  {excluded:4d}  excluded by PoseBusters')
         print(f'  {kept:4d}  kept, {near} of them near-native')
+
+    if checks:
+        print(f'\nChecks failed, by pose. {FAR} is not among them; it is not held against a pose\n')
+        for check, count in Counter(checks).most_common():
+            print(f'  {count:5d}  {check}')
 
 
 def quartiles(sizes):
@@ -353,8 +367,9 @@ if __name__ == "__main__":
         _summarise(rows)
     else:
         complexes, incomplete = inventory()
-        complexes, incorrect = bust_poses(complexes, workers=arguments.workers)
+        complexes = complexes[:10]
+        complexes, incorrect, checks = bust_poses(complexes, workers=arguments.workers)
         rows, eligible = screen(complexes)
         write(rows)
-        _summarise(rows, incomplete, incorrect)
+        _summarise(rows, incomplete, incorrect, checks)
     report(rows)

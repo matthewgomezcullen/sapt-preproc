@@ -29,9 +29,6 @@ CONDITIONING = 1e-6
 
 
 def test_the_fragment_is_a_capped_run():
-    """
-    The fragment the solvable tests rely on is a real capped peptide, not a slice through one.
-    """
     prepared = fragment()
 
     assert [residue.name for chain in prepared.reduced for residue in chain] == FRAGMENT_RESIDUES
@@ -42,9 +39,6 @@ def test_the_fragment_is_a_capped_run():
 
 @pytest.mark.parametrize("name", SUBSET)
 def test_the_subset_is_the_bin_the_screen_found(name):
-    """
-    Each member of the bin is the size and charge the screen recorded.
-    """
     prepared = prepare(name)
     heavy, net, electrons = EXPECTED[name]
 
@@ -56,9 +50,6 @@ def test_the_subset_is_the_bin_the_screen_found(name):
 
 @pytest.mark.parametrize("name", SUBSET)
 def test_molecule_is_handed_the_charge_the_preparation_settled(name):
-    """
-    The molecule is the cutout at q_A.
-    """
     prepared = prepare(name)
     encoded = EncodeProtein(prepared)
 

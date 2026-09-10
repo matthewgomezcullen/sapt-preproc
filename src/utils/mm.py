@@ -2,8 +2,8 @@ import io
 
 import gemmi
 import numpy as np
-from openmm import LocalEnergyMinimizer, VerletIntegrator, Context, unit
-from openmm.app import Modeller, PDBFile
+from openmm import LocalEnergyMinimizer, Platform, VerletIntegrator, Context, unit
+from openmm.app import Modeller, NoCutoff, PDBFile
 from rdkit import Chem
 
 
@@ -12,12 +12,31 @@ FORCEFIELD = "amber14-all.xml"
 # Sage 2.0.0, as the PoseBusters paper minimised with.
 SMALL_MOLECULE = "openff-2.0.0"
 
-# The paper's convergence criterion, in kJ/mol.
+# The paper minimised "until energy convergence within 0.01 kJ/mol". OpenMM 8 takes a force
+# tolerance rather than an energy one, so the number is kept and read in kJ/mol/nm, which is the
+# stricter of the two readings and a thousand times tighter than OpenMM's own default.
 TOLERANCE = 0.01
+
+MAX_ITERATIONS = 1000
+
+# One thread is deterministic and cheaper than the Reference platform `_protonate` uses.
+PLATFORM = "CPU"
+PROPERTIES = {"Threads": "1"}
 
 STEP = 0.001
 
 ANGSTROM = 0.1
+
+# There is no box and no solvent, so nothing is periodic and nothing is cut off. Constraints are
+# off because the protein is frozen by zero mass, and OpenMM will not constrain a massless atom;
+# they would also stop the hydrogens relaxing, which is half of what this step is for.
+FORCEFIELD_KWARGS = {
+    "constraints": None,
+    "rigidWater": False,
+    "removeCMMotion": False,
+}
+
+NONPERIODIC_KWARGS = {"nonbondedMethod": NoCutoff}
 
 
 def hydrogens(poses):
@@ -68,6 +87,8 @@ def minimise(model, poses):
     molecule = _parameterise(poses[0])
     protein = _protein(model)
     modeller = Modeller(protein.topology, protein.positions)
+    # Minimise an isolated pocket.
+    modeller.topology.setPeriodicBoxVectors(None)
     fixed = modeller.topology.getNumAtoms()
     modeller.add(
         molecule.to_topology().to_openmm(),
@@ -78,13 +99,20 @@ def minimise(model, poses):
         forcefields=[FORCEFIELD],
         small_molecule_forcefield=SMALL_MOLECULE,
         molecules=[molecule],
+        forcefield_kwargs=FORCEFIELD_KWARGS,
+        nonperiodic_forcefield_kwargs=NONPERIODIC_KWARGS,
     )
     system = generator.create_system(modeller.topology, molecules=[molecule])
     # A zero mass is how OpenMM is told an atom does not move.
     for index in range(fixed):
         system.setParticleMass(index, 0)
 
-    context = Context(system, VerletIntegrator(STEP))
+    context = Context(
+        system,
+        VerletIntegrator(STEP),
+        Platform.getPlatformByName(PLATFORM),
+        PROPERTIES,
+    )
     protein_coordinates = np.asarray(
         modeller.positions.value_in_unit(unit.nanometer)
     )[:fixed]
@@ -97,7 +125,9 @@ def minimise(model, poses):
             )
         )
         LocalEnergyMinimizer.minimize(
-            context, TOLERANCE * unit.kilojoule_per_mole
+            context,
+            TOLERANCE * unit.kilojoule_per_mole / unit.nanometer,
+            MAX_ITERATIONS,
         )
         coordinates = context.getState(getPositions=True).getPositions(
             asNumpy=True

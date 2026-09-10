@@ -5,14 +5,14 @@ import sys
 
 import pytest
 
-from prepare import OutOfScopeError, OutOfScopeErrorType
-
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 # src/, so the tests can import the modules under test. Then this directory, because the tests
 # sit a level below it now and pytest only puts their own directory on the path.
 sys.path.insert(0, os.path.dirname(HERE))
 sys.path.insert(0, HERE)
+
+from prepare import OutOfScopeError, OutOfScopeErrorType # noqa: E402
 
 DATA = os.path.join(HERE, "data")
 POSEBUSTERS = os.path.join(DATA, "posebusters")
@@ -44,7 +44,7 @@ def paths(name):
 
 def verify_protein(prepared):
     """
-    _verify, tolerating only ligand-problems. 
+    _verify, tolerating only a ligand rejected on its protonation.
     """
     try:
         prepared._verify()

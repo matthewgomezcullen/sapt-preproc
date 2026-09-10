@@ -17,7 +17,7 @@ import functools
 import pytest
 
 from conftest import paths, verify_protein
-from prepare import PrepareComplex, PrepareError, OutOfScopeError, OutOfScopeErrorType
+from prepare import PrepareComplex, PrepareError
 
 SIMPLE = "5S8I_2LY"
 CHARGED = "7WPW_F15"

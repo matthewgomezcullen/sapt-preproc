@@ -229,12 +229,20 @@ def test_verify_rejects_zero_occupancy_heavy_atom_in_cutout():
     assert rejection("7DUA_HJ0") is OutOfScopeErrorType.ZERO_OCCUPANCY
 
 
-def test_verify_accepts_zero_occupancy_hydrogens_in_cutout():
+@pytest.mark.parametrize(
+    "name",
+    [
+        "7YZU_DO7",     # eight, every one a hydroxyl or imidazole hydrogen
+        "7WUX_6OI",     # six
+    ],
+)
+def test_verify_does_not_reject_zero_occupancy_hydrogens(name):
     """
-    _clean strips every deposited hydrogen before protonation, so a zero-occupancy hydrogen are 
-        never rejected.
+    A zero-occupancy hydrogen never reaches the QM region.
+    
+    Both of these reach the acidic-ligand rule, which proves the occupancy rule passed.
     """
-    ...
+    assert rejection(name) is OutOfScopeErrorType.ACIDIC_LIGAND
 
 
 @functools.lru_cache(maxsize=None)

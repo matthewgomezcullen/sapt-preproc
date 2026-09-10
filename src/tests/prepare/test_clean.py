@@ -16,7 +16,7 @@ Three real complexes cover the cases, all of them accepted by _verify:
 import pytest
 
 from conftest import paths, verify_protein
-from prepare import PrepareComplex, _is_amino_acid, _is_water, OutOfScopeError, OutOfScopeErrorType
+from prepare import PrepareComplex, _is_amino_acid, _is_water
 from utils import verify
 
 # Acetyl and amide caps terminate a polypeptide chain. They are not amino acids, so a name test 

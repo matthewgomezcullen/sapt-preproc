@@ -107,7 +107,7 @@ def test_minimise_moves_pose_heavy_atoms():
         for was, pose in zip(before, prepared.poses)
     ]
     assert max(moved) > 0.1
-    # A relaxation, not a redocking. A pose that travels further than this is a different pose.
+    # A relaxation, not a relocation
     assert max(moved) < 5.0
 
 

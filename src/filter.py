@@ -135,7 +135,7 @@ def _valid(poses, protein):
     """
     The poses PoseBusters finds physically plausible, and the checks the rest of them failed.
 
-    FAR is dropped before the verdict is taken to stop crystal-leakage.
+    FAR is dropped. We do not exclude based on the distance to the native pose.
     """
     table = PoseBusters(VALIDITY, max_workers=0).bust(poses, None, protein)
     table = table.drop(columns=FAR, errors="ignore")

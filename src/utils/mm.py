@@ -3,7 +3,7 @@ import warnings
 
 import gemmi
 import numpy as np
-from openmm import LocalEnergyMinimizer, Platform, VerletIntegrator, Context, unit
+from openmm import LocalEnergyMinimizer, VerletIntegrator, Context, unit
 from openmm.app import Modeller, NoCutoff, PDBFile
 from rdkit import Chem
 
@@ -13,16 +13,7 @@ FORCEFIELD = "amber14-all.xml"
 # Sage 2.0.0, as the PoseBusters paper minimised with.
 SMALL_MOLECULE = "openff-2.0.0"
 
-# The paper minimised "until energy convergence within 0.01 kJ/mol". OpenMM 8 takes a force
-# tolerance rather than an energy one, so the number is kept and read in kJ/mol/nm, which is the
-# stricter of the two readings and a thousand times tighter than OpenMM's own default.
-TOLERANCE = 0.01
-
 MAX_ITERATIONS = 1000
-
-# One thread is deterministic and cheaper than the Reference platform `_protonate` uses.
-PLATFORM = "CPU"
-PROPERTIES = {"Threads": "1"}
 
 STEP = 0.001
 
@@ -112,12 +103,9 @@ def minimise(model, poses):
     for index in range(fixed):
         system.setParticleMass(index, 0)
 
-    context = Context(
-        system,
-        VerletIntegrator(STEP),
-        Platform.getPlatformByName(PLATFORM),
-        PROPERTIES,
-    )
+    # OpenMM takes its fastest platform, on every core the machine has. OPENMM_DEFAULT_PLATFORM and
+    # OPENMM_CPU_THREADS override it.
+    context = Context(system, VerletIntegrator(STEP))
     protein_coordinates = np.asarray(
         modeller.positions.value_in_unit(unit.nanometer)
     )[:fixed]
@@ -129,11 +117,7 @@ def minimise(model, poses):
                 np.vstack([protein_coordinates, _coordinates(pose)]), unit.nanometer
             )
         )
-        LocalEnergyMinimizer.minimize(
-            context,
-            TOLERANCE * unit.kilojoule_per_mole / unit.nanometer,
-            MAX_ITERATIONS,
-        )
+        LocalEnergyMinimizer.minimize(context, maxIterations=MAX_ITERATIONS)
         coordinates = context.getState(getPositions=True).getPositions(
             asNumpy=True
         ).value_in_unit(unit.angstrom)

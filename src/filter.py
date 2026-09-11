@@ -169,8 +169,9 @@ def _row(name, status, prepared, near, rejection=""):
 
 def _prepare(one, force=False):
     """
-    One complex prepared, or read back, and then checked for near-native existence. Runs in its own
-        process.
+    One complex prepared, or read back, and then checked for near-native existence.
+
+    Can run in its own process.
     """
     name, protein, poses, native = one
     prepared = PrepareComplex(protein, poses, os.path.join(JOB, name))
@@ -188,13 +189,29 @@ def _prepare(one, force=False):
     return _row(name, "eligible", prepared, near), prepared.failed
 
 
-def screen(complexes, workers=None, force=False):
+def screen(complexes, force=False):
     """
     Prepare every complex.
 
     An OutOfScopeError means the complex is outside the method; a PrepareError means it could not
         be read or prepared; `unusable` means the ensemble holds no near-native pose.
+    """
+    rows, checks = [], Counter()
+    prepared = tqdm(
+        (_prepare(complex, force=force) for complex in complexes),
+        total=len(complexes),
+        desc="Screening",
+        unit="complex",
+    )
+    for row, failed in prepared:
+        rows.append(row)
+        checks.update(failed)
+    return rows, checks
 
+
+
+def screen_parallel(complexes, workers=None, force=False):
+    """
     Parallelised. `map` keeps the rows in the order the complexes came in.
     """
     rows, checks = [], Counter()
@@ -328,8 +345,9 @@ if __name__ == "__main__":
         "--workers",
         type=int,
         default=None,
-        help="Processes to prepare the complexes with. Defaults to the machine's cores, which "
-             "under a scheduler is the node's rather than what the job was given.",
+        help="Processes to prepare the complexes with. `-1` defaults to the machine's cores, which "
+             "under a scheduler is the node's rather than what the job was given. None avoids "
+             "parallelisation",
     )
     parser.add_argument(
         "--force",
@@ -345,7 +363,12 @@ if __name__ == "__main__":
         complexes, incomplete = inventory()
         complexes = complexes[:10]
         complexes, incorrect = sweep_for_near_native(complexes)
-        rows, checks = screen(complexes, workers=arguments.workers, force=arguments.force)
+        if arguments.workers is None:
+            rows, checks = screen(complexes, force=arguments.force)
+        else:
+            # ProcessPoolExecutor reads None, not -1, as every core.
+            workers = None if arguments.workers == -1 else arguments.workers
+            rows, checks = screen_parallel(complexes, workers=workers, force=arguments.force)
         write(rows)
         _summarise(rows, incomplete, incorrect, checks)
     report(rows)

@@ -63,8 +63,7 @@ def pytest_addoption(parser):
         "--long-protonate",
         action="store_true",
         help="Also run the tests that carry complexes through the repair and protonation "
-             "pipelines. Minutes each, because protonation is seeded onto a reference platform "
-             "for determinism.",
+             "pipelines. Minutes each.",
     )
     parser.addoption(
         "--hpc",

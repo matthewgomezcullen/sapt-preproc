@@ -5,23 +5,22 @@ import gemmi
 import openmm
 from openmm.app import Modeller, PDBFile
 
-from utils.fix import PLATFORM
-
 
 def add(modeller, pH, seed, variants=None):
     """
-    `Modeller.addHydrogens`, made reproducible, returning the state chosen for each residue.
+    `Modeller.addHydrogens`, seeded, returning the state chosen for each residue.
 
     Modeller starts every hydrogen it adds at a random offset from its parent and minimises from
         there, drawing on the global random module. Left unseeded it places the hydrogens
-        differently on every run.
+        differently on every run. Seeded, the start repeats; the minimisation runs on OpenMM's
+        fastest platform, which does not repeat exactly.
 
     The generator's state is put back afterwards.
     """
     state = random.getstate()
     random.seed(seed)
     try:
-        return modeller.addHydrogens(pH=pH, variants=variants, platform=PLATFORM)
+        return modeller.addHydrogens(pH=pH, variants=variants)
     finally:
         random.setstate(state)
 

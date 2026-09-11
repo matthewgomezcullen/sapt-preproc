@@ -219,9 +219,9 @@ Among accepted complexes, many cutouts are highly charged, as counter-charges th
 | `<complex>.dice.out` | `EncodeProtein.SHCI` | Dice's own log, kept whether or not Dice succeeded |
 | `<complex>_encoded.npz` | `EncodeProtein.encode` | `e_core`, `h1`, `h2`, and the window they are over: `active_space_size`, `active_electrons`, `occupations` |
 
-Each class reads back whatever its directory holds when it is constructed, and a stage already there is not run again. `--force` runs it anyway, though a kept SCF is still read back. An artefact that cannot be read, such as one cut off mid-write, counts as absent and is written over. Nothing is kept for a rejected complex.
+Each class reads back whatever its directory holds when it is constructed, and a stage already there is not run again. Writing an artefact discards every one written after it, since they were built on the one it replaces, so `--force` reruns everything and deleting `_prepared.npz`, `_solved.npz` or `_encoded.npz` reruns from that stage on. An artefact that cannot be read, such as one cut off mid-write, counts as absent and is written over. Nothing is kept for a rejected complex.
 
-Artefacts are matched on the job's name alone, so a job is assumed consistent: a change to preparation wants a new name.
+Artefacts are matched on the job's name alone, so a job is assumed consistent: a change to preparation wants a new name or `--force`.
 
 The solved space is not rewritten once the Hamiltonian is built, so it stays at the window SHCI solved, which any narrower window can be taken from.
 

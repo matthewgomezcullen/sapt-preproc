@@ -42,7 +42,7 @@ class EncodeProtein:
 
     def __init__(
         self,
-        prepared: PrepareComplex | None,
+        prepared: PrepareComplex,
         out=None
     ):
         self.prepared = prepared
@@ -136,8 +136,6 @@ class EncodeProtein:
         The geometry is taken in `prepared.atoms()` order, which is the order AVAS addresses its
             targets by. PySCF assumes a molecule it is given no charge by default.
         """
-        if self.prepared is None:
-            raise PrepareError("Cannot build the molecule without a prepared complex")
         if self.prepared.charge is None:
             raise PrepareError("Cannot build the molecule before the charge is known")
         self.mol = encode.molecule(self.prepared, self.verbose)

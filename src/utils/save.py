@@ -17,6 +17,7 @@ def load_prepared(name, dir):
 
 
 def save_prepared(record, name, dir):
+    _supersede(prepared_path, name, dir)
     _save(record, prepared_path(name, dir))
 
 
@@ -32,11 +33,9 @@ def load_scf(name, dir):
 
 
 def save_scf(record, name, dir):
-    path = scf_path(name, dir)
+    _supersede(scf_path, name, dir)
     os.makedirs(dir, exist_ok=True)
-    if os.path.exists(path):
-        os.remove(path)
-    lib.chkfile.save(path, "scf", record)
+    lib.chkfile.save(scf_path(name, dir), "scf", record)
 
 
 def solved_path(name, dir):
@@ -52,6 +51,7 @@ def load_solved(name, dir):
 
 
 def save_solved(record, name, dir):
+    _supersede(solved_path, name, dir)
     _save(record, solved_path(name, dir))
 
 
@@ -64,6 +64,7 @@ def load_encoded(name, dir):
 
 
 def save_encoded(record, name, dir):
+    _supersede(encoded_path, name, dir)
     _save(record, encoded_path(name, dir))
 
 
@@ -85,3 +86,14 @@ def _save(record, path):
     arrays = {key: np.asarray(value) for key, value in record.items()}
     os.makedirs(os.path.dirname(path), exist_ok=True)
     np.savez(path, allow_pickle=False, **arrays)
+
+
+def _supersede(artefact, name, dir):
+    """
+    Discard `artefact`, and everything written after it.
+    """
+    order = [prepared_path, scf_path, dice_log_path, solved_path, encoded_path]
+    for later in order[order.index(artefact):]:
+        path = later(name, dir)
+        if os.path.exists(path):
+            os.remove(path)

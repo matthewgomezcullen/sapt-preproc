@@ -20,6 +20,8 @@ STAGES = ["prepared", "solved", "encoded"]
 
 ARTEFACTS = STAGES + ["scf"]
 
+WRITTEN = ["prepared", "scf", "dice_log", "solved", "encoded"]
+
 # One heavy atom and one hydrogen, enough for RDKit to read back and for a coordinate to be checked.
 POSE = """ABC_123
      RDKit          3D
@@ -142,6 +144,34 @@ def test_the_stages_are_separate_files(tmp_path):
     save.save_encoded({"e_core": -1.5}, NAME, directory)
     assert save.load_solved(NAME, directory).keys() == RECORD.keys()
     assert save.load_scf(NAME, directory)["e_tot"] == SCF["e_tot"]
+
+
+@pytest.mark.parametrize(
+    "name, kept",
+    [
+        ("prepared", ["prepared"]),
+        ("scf", ["prepared", "scf"]),
+        ("solved", ["prepared", "scf", "dice_log", "solved"]),
+        ("encoded", ["prepared", "scf", "dice_log", "solved", "encoded"]),
+    ],
+)
+def test_saving_an_artefact_discards_the_ones_built_on_it(tmp_path, name, kept):
+    directory = str(tmp_path)
+    save.save_prepared(RECORD, NAME, directory)
+    save.save_scf(SCF, NAME, directory)
+    with open(save.dice_log_path(NAME, directory), "w") as file:
+        file.write("Dice's own log")
+    save.save_solved(RECORD, NAME, directory)
+    save.save_encoded(RECORD, NAME, directory)
+
+    store, _ = stage(name)
+    store(SCF if name == "scf" else RECORD, NAME, directory)
+
+    assert [
+        artefact
+        for artefact in WRITTEN
+        if os.path.isfile(getattr(save, f"{artefact}_path")(NAME, directory))
+    ] == kept
 
 
 def test_a_record_that_needs_pickling_is_refused_on_save(tmp_path):

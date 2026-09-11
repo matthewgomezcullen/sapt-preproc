@@ -1,4 +1,5 @@
 import io
+import warnings
 
 import gemmi
 import numpy as np
@@ -82,6 +83,7 @@ def minimise(model, poses):
     """
     Every pose relaxed in the field of the protein, with the protein fixed and the ligand free.
     """
+    from openff.interchange.warnings import PresetChargesAndVirtualSitesWarning
     from openmmforcefields.generators import SystemGenerator
 
     molecule = _parameterise(poses[0])
@@ -102,7 +104,10 @@ def minimise(model, poses):
         forcefield_kwargs=FORCEFIELD_KWARGS,
         nonperiodic_forcefield_kwargs=NONPERIODIC_KWARGS,
     )
-    system = generator.create_system(modeller.topology, molecules=[molecule])
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=PresetChargesAndVirtualSitesWarning)
+        warnings.filterwarnings("ignore", r"`torch\.distributed\.reduce_op`", FutureWarning)
+        system = generator.create_system(modeller.topology, molecules=[molecule])
     # A zero mass is how OpenMM is told an atom does not move.
     for index in range(fixed):
         system.setParticleMass(index, 0)

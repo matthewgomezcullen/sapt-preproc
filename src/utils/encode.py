@@ -35,8 +35,8 @@ def rhf(mol, max_cycle, density_fit=False):
 
 def restore(mol, record=None, density_fit=False):
     """
-    An RHF read back off disk: converged if its SCF was kept, and otherwise unsolved, which is all
-        the Hamiltonian needs of it.
+    An RHF read back off disk. With the stored SCF, copy its record. Without it, return an RHF 
+        object that has never run. `_solved.npz` contains the required values for `H()` anyway.
     """
     mean_field = _mean_field(mol, density_fit)
     if record is not None:

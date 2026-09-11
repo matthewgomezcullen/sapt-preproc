@@ -139,13 +139,9 @@ def near_native(poses, native, threshold=NEAR_NATIVE):
     return near
 
 
-def candidates(complexes):
-    """
-    Complexes whose ensemble holds a pose loosely near the deposited ligand, and those it drops.
-
-    """
+def sweep_for_near_native(complexes):
     kept, incorrect = [], []
-    for one in tqdm(complexes, desc="Sampling", unit="complex"):
+    for one in tqdm(complexes, desc="Near-Native", unit="complex"):
         name, _, poses, native = one
         if near_native(poses, native, LOOSE):
             kept.append(one)
@@ -348,7 +344,7 @@ if __name__ == "__main__":
     else:
         complexes, incomplete = inventory()
         complexes = complexes[:10]
-        complexes, incorrect = candidates(complexes)
+        complexes, incorrect = sweep_for_near_native(complexes)
         rows, checks = screen(complexes, workers=arguments.workers, force=arguments.force)
         write(rows)
         _summarise(rows, incomplete, incorrect, checks)

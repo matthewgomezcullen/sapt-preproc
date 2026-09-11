@@ -88,7 +88,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Run every stage again, even one already kept. A kept SCF is still read back.",
+        help="Run every stage again, even one already kept.",
     )
     arguments = parser.parse_args()
     run(arguments.name, arguments.data, arguments.out, arguments.complexes, arguments.force)

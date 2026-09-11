@@ -2,7 +2,8 @@
 
 # Build the sapt-preproc environment on a Linux HPC node.
 #
-# Run once from a login node. Safe to re-run: it replaces the environment.
+# Run once, from a login node or with `sbatch scripts/run_setup.sh`. Safe to re-run: it replaces the
+# environment.
 #
 # Dice is the SHCI program the encoding step solves with, an MPI C++ program with no conda package, 
 # so it is built here against the environment's own Boost, HDF5 and OpenMPI and installed into its 
@@ -20,20 +21,19 @@ set -euo pipefail
 MODULE="${MODULE:-Anaconda3/2025.06-1}"
 PREFIX="${PREFIX:-${DATA:?DATA is not set; it is where the environment goes}/sapt-preproc}"
 
-# Dice is the SHCI program; shciscf is PySCF's interface to it, one C file and a driver.
+# Dice is the SHCI program; shciscf is PySCF's interface to it.
 DICE="${DICE:-f0f0850de73f2f02953ff6552315889d47255b6f}"
 SHCISCF="${SHCISCF:-7edb54dcbfe03bc1ff83c143ea9e8102ce0b16a3}"
 
-# -march=core-avx2 in Dice's makefile. Read from this machine, which is the login node: if the
-# compute nodes are the older ones, set it to no by hand, because a binary built for a vector width
-# the node does not have does not run.
+# -march=core-avx2 in Dice's makefile. Read from the machine this runs on: if Dice will run on older
+# nodes than that, set it to no by hand, because a binary built for a vector width the node does not
+# have does not run.
 AVX2="${AVX2:-$(grep -qm1 avx2 /proc/cpuinfo 2>/dev/null && echo yes || echo no)}"
 BUILD_JOBS="${BUILD_JOBS:-8}"
 
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENVIRONMENT="$REPO/src/environment.yml"
 
-# One source of truth for the version, so this cannot drift from environment.yml.
 PYSCF="$(sed -n 's/^[[:space:]]*-[[:space:]]*pyscf=\([0-9.]*\).*/\1/p' "$ENVIRONMENT")"
 if [ -z "$PYSCF" ]; then
     echo "Could not read the pyscf version out of $ENVIRONMENT" >&2
@@ -107,6 +107,7 @@ python - <<'PY'
 import shutil
 
 import numpy, scipy, gemmi, openmm, pyscf, qiskit, qiskit_nature, rdkit
+import openff.toolkit, openmmforcefields, pdbfixer, posebusters
 from pyscf import gto, scf
 
 print(f"  python {__import__('sys').version.split()[0]}")
@@ -120,6 +121,13 @@ mean_field = scf.RHF(mol)
 mean_field.kernel()
 assert mean_field.converged, "the check SCF did not converge"
 print(f"  water RHF/6-31G {mean_field.e_tot:.6f} Ha, converged")
+
+# `_minimise` charges each ligand with AM1-BCC, which is AmberTools' sqm, found on the PATH.
+assert shutil.which("sqm"), "sqm is not on the PATH, so AM1-BCC charges cannot be assigned"
+from openff.toolkit import Molecule
+ethanol = Molecule.from_smiles("CCO")
+ethanol.assign_partial_charges("am1bcc")
+print(f"  AM1-BCC  ethanol, total charge {ethanol.partial_charges.m.sum():+.3f}")
 
 # The interface refuses to import until it has been told where Dice is. `encode.py` seeds the same
 # two settings the same way, so this is the check that the path it takes works here.
@@ -143,4 +151,4 @@ assert operator.num_qubits == 4, f"two orbitals are four qubits, not {operator.n
 print(f"  qiskit-nature {qiskit_nature.__version__}, two orbitals to {operator.num_qubits} qubits")
 PY
 
-echo "[$(date +%T)] Done. Submit with: sbatch $REPO/test.sh"
+echo "[$(date +%T)] Done. From $REPO, submit with: sbatch scripts/test.sh"

@@ -361,7 +361,7 @@ if __name__ == "__main__":
         _summarise(rows)
     else:
         complexes, incomplete = inventory()
-        complexes = complexes[:10]
+        complexes = complexes
         complexes, incorrect = sweep_for_near_native(complexes)
         if arguments.workers is None:
             rows, checks = screen(complexes, force=arguments.force)

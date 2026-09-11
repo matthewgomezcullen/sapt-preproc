@@ -134,7 +134,8 @@ class PrepareComplex:
         self.seed = 1
 
         # Load
-        if self.out:
+        self.out = out
+        if out:
             self._load()
 
     def prepare(self):

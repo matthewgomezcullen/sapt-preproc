@@ -1,40 +1,53 @@
 import os
 
 
-SCF = "scf"
+def prepared_path(name, dir):
+    return os.path.join(dir, f"{name}_prepared.npz")
 
 
-def preparation_path(name, out):
-    return os.path.join(out, f"{name}_preparation.npz")
-
-
-def load_prepared(name, out):
+def load_prepared(name, dir):
     ...
 
 
-def save_prepared(name, out):
+def save_prepared(record, name, dir):
     ...
 
 
-def encoding_path(name, out):
-    return os.path.join(out, f"{name}_encoding.npz")
+def scf_path(name, dir):
+    return os.path.join(dir, f"{name}_rhf.chk")
 
 
-def dice_log_path(name, out):
-    return os.path.join(out, f"{name}.dice.out")
-
-
-def get_scf_dir(name, out):
-    return os.path.join(out, SCF) 
-
-
-def scf_path(name, scf):
-    return os.path.join(scf, f"{name}.chk")
-
-
-def load_encoded(name, out):
+def load_scf(name, dir):
     ...
 
 
-def save_encoded(name, out):
+def save_scf(record, name, dir):
+    ...
+
+
+def solved_path(name, dir):
+    return os.path.join(dir, f"{name}_solved.npz")
+
+
+def dice_log_path(name, dir):
+    return os.path.join(dir, f"{name}.dice.out")
+
+
+def load_solved(name, dir):
+    ...
+
+
+def save_solved(record, name, dir):
+    ...
+
+
+def encoded_path(name, dir):
+    return os.path.join(dir, f"{name}_encoded.npz")
+
+
+def load_encoded(name, dir):
+    ...
+
+
+def save_encoded(record, name, dir):
     ...

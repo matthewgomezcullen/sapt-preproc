@@ -1,3 +1,4 @@
+import os
 from collections import Counter
 
 import gemmi
@@ -7,7 +8,7 @@ from pyscf.gto.basis import load as load_basis
 from pyscf.lib.exceptions import BasisNotFoundError
 from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 from enum import Enum
-from utils import bust, charge, clean, fix, mm, protonate, reduce, verify
+from utils import bust, charge, clean, fix, mm, protonate, reduce, save, verify
 
 
 # PDB chemical component IDs for the biological cofactors. Decides which rejection is reported. 
@@ -544,23 +545,55 @@ class PrepareComplex:
 
 
     def prepared(self):
-        """
-        TODO: boolean for if preparation is done.
-        """
-        ...
+        return self.electrons is not None and self.electrons % 2 == 0
 
 
     def _load(self):
         """
-        TODO: Load finished artefacts
+        Read back a preparation saved to `out`.
         """
-        ...
+        record = save.load_prepared(self._name(), self.out)
+        if record is None:
+            return
+        self.reduced = gemmi.read_pdb_string(record["cutout"])[0] # pyright: ignore[reportAttributeAccessIssue]
+        self.poses = [
+            Chem.MolFromMolBlock(str(block), removeHs=False) # pyright: ignore[reportAttributeAccessIssue]
+            for block in record["poses"]
+        ]
+        self.charge = record["charge"]
+        self.electrons = record["electrons"]
+        self.heavy_atoms = record["heavy_atoms"]
+        self.excluded = record["excluded"]
+        self.failed = Counter(record["failed"].tolist())
 
 
     def save(self):
         """
-        TODO: Save generated artefacts
+        The capped cutout, the poses post-protonation/minimisation/busting, and filter.py numbers.
         """
         if not self.out:
             return
-        ...
+        structure = gemmi.Structure() # pyright: ignore[reportAttributeAccessIssue]
+        structure.add_model(self.reduced)
+        structure.setup_entities()
+        save.save_prepared(
+            {
+                "cutout": structure.make_pdb_string(),
+                "poses": [Chem.MolToMolBlock(pose) for pose in self.poses], # pyright: ignore[reportAttributeAccessIssue]
+                "charge": self.charge,
+                "electrons": self.electrons,
+                "heavy_atoms": self.heavy_atoms,
+                "excluded": self.excluded,
+                # A Counter would need pickling. Its elements, each repeated, count back into one.
+                "failed": list(self.failed.elements()),
+            },
+            self._name(),
+            self.out,
+        )
+
+
+    def _name(self):
+        """
+        The complex, which names the directory its artefacts are kept in.
+        """
+        return os.path.basename(os.path.normpath(self.out))

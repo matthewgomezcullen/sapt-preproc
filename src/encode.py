@@ -7,12 +7,24 @@ from pyscf.mcscf import avas
 
 from prepare import PrepareComplex, PrepareError
 from utils.reduce import CAPS
-from utils import encode
+from utils import encode, save
 
 
 # The valence p shell README targets, per element it keeps. Hydrogen has no p shell and is not
 # named; anything else in the cutout was rejected by `_verify` for having no 6-31G basis.
 VALENCE = {"C": "2p", "N": "2p", "O": "2p", "S": "3p", "P": "3p"}
+
+SCF = ("e_tot", "mo_energy", "mo_occ", "mo_coeff")
+
+# The Hamiltonian's carries the window it was built over; the orbitals are the space's, which a 
+# window does not change.
+SOLVED = (
+    "energy", "correlation", "shci_energy", "active_space_size", "active_electrons",
+    "orbital_initial", "occupations",
+)
+ENCODED = ("e_core", "h1", "h2", "active_space_size", "active_electrons", "occupations")
+
+DICE_LOG = "output.dat"
 
 
 class EncodingError(RuntimeError):
@@ -24,7 +36,8 @@ class EncodeProtein:
     EncodeProtein takes a PreparedComplex, solves RHF then encodes a tractable active space for
         SAPT(VQE) corrections.
 
-    `prepared` is None for a run read back off disk
+    `out` is the complex's directory. Whatever a previous run left there is read back, which needs
+        `prepared` prepared or read back first.
     """
 
     def __init__(
@@ -55,10 +68,6 @@ class EncodeProtein:
         self.density_fit = True # Density fit MP2
         self.nmax = 50 # Number of natural orbitals the MP2 caps
 
-        # Where a converged SCF is kept so that the next run reads it instead of solving again.
-        # The environment decides; None is no checkpointing, which is the default off the cluster.
-        self.checkpoints = encode.store()
-
         # Dice
         self.dice = shutil.which("Dice") # `setup.sh` builds Dice into the environment's own bin.
         self.mpi = os.environ.get("MPIPREFIX", "") # empty runs on one rank. A cluster wants "srun" 
@@ -78,6 +87,7 @@ class EncodeProtein:
 
 
     def solve(self):
+        self.e_core = self.h1 = self.h2 = self.hamiltonian = None
         self.RHF()
         self.AVAS()
         self.MP2()
@@ -101,16 +111,22 @@ class EncodeProtein:
         The two-electron integrals are never held: a cutout carries many basis functions, whose 
             integrals run to petabytes, so PySCF builds them on the fly.
 
-        An unconverged SCF is rejected.
+        An unconverged SCF is rejected. A converged one is kept in `out`.
         """
+        if self.mean_field is not None and self.mean_field.converged:
+            return self.mean_field
         self._molecule()
-        mean_field = encode.rhf(self.mol, self.rhf_max_cycle, self.checkpoints)
+        mean_field = encode.rhf(self.mol, self.rhf_max_cycle)
         if not mean_field.converged:
             raise EncodingError(
                 f"RHF did not converge in {self.rhf_max_cycle} cycles"
             )
         self.mean_field = mean_field
         self.energy = mean_field.e_tot
+        if self.out:
+            save.save_scf(
+                {key: getattr(mean_field, key) for key in SCF}, self._name(), self.out
+            )
         return mean_field
 
     def _molecule(self):
@@ -121,9 +137,7 @@ class EncodeProtein:
             targets by. PySCF assumes a molecule it is given no charge by default.
         """
         if self.prepared is None:
-            raise PrepareError(
-                "Cannot build the molecule for a run read back off disk, which has one already"
-            )
+            raise PrepareError("Cannot build the molecule without a prepared complex")
         if self.prepared.charge is None:
             raise PrepareError("Cannot build the molecule before the charge is known")
         self.mol = encode.molecule(self.prepared, self.verbose)
@@ -245,9 +259,13 @@ class EncodeProtein:
             raise EncodingError(
                 f"Dice failed over {self.active_space_size} orbitals; what it wrote is in {scratch}"
             ) from error
-        else:
-            if self.scratch is None:
-                shutil.rmtree(scratch, ignore_errors=True)
+        finally:
+            log = os.path.join(scratch, DICE_LOG)
+            if self.out and os.path.isfile(log):
+                os.makedirs(self.out, exist_ok=True)
+                shutil.copyfile(log, save.dice_log_path(self._name(), self.out))
+        if self.scratch is None:
+            shutil.rmtree(scratch, ignore_errors=True)
 
         ncas, nelecas, orbitals, occupations = encode.window(
             self.orbital_initial, density, self.active_space_size, self.active_electrons, core, lo, hi
@@ -311,29 +329,61 @@ class EncodeProtein:
 
     def solved(self):
         """
-        Boolean for if solved.
+        Whether SHCI has solved the space.
         """
-        ...
+        return self.shci_energy is not None
 
 
     def encoded(self):
         """
-        Boolean for if solved and encoded.
+        Whether H() has run over the solved space.
         """
-        ...
+        return self.solved() and self.e_core is not None
 
 
     def _load(self):
         """
-        TODO: Load finished artefacts
+        Read back the SCF, the solved space and the Hamiltonian, whichever of them `out` holds.
         """
-        ...
+        name = self._name()
+        stored = save.load_scf(name, self.out)
+        solved = save.load_solved(name, self.out)
+        if stored is None and solved is None:
+            return
+
+        self._molecule()
+        self.mean_field = encode.restore(self.mol, stored)
+        if stored is not None:
+            self.energy = self.mean_field.e_tot
+        if solved is None:
+            return
+        for key in SOLVED:
+            setattr(self, key, solved[key])
+
+        encoded = save.load_encoded(name, self.out)
+        if encoded is not None:
+            for key in ENCODED:
+                setattr(self, key, encoded[key])
 
 
     def save(self):
         """
-        TODO: Save generated artefacts
+        Write the space SHCI solved, or once H() has run over it, the integrals and their window.
         """
         if not self.out:
             return
-        ...
+        if self.e_core is not None:
+            save.save_encoded(
+                {key: getattr(self, key) for key in ENCODED}, self._name(), self.out
+            )
+        elif self.shci_energy is not None:
+            save.save_solved(
+                {key: getattr(self, key) for key in SOLVED}, self._name(), self.out
+            )
+
+
+    def _name(self):
+        """
+        The complex, which names the directory its artefacts are kept in.
+        """
+        return os.path.basename(os.path.normpath(self.out))

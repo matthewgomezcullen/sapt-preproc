@@ -192,14 +192,14 @@ For `run_size.sh` and `test.sh`, you may alternatively download the data from th
 | Flag | Adds | Cost |
 |---|---|---|
 | `--long-protonate` | the repair, protonation, minimisation and busting pipelines, over several complexes | minutes each, because protonation is seeded onto a reference platform for determinism |
-| `--hpc` | RHF, AVAS and the MP2 cap over a real cutout of the bin | about an hour a cutout cold, minutes (MP2) against a checkpoint |
+| `--hpc` | RHF, AVAS and the MP2 cap over a real cutout of the bin | about an hour a cutout |
 | `--hpc-long-stab` | the stability analysis of a cutout's converged SCF | six to ten hours each, an order of magnitude beyond the solve it checks |
 | `--hpc-long-dice` | Dice over the fifty orbitals MP2 leaves on a cutout | unmeasured; this is what the flag exists to find out |
 | `--hpc-long-run` | the driver, end to end over a cutout, as far as the Hamiltonian | repeats AVAS, MP2 and Dice rather than sharing the cached ones |
 
 Every test carries exactly one of these marks: `pytest tests --encode --hpc --hpc-long-dice` solves a cutout and runs Dice over it, without also paying for the stability analysis or a second pass through the driver.
 
-`--hpc-long-stab` is worth running once per cutout rather than once per run. Stability is a property of the converged SCF, and the SCF is checkpointed to `$DATA/scf`, so a job that asks only for it reads the solve back in seconds and spends the whole of its time on the analysis.
+`--hpc-long-stab` is worth running once per cutout rather than once per run. Stability is a property of the converged SCF, which the tests solve afresh each session.
 
 Dice itself is not behind a flag. It is an external program that only builds on Linux, so the tests that need it are skipped wherever it is not on the `PATH` and run wherever it is, without a flag either way.
 
@@ -209,22 +209,25 @@ Among accepted complexes, many cutouts are highly charged, as counter-charges th
 
 ## `run.py`
 
-Runs a complex through the entire pipeline, from preparation to the Hamiltonian, into a `.npz` file under `$DATA/spaces/<name>.npz` or `out/spaces/<name>.npz`. Dice's own log is kept beside it as `<name>.dice.out`.
+`python run.py <name>` carries every complex in `data/`, or those `--complexes` names, from preparation to the Hamiltonian. Each complex keeps its artefacts in `out/<name>/<complex>/`, and `filter.py` keeps its preparations the same way in `out/filter/<complex>/` (i.e., `name=filter`).
 
-The file is written in two halves:
+| File | Written by | Holds |
+|---|---|---|
+| `<complex>_prepared.npz` | `PrepareComplex.prepare` | `cutout` (the capped cutout, as PDB), `poses` (as protonation, minimisation and busting left them, as mol blocks), `charge`, `electrons`, `heavy_atoms`, `excluded`, `failed` |
+| `<complex>_rhf.chk` | `EncodeProtein.RHF`, once converged | PySCF's own `scf` group: `e_tot`, `mo_energy`, `mo_occ`, `mo_coeff` |
+| `<complex>_solved.npz` | `EncodeProtein.solve` | the space SHCI solved: `energy` (RHF), `correlation` (MP2), `shci_energy`, `active_space_size`, `active_electrons`, `orbital_initial`, `occupations` |
+| `<complex>.dice.out` | `EncodeProtein.SHCI` | Dice's own log, kept whether or not Dice succeeded |
+| `<complex>_encoded.npz` | `EncodeProtein.encode` | `e_core`, `h1`, `h2`, and the window they are over: `active_space_size`, `active_electrons`, `occupations` |
 
-1. The first half is the space Dice returned, banked the moment it lands: `name`, `ncas` (`active_space_size`), `nelecas` (`active_electrons`), `orbitals`, `occupations`, `energy` (RHF total), `energy_cas` (SHCI total), `correlation` (MP2), `window` (`(0.0, 2.0)`), `molecule`, `digest` and `poses`.
-2. The second half is what the Hamiltonian is built from, added after the space is narrowed to `--window`, the paper's $0.02 \le n_{i} \le 1.97$ by default: `e_core`, `h1`, `h2`, and the space they are over as `hamiltonian_ncas`, `hamiltonian_nelecas` and `hamiltonian_window`. The first half is not rewritten, so any other window only requires arithmetic.
+Each class reads back whatever its directory holds when it is constructed, and a stage already there is not run again. `--force` runs it anyway, though a kept SCF is still read back. An artefact that cannot be read, such as one cut off mid-write, counts as absent and is written over. Nothing is kept for a rejected complex.
 
-`run.done` means both halves are there. A run that has only the first picks it back up through `run.resume` and goes on from the narrowing, without preparing the complex or reaching Dice again.
+Artefacts are matched on the job's name alone, so a job is assumed consistent: a change to preparation wants a new name.
+
+The solved space is not rewritten once the Hamiltonian is built, so it stays at the window SHCI solved, which any narrower window can be taken from.
 
 The qubit operator is built and not stored. `utils.encode.qubits(e_core, h1, h2)` rebuilds it exactly, under any of the three mappings.
 
-`orbitals` is the whole $n_{ao} \times n_{ao}$ coefficient matrix.
-
-`molecule` is `mol.dumps()`: the geometry, basis, charge, spin and atom ordering in one lossless field, around 130 KiB for a cutout of the bin. Storing the geometry alone would not do: the basis, charge, spin and ordering are all needed.
-
-`digest` names the SCF checkpoint the result came out of, which is `$SCF_CHECKPOINTS/<digest>.chk`.
+`orbital_initial` is the whole $n_{ao} \times n_{ao}$ coefficient matrix.
 
 ## Notes on Preparation
 

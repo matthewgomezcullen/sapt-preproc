@@ -18,6 +18,8 @@ NAME = "ABC_123"
 
 STAGES = ["prepared", "solved", "encoded"]
 
+ARTEFACTS = STAGES + ["scf"]
+
 # One heavy atom and one hydrogen, enough for RDKit to read back and for a coordinate to be checked.
 POSE = """ABC_123
      RDKit          3D
@@ -103,14 +105,14 @@ def test_poses_come_back_as_the_molecules_that_were_stored(tmp_path):
         )
 
 
-@pytest.mark.parametrize("name", STAGES)
+@pytest.mark.parametrize("name", ARTEFACTS)
 def test_an_absent_artefact_loads_as_none(tmp_path, name):
     _, fetch = stage(name)
 
     assert fetch(NAME, str(tmp_path)) is None
 
 
-@pytest.mark.parametrize("name", STAGES)
+@pytest.mark.parametrize("name", ARTEFACTS)
 def test_an_unreadable_artefact_loads_as_none(tmp_path, name):
     """
     An interrupted job leaves a truncated file behind. It is treated as absent.

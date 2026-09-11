@@ -70,7 +70,7 @@ def pytest_addoption(parser):
         "--hpc",
         action="store_true",
         help="Also run the tests that solve a real SCF over a subset cutout and correlate it. "
-             "About an hour a cutout cold, seconds against a checkpoint.",
+             "About an hour a cutout.",
     )
     parser.addoption(
         "--hpc-long-stab",

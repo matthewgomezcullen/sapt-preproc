@@ -1,7 +1,3 @@
-import hashlib
-import json
-import os
-
 import numpy as np
 from prepare import PrepareComplex
 from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
@@ -24,37 +20,34 @@ def molecule(prepared: PrepareComplex, verbose):
     )
     return mol
 
-def rhf(mol, max_cycle, store=None, density_fit=False):
+def rhf(mol, max_cycle, density_fit=False):
     """
-    Run RHF with PySCF, keeping a checkpoint if there is somewhere to keep one.
-
-    PySCF writes the checkpoint every cycle.
+    Run RHF with PySCF, in memory.
 
     `density_fit` fits the two-electron integrals rather than computing them, which is the lever
-        for a cutout whose exact SCF will not finish inside a wall clock. It answers differently,
-        and the checkpoint knows.
+        for a cutout whose exact SCF will not finish inside a wall clock. It answers differently.
     """
-    mean_field = scf.RHF(mol)
-    if density_fit:
-        mean_field = mean_field.density_fit()
+    mean_field = _mean_field(mol, density_fit)
     mean_field.max_cycle = max_cycle
-    if store is None:
-        mean_field.kernel()
-        return mean_field
-
-    os.makedirs(store, exist_ok=True)
-    mean_field.chkfile = checkpoint(mol, store, mean_field)
-
-    record = _checkpointed(mean_field.chkfile, mol)
-    if record is not None:
-        if record.get("converged"):
-            return _restore(mean_field, record)
-        mean_field.init_guess = "chkfile"
-
+    mean_field.chkfile = None
     mean_field.kernel()
-    # Convergence flag
-    scf.chkfile.save(mean_field.chkfile, "scf/converged", bool(mean_field.converged))
     return mean_field
+
+def restore(mol, record=None, density_fit=False):
+    """
+    An RHF read back off disk: converged if its SCF was kept, and otherwise unsolved, which is all
+        the Hamiltonian needs of it.
+    """
+    mean_field = _mean_field(mol, density_fit)
+    if record is not None:
+        # PySCF's own way back from a chkfile's `scf` group.
+        mean_field.__dict__.update(record)
+        mean_field.converged = True
+    return mean_field
+
+def _mean_field(mol, density_fit):
+    mean_field = scf.RHF(mol)
+    return mean_field.density_fit() if density_fit else mean_field
 
 def generate_target_orbitals(prepared, cutoff, exclude, valence):
     """

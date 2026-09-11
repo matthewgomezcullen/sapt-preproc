@@ -3,6 +3,9 @@ Screen the benchmark set, then bin eligible cutouts by the size and charge of it
 
 The per-complex numbers are written to out/filter.csv. `--reuse` reads that file back and
     reprints the tables without screening again.
+
+Each complex's preparation is kept in out/filter/<complex> and read back by the next screen.
+    `--force` prepares every complex again.
 """
 
 import argparse
@@ -12,6 +15,7 @@ import os
 import statistics
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 
 from posebusters import check_rmsd
 from rdkit import Chem
@@ -26,6 +30,7 @@ DIFFDOCK = os.path.join(DATA, "diffdock")
 POSEBUSTERS = os.path.join(DATA, "posebusters")
 OUT = os.path.join(ROOT, "out")
 TABLE = os.path.join(OUT, "filter.csv")
+JOB = os.path.join(OUT, "filter")
 
 NEAR_NATIVE = 2.0
 
@@ -166,14 +171,16 @@ def _row(name, status, prepared, near, rejection=""):
     }
 
 
-def _prepare(one):
+def _prepare(one, force=False):
     """
-    One complex prepared and then checked for near-native existence. Runs in its own process.
+    One complex prepared, or read back, and then checked for near-native existence. Runs in its own
+        process.
     """
     name, protein, poses, native = one
-    prepared = PrepareComplex(protein, poses)
+    prepared = PrepareComplex(protein, poses, os.path.join(JOB, name))
     try:
-        prepared.prepare()
+        if force or not prepared.prepared():
+            prepared.prepare()
     except OutOfScopeError as error:
         return _row(name, "rejected", prepared, 0, error.error_type.value), prepared.failed
     except PrepareError as error:
@@ -185,7 +192,7 @@ def _prepare(one):
     return _row(name, "eligible", prepared, near), prepared.failed
 
 
-def screen(complexes, workers=None):
+def screen(complexes, workers=None, force=False):
     """
     Prepare every complex.
 
@@ -197,7 +204,7 @@ def screen(complexes, workers=None):
     rows, checks = [], Counter()
     with ProcessPoolExecutor(max_workers=workers) as pool:
         prepared = tqdm(
-            pool.map(_prepare, complexes),
+            pool.map(partial(_prepare, force=force), complexes),
             total=len(complexes),
             desc="Screening",
             unit="complex",
@@ -328,6 +335,11 @@ if __name__ == "__main__":
         help="Processes to prepare the complexes with. Defaults to the machine's cores, which "
              "under a scheduler is the node's rather than what the job was given.",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help=f"Prepare every complex again, even one kept in {os.path.relpath(JOB, ROOT)}.",
+    )
     arguments = parser.parse_args()
 
     if arguments.reuse:
@@ -337,7 +349,7 @@ if __name__ == "__main__":
         complexes, incomplete = inventory()
         complexes = complexes[:10]
         complexes, incorrect = candidates(complexes)
-        rows, checks = screen(complexes, workers=arguments.workers)
+        rows, checks = screen(complexes, workers=arguments.workers, force=arguments.force)
         write(rows)
         _summarise(rows, incomplete, incorrect, checks)
     report(rows)

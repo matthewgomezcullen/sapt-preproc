@@ -8,9 +8,6 @@ from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 
 from pyscf import ao2mo, gto, mcscf, mp, scf
 
-# What `$DATA` is joined with by default
-CHECKPOINTS = "scf"
-
 def molecule(prepared: PrepareComplex, verbose):
     """
     Build the PySCF molecule the SCF is solved over.
@@ -26,53 +23,6 @@ def molecule(prepared: PrepareComplex, verbose):
         verbose=verbose,
     )
     return mol
-
-def store():
-    """
-    The directory SCF checkpoints go in, or None if there is nowhere to put them.
-    """
-    override = os.environ.get("SCF_CHECKPOINTS")
-    if override:
-        return override
-    data = os.environ.get("DATA")
-    return os.path.join(data, CHECKPOINTS) if data else None
-
-def _method(mean_field):
-    """
-    What produced the orbitals, as far as the digest is concerned.
-    """
-    name = type(mean_field).__name__
-    auxbasis = getattr(getattr(mean_field, "with_df", None), "auxbasis", None)
-    return f"{name}/{auxbasis}" if auxbasis else name
-
-def digest(mol, mean_field=None):
-    """
-    What identifies this molecule's SCF.
-
-    `mean_field` of None is the exact RHF the pipeline has always run.
-    """
-    if not mol._built:
-        mol.build()
-    payload = json.dumps(
-        {
-            "atom": mol._atom,
-            "basis": mol._basis,
-            "ecp": mol._ecp,
-            "charge": mol.charge,
-            "spin": mol.spin,
-            "cart": mol.cart,
-            # `test_the_default_path_is_the_exact_solve` holds this to `_method(scf.RHF(mol))`.
-            "method": _method(mean_field) if mean_field is not None else "RHF",
-        },
-        sort_keys=True,
-    )
-    return hashlib.sha256(payload.encode()).hexdigest()
-
-def checkpoint(mol, store, mean_field=None):
-    """
-    The path this molecule's SCF takes in `store`.
-    """
-    return os.path.join(store, f"{digest(mol, mean_field)}.chk")
 
 def rhf(mol, max_cycle, store=None, density_fit=False):
     """
@@ -104,34 +54,6 @@ def rhf(mol, max_cycle, store=None, density_fit=False):
     mean_field.kernel()
     # Convergence flag
     scf.chkfile.save(mean_field.chkfile, "scf/converged", bool(mean_field.converged))
-    return mean_field
-
-def _checkpointed(path, mol):
-    """
-    What is on disk for this molecule.
-    """
-    if not os.path.exists(path):
-        return None
-    try:
-        record = scf.chkfile.load(path, "scf")
-    except Exception: # h5py raises OSError for a file cut off mid-write, among others.
-        record = None
-    if record is not None and "mo_coeff" in record:
-        if np.shape(record["mo_coeff"])[0] == mol.nao:
-            return record
-    os.remove(path)
-    return None
-
-def _restore(mean_field, record):
-    """
-    A converged solve read back off disk.
-    """
-    mean_field.mo_coeff = np.asarray(record["mo_coeff"])
-    mean_field.mo_energy = np.asarray(record["mo_energy"])
-    mean_field.mo_occ = np.asarray(record["mo_occ"])
-    # A solve puts a numpy scalar here, and a read should be indistinguishable.
-    mean_field.e_tot = record["e_tot"]
-    mean_field.converged = True
     return mean_field
 
 def generate_target_orbitals(prepared, cutoff, exclude, valence):
@@ -184,7 +106,7 @@ def mp2(mean_field, orbitals, ncas, nelecas, density_fit=False, verbose=0):
 
 def cap(orbitals, density, ncas, nelecas, core, nmax):
     """
-    The nmax most fractional natural orbitals of an MP2 density, and the space they leave.
+    Returns the space from an MP2 cap.
     """
     occupied = nelecas // 2
     filled, rotate_filled = np.linalg.eigh(density[:occupied, :occupied])
@@ -283,11 +205,7 @@ def window(orbitals, density, ncas, nelecas, core, lo, hi):
 
 def select(orbitals, occupations, nelecas, lo, hi):
     """
-    The orbitals a window admits, and the space they leave.
-
-    The occupations are descending and the orbitals in their order, so those above the window are
-        the first of the active columns and retire into the core, and those below it are the last
-        and join the virtuals.
+    Selects orbitals from a window and returns the resulting space.
     """
     kept = (occupations >= lo) & (occupations <= hi)
     return (

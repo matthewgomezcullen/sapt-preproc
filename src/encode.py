@@ -30,6 +30,7 @@ class EncodeProtein:
     def __init__(
         self,
         prepared: PrepareComplex | None,
+        out=None
     ):
         self.prepared = prepared
         self.mol = None
@@ -69,6 +70,25 @@ class EncodeProtein:
         self.h1 = None # one-electron integrals, the core's Coulomb and exchange folded in
         self.h2 = None # two-electron integrals over the active orbitals
         self.hamiltonian = None # the active space as a qubit operator
+
+        # Load
+        self.out = out
+        if out:
+            self._load()
+
+
+    def solve(self):
+        self.RHF()
+        self.AVAS()
+        self.MP2()
+        self.SHCI()
+        self.save()
+
+
+    def encode(self):
+        self.H()
+        self.save()
+
 
     def RHF(self):
         """
@@ -182,7 +202,7 @@ class EncodeProtein:
         )
         return self.active_space_size, self.active_electrons, self.orbital_initial
 
-    def SHCI(self, eps1: float = 1e-4, lo: float = 0.02, hi: float = 1.97):
+    def SHCI(self, eps1: float = 1e-4, lo: float = 0, hi: float = 2):
         """
         Truncate the active space to the correlated orbitals.
 
@@ -195,8 +215,7 @@ class EncodeProtein:
         `eps1` is the selection threshold, below which a determinant is left out of the variational 
             space. Smaller is nearer exact and costs more.
 
-        The window defaults to the paper's. A cutout with no pi system on the contact has too
-            little correlation for it and needs a wider one; see the deviations in README.
+        Window defaults to everything, which can be rewindowed after.
 
         The window can leave a space with no excitation in it, whose correction to SAPT is exactly 
             zero. Rejected.
@@ -243,9 +262,9 @@ class EncodeProtein:
         self.active_space_size, self.active_electrons = ncas, nelecas
         return self.active_space_size, self.active_electrons, self.orbital_initial
 
-    def rewindow(self, lo: float, hi: float):
+    def rewindow(self, lo: float = 0.02, hi: float = 1.97):
         """
-        Choose another occupation window over a space already solved.
+        Choose another occupation window over a solved space. Defaults to the original paper.
         """
         if self.shci_energy is None:
             raise EncodingError("Cannot rewindow before SHCI has solved the space")
@@ -289,3 +308,32 @@ class EncodeProtein:
             raise EncodingError(str(error)) from error
         return self.hamiltonian
 
+
+    def solved(self):
+        """
+        Boolean for if solved.
+        """
+        ...
+
+
+    def encoded(self):
+        """
+        Boolean for if solved and encoded.
+        """
+        ...
+
+
+    def _load(self):
+        """
+        TODO: Load finished artefacts
+        """
+        ...
+
+
+    def save(self):
+        """
+        TODO: Save generated artefacts
+        """
+        if not self.out:
+            return
+        ...

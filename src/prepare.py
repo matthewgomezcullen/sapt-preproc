@@ -99,6 +99,7 @@ class PrepareComplex:
         self,
         protein_path: str,
         poses_paths: list[str],
+        out=None
     ):
         self.protein_path = protein_path
         self.poses_paths = poses_paths
@@ -132,6 +133,10 @@ class PrepareComplex:
         # the same place every run. Not zero: OpenMM reads a zero seed as a request for a random one.
         self.seed = 1
 
+        # Load
+        if self.out:
+            self._load()
+
     def prepare(self):
         self._fetch()
         self._verify()
@@ -144,6 +149,7 @@ class PrepareComplex:
         self._reverify()
         self._calculate_charge()
         self._verify_num_electrons()
+        self.save()
 
     def _fetch(self):
         """
@@ -534,3 +540,26 @@ class PrepareComplex:
             for residue in chain
             for atom in residue
         ]
+
+
+    def prepared(self):
+        """
+        TODO: boolean for if preparation is done.
+        """
+        ...
+
+
+    def _load(self):
+        """
+        TODO: Load finished artefacts
+        """
+        ...
+
+
+    def save(self):
+        """
+        TODO: Save generated artefacts
+        """
+        if not self.out:
+            return
+        ...

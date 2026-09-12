@@ -57,12 +57,14 @@ def _load(data, out, complexes) -> list[PrepareComplex]:
     ]
 
 
-def run(name, data, out, complexes=None, force=False):
+def run(name, data, out, complexes=None, force=False, prepare_only=False):
     out = os.path.join(out, name)
     complexes = _load(data, out, complexes)
     for complex in complexes:
         if force or not complex.prepared():
             complex.prepare()
+        if prepare_only:
+            continue
         protein = EncodeProtein(complex, complex.out)
         if force or not protein.solved():
             protein.solve()
@@ -90,5 +92,13 @@ if __name__ == "__main__":
         action="store_true",
         help="Run every stage again, even one already kept.",
     )
+    parser.add_argument("--prepare-only", action="store_true", help="Prepare only. Don't encode.")
     arguments = parser.parse_args()
-    run(arguments.name, arguments.data, arguments.out, arguments.complexes, arguments.force)
+    run(
+        arguments.name,
+        arguments.data,
+        arguments.out,
+        arguments.complexes,
+        arguments.force, 
+        arguments.prepare_only
+    )

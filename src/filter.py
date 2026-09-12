@@ -84,7 +84,7 @@ def _native(name):
     ]
 
 
-def inventory():
+def inventory(named=None):
     """
     Return complexes on disk (name, protein, poses, native)
     """
@@ -100,6 +100,7 @@ def inventory():
         for name in set(os.listdir(POSEBUSTERS)) & set(os.listdir(DIFFDOCK))
         if os.path.isdir(os.path.join(POSEBUSTERS, name))
         and os.path.isdir(os.path.join(DIFFDOCK, name))
+        and (not named or name in named)
     )
 
     complexes = []
@@ -354,14 +355,19 @@ if __name__ == "__main__":
         action="store_true",
         help=f"Prepare every complex again, even one kept in {os.path.relpath(JOB, ROOT)}.",
     )
+    parser.add_argument(
+        "--complexes",
+        nargs="+",
+        default=None,
+        help="The complexes to run, by name. Every one by default.",
+    )
     arguments = parser.parse_args()
 
     if arguments.reuse:
         rows = read()
         _summarise(rows)
     else:
-        complexes, incomplete = inventory()
-        complexes = complexes
+        complexes, incomplete = inventory(arguments.complexes)
         complexes, incorrect = sweep_for_near_native(complexes)
         if arguments.workers is None:
             rows, checks = screen(complexes, force=arguments.force)

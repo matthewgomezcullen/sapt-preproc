@@ -1,0 +1,3 @@
+[submodule "src/diffdock"]
+	path = src/diffdock
+	url = https://github.com/gcorso/DiffDock

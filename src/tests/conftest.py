@@ -99,11 +99,19 @@ OPTIONAL = {
 }
 
 
+# DiffDock will not run in this environment.
+DIFFDOCK_ENVIRONMENT = ["DIFFDOCK_PYTHON", "DIFFDOCK_MODELS"]
+
+
 def pytest_configure(config):
     for marker, flag in OPTIONAL.items():
         config.addinivalue_line("markers", f"{marker}: long; run only under {flag}")
     config.addinivalue_line(
         "markers", "dice: needs the Dice executable; skipped wherever it is not on the PATH"
+    )
+    config.addinivalue_line(
+        "markers",
+        f"diffdock: needs DiffDock; skipped unless {' and '.join(DIFFDOCK_ENVIRONMENT)} are set",
     )
 
 
@@ -132,6 +140,13 @@ def pytest_collection_modifyitems(config, items):
         skipped = pytest.mark.skip(reason="Dice is not on the PATH")
         for item in items:
             if "dice" in item.keywords:
+                item.add_marker(skipped)
+
+    unset = [variable for variable in DIFFDOCK_ENVIRONMENT if not os.environ.get(variable)]
+    if unset:
+        skipped = pytest.mark.skip(reason=f"{' and '.join(unset)} is not set")
+        for item in items:
+            if "diffdock" in item.keywords:
                 item.add_marker(skipped)
 
     for marker, flag in OPTIONAL.items():

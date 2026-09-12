@@ -59,6 +59,15 @@ def test_fetch_loads_protein_and_every_pose(poses_paths):
     assert nearest < 4.5
 
 
+def test_fetch_names_the_file_every_pose_came_from(poses_paths):
+    prepared = PrepareComplex(PROTEIN, poses_paths)
+
+    prepared._fetch()
+
+    assert prepared.source == [os.path.basename(path) for path in poses_paths]
+    assert len(prepared.source) == len(prepared.poses)
+
+
 def test_fetch_raises_on_unparseable_pose(tmp_path, poses_paths):
     """
     An SDF RDKit cannot parse must raise, not leave None in self.poses for later steps to trip on.

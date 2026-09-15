@@ -186,16 +186,11 @@ class EncodeProtein:
         MP2 correlates the whole AVAS space, its one-particle density is diagonalised into natural 
             orbitals, and the nmax most fractional by min(n, 2 - n) are kept.
 
-        AVAS returns semicanonical orbitals but not their energies, and the mean field still holds
-            the canonical ones, wrong for these orbitals. MP2 divides by orbital energies, and fed 
-            the stale set it returns wrong answers. The energies are recomputed from the Fock 
-            matrix, and the mean field is restored afterwards
+        AVAS returns semicanonical orbitals but not their energies. The energies are recomputed 
+            from the Fock matrix, and the mean field is restored afterwards.
 
         The occupied-virtual block of the unrelaxed MP2 density is zero, so diagonalising the two
-            blocks separately loses nothing and keeps each orbital's provenance. That provenance is
-            the electron count: a discarded occupied-derived orbital retires its pair to the core,
-            a discarded virtual-derived one stays empty among the virtuals, and the window that
-            remains returns the survivors in descending occupation.
+            blocks separately loses nothing.
         """
         if self.active_space_size is None:
             raise EncodingError("Cannot cap the active space before AVAS has chosen one")
@@ -220,9 +215,8 @@ class EncodeProtein:
 
         Semistochastic Heat-bath Configuration Interaction (SHCI) solves the space MP2 capped. Its
             one-particle density is diagonalised into natural orbitals. An occupation near two or
-            near zero is one a single determinant already describes, so only lo <= n_i <= hi is
-            kept: an orbital above the window is doubly occupied and retires its pair to the core,
-            one below it is empty and joins the virtuals.
+            near zero is described by a single determinant, so only lo <= n_i <= hi is kept: an 
+            orbital above the window is doubly occupied and core, one below it is empty and virtual.
 
         `eps1` is the selection threshold, below which a determinant is left out of the variational 
             space. Smaller is nearer exact and costs more.
@@ -378,6 +372,66 @@ class EncodeProtein:
             save.save_solved(
                 {key: getattr(self, key) for key in SOLVED}, self._name(), self.out
             )
+
+
+    def _name(self):
+        """
+        The complex, which names the directory its artefacts are kept in.
+        """
+        return os.path.basename(os.path.normpath(self.out))
+
+
+class SolveLigand:
+
+    """
+    SolveLigand takes a PreparedComplex, solves RHF for each pose, then stores the per-pose integrals.
+
+    `out` is the complex's directory. Whatever a previous run left there is read back, which needs
+        `prepared` prepared or read back first.
+    """
+
+    def __init__(
+        self,
+        prepared: PrepareComplex,
+        out=None
+    ):
+        pass
+    
+
+    def RHF(self):
+        # Run RHF for each pose. Implicitly handles saving.
+        ...
+
+    def solved(self):
+        """
+        Whether RHF has solved the space.
+        """
+        return self.shci_energy is not None
+
+
+    def _load(self):
+        """
+        Read back the SCF.
+        """
+        name = self._name()
+        stored = save.load_scf(name, self.out)
+        solved = save.load_solved(name, self.out)
+        if stored is None and solved is None:
+            return
+
+        self._molecule()
+        self.mean_field = encode.restore(self.mol, stored)
+        if stored is not None:
+            self.energy = self.mean_field.e_tot
+        if solved is None:
+            return
+        for key in SOLVED:
+            setattr(self, key, solved[key])
+
+        encoded = save.load_encoded(name, self.out)
+        if encoded is not None:
+            for key in ENCODED:
+                setattr(self, key, encoded[key])
 
 
     def _name(self):

@@ -33,7 +33,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 SCRIPT = os.path.join(ROOT, "utils", "diffdock.py")
 
 # The complexes the screen prepared, and the two tables this script produces.
-JOB = filter.JOB
+JOB = filter.job_dir()
 TABLE = os.path.join(filter.OUT, "confidence.csv")
 SUMMARY = os.path.join(filter.OUT, "confidence_summary.csv")
 
@@ -117,7 +117,7 @@ def initial_rows(name, native):
     molecules, sources = _prepared(name)
     return [
         dict(zip(FIELDS, (name, source, *docked_rank_and_score(source), None, None, rmsd)))
-        for source, rmsd in zip(sources, filter.rmsds(molecules, native))
+        for source, rmsd in zip(sources, filter.calc_rmsds(molecules, native))
     ]
 
 

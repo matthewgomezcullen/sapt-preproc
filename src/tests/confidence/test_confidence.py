@@ -165,7 +165,7 @@ def test_label_measures_every_pose_against_the_deposited_ligand(job):
         assert (by_name[source]["rank_docked"],
                 by_name[source]["confidence_docked"]) == confidence.docked_rank_and_score(source)
     near = [row for row in labelled if row["rmsd"] <= filter.NEAR_NATIVE]
-    assert len(near) == len(filter.near_native(stored(), NATIVE))
+    assert len(near) == len(filter.get_near_natives(stored(), NATIVE))
 
 
 def test_score_hands_every_complex_over_in_one_pass_and_reads_the_answer(job, monkeypatch):

@@ -100,7 +100,8 @@ class PrepareComplex:
         self,
         protein_path: str,
         poses_paths: list[str],
-        out=None
+        out=None,
+        mm=True,
     ):
         self.protein_path = protein_path
         self.poses_paths = poses_paths
@@ -135,6 +136,12 @@ class PrepareComplex:
         # the same place every run. Not zero: OpenMM reads a zero seed as a request for a random one.
         self.seed = 1
 
+        # Whether each pose is relaxed in the protonated protein before it is screened. Off, every
+        # pose reaches PoseBusters and then SAPT as DiffDock placed it, which is the ranking the
+        # confidence model produced. The hydrogens _protonate gives a pose are RDKit's rather than
+        # any mechanics, so a pose carries them either way.
+        self.mm = mm
+
         # Load
         self.out = out
         if out:
@@ -146,7 +153,8 @@ class PrepareComplex:
         self._fix()
         self._clean()
         self._protonate()
-        self._minimise()
+        if self.mm:
+            self._minimise()
         self._bust()
         self._reduce()
         self._reverify()

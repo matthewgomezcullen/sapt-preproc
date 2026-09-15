@@ -49,7 +49,7 @@ def rank_of(path):
 def _row(one):
     name, _, paths, native = one
     paths = sorted(paths, key=rank_of)
-    measured = filter.rmsds(paths, native)
+    measured = filter.calc_rmsds(paths, native)
     near = [rmsd is not None and rmsd <= filter.NEAR_NATIVE for rmsd in measured]
     return {
         "name": name,

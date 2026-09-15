@@ -6,6 +6,9 @@ The per-complex numbers are written to out/filter.csv. `--reuse` reads that file
 
 Each complex's preparation is kept in out/filter/<complex> and read back by the next screen.
     `--force` prepares every complex again.
+
+`--name` moves both, so a run that screens the poses differently -- `--no-mm` leaves them where
+    DiffDock placed them -- does not read the last one's work back.
 """
 
 import argparse
@@ -26,11 +29,17 @@ from run import FAIL, POSE
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(ROOT, 'data')
-DIFFDOCK = os.path.join(DATA, "diffdock_v1_1")
-POSEBUSTERS = os.path.join(DATA, "posebusters_v1_1")
+DIFFDOCK = os.path.join(DATA, "diffdock_v1_0")
+# POSEBUSTERS = os.path.join(DATA, "posebusters_v1_0")
+POSEBUSTERS = os.path.join(
+    DATA, 
+    "posebusters_v1_1", 
+    "posebusters_benchmark_holo_aligned_predicted_structures"
+)
 OUT = os.path.join(ROOT, "out")
-TABLE = os.path.join(OUT, "filter.csv")
-JOB = os.path.join(OUT, "filter")
+
+# What a run is called, which names both of the things it writes.
+NAME = "filter"
 
 NEAR_NATIVE = 2.0
 
@@ -48,22 +57,31 @@ FIELDS = [
 COUNTS = ["heavy_atoms", "charge", "electrons", "poses", "excluded", "near_native"]
 
 
-def _protein(name):
-    """
-    The single deposited structure of a PoseBusters complex.
-    """
-    directory = os.path.join(POSEBUSTERS, name)
+def table_file(name=NAME):
+    return os.path.join(OUT, f"{name}.csv")
+
+
+def job_dir(name=NAME):
+    return os.path.join(OUT, name)
+
+
+# def _get_proteins(name):
+#     directory = os.path.join(POSEBUSTERS, name)
+#     return [
+#         os.path.join(directory, f)
+#         for f in sorted(os.listdir(directory))
+#         if f == f"{name}_protein.pdb"
+#     ]
+
+def _get_proteins(name):
     return [
-        os.path.join(directory, f)
-        for f in sorted(os.listdir(directory))
-        if f.endswith(".pdb")
+        os.path.join(POSEBUSTERS, f)
+        for f in sorted(os.listdir(POSEBUSTERS))
+        if f == f"{name}_holo_aligned_predicted_protein.pdb"
     ]
 
 
-def _poses(name):
-    """
-    The candidate poses DiffDock produced for a complex, one per rank.
-    """
+def _get_poses(name):
     directory = os.path.join(DIFFDOCK, name)
     return [
         os.path.join(directory, f)
@@ -72,10 +90,7 @@ def _poses(name):
     ]
 
 
-def _native(name):
-    """
-    The native ligand pose.
-    """
+def _get_natives(name):
     directory = os.path.join(POSEBUSTERS, name)
     return [
         os.path.join(directory, f)
@@ -106,7 +121,7 @@ def inventory(named=None):
     complexes = []
     incomplete = []
     for name in names:
-        proteins, poses, natives = _protein(name), _poses(name), _native(name)
+        proteins, poses, natives = _get_proteins(name), _get_poses(name), _get_natives(name)
         if len(proteins) != 1 or not poses or len(natives) != 1:
             incomplete.append(name)
             continue
@@ -114,10 +129,8 @@ def inventory(named=None):
     return complexes, incomplete
 
 
-def rmsds(poses, native):
+def calc_rmsds(poses, native):
     """
-    How far each pose sits from the deposited ligand, or None where it could not be measured.
-
     RMSD is symmetry-corrected and over heavy atoms.
     """
     poses = list(poses)
@@ -138,14 +151,11 @@ def rmsds(poses, native):
     return measured
 
 
-def near_native(poses, native, threshold=NEAR_NATIVE):
-    """
-    The poses sitting within `threshold` of the deposited ligand, inclusive.
-    """
+def get_near_natives(poses, native, threshold=NEAR_NATIVE):
     poses = list(poses)
     return [
         pose
-        for pose, rmsd in zip(poses, rmsds(poses, native))
+        for pose, rmsd in zip(poses, calc_rmsds(poses, native))
         if rmsd is not None and rmsd <= threshold
     ]
 
@@ -154,7 +164,7 @@ def sweep_for_near_native(complexes):
     kept, incorrect = [], []
     for one in tqdm(complexes, desc="Near-Native", unit="complex"):
         name, _, poses, native = one
-        if near_native(poses, native, LOOSE):
+        if get_near_natives(poses, native, LOOSE):
             kept.append(one)
         else:
             incorrect.append((name, GENERATOR))
@@ -162,9 +172,6 @@ def sweep_for_near_native(complexes):
 
 
 def _row(name, status, prepared, near, rejection=""):
-    """
-    One complex's screening result.
-    """
     return {
         "name": name,
         "status": status,
@@ -178,14 +185,17 @@ def _row(name, status, prepared, near, rejection=""):
     }
 
 
-def _prepare(one, force=False):
+def _prepare(one, force=False, mm=True, out=None):
     """
     One complex prepared, or read back, and then checked for near-native existence.
+
+    `out` is the run's directory rather than the complex's, which is taken from it. Named for
+        PrepareComplex's own parameter, because `name` here is the complex.
 
     Can run in its own process.
     """
     name, protein, poses, native = one
-    prepared = PrepareComplex(protein, poses, os.path.join(JOB, name))
+    prepared = PrepareComplex(protein, poses, os.path.join(out or job_dir(), name), mm=mm)
     try:
         if force or not prepared.prepared():
             prepared.prepare()
@@ -194,13 +204,13 @@ def _prepare(one, force=False):
     except PrepareError as error:
         return _row(name, "failed", prepared, 0, str(error)), prepared.failed
 
-    near = len(near_native(prepared.poses, native))
+    near = len(get_near_natives(prepared.poses, native))
     if not near:
         return _row(name, "unusable", prepared, near, GENERATOR), prepared.failed
     return _row(name, "eligible", prepared, near), prepared.failed
 
 
-def screen(complexes, force=False):
+def screen(complexes, force=False, mm=True, name=NAME):
     """
     Prepare every complex.
 
@@ -208,8 +218,9 @@ def screen(complexes, force=False):
         be read or prepared; `unusable` means the ensemble holds no near-native pose.
     """
     rows, checks = [], Counter()
+    out = job_dir(name)
     prepared = tqdm(
-        (_prepare(complex, force=force) for complex in complexes),
+        (_prepare(complex, force=force, mm=mm, out=out) for complex in complexes),
         total=len(complexes),
         desc="Screening",
         unit="complex",
@@ -221,14 +232,16 @@ def screen(complexes, force=False):
 
 
 
-def screen_parallel(complexes, workers=None, force=False):
+def screen_parallel(complexes, workers=None, force=False, mm=True, name=NAME):
     """
     Parallelised. `map` keeps the rows in the order the complexes came in.
     """
     rows, checks = [], Counter()
     with ProcessPoolExecutor(max_workers=workers) as pool:
         prepared = tqdm(
-            pool.map(partial(_prepare, force=force), complexes),
+            pool.map(
+                partial(_prepare, force=force, mm=mm, out=job_dir(name)), complexes
+            ),
             total=len(complexes),
             desc="Screening",
             unit="complex",
@@ -239,10 +252,11 @@ def screen_parallel(complexes, workers=None, force=False):
     return rows, checks
 
 
-def write(rows, path=TABLE):
+def write(rows, name=NAME):
     """
     Store the screening results, creating the output directory if it is not there yet.
     """
+    path = table_file(name)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=FIELDS)
@@ -250,11 +264,11 @@ def write(rows, path=TABLE):
         writer.writerows(rows)
 
 
-def read(path=TABLE):
+def read(name=NAME):
     """
     A stored screen, with the numeric columns back as ints and an absent value as None.
     """
-    with open(path, newline="") as file:
+    with open(table_file(name), newline="") as file:
         rows = list(csv.DictReader(file))
     for row in rows:
         for field in COUNTS:
@@ -349,8 +363,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--reuse",
         action="store_true",
-        help=f"Bin a stored screen from {os.path.relpath(TABLE, ROOT)} instead of preparing every "
-             "complex again.",
+        help=f"Bin a stored screen from {os.path.relpath(table_file(), ROOT)} instead of preparing "
+             "every complex again.",
     )
     parser.add_argument(
         "--workers",
@@ -363,7 +377,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--force",
         action="store_true",
-        help=f"Prepare every complex again, even one kept in {os.path.relpath(JOB, ROOT)}.",
+        help=f"Prepare every complex again, even one kept in {os.path.relpath(job_dir(), ROOT)}.",
     )
     parser.add_argument(
         "--complexes",
@@ -371,20 +385,41 @@ if __name__ == "__main__":
         default=None,
         help="The complexes to run, by name. Every one by default.",
     )
+    parser.add_argument(
+        "--name",
+        default=NAME,
+        help="Screen under another name, which is both the table written and the directory the "
+             "preparations are kept in, so one run does not read another's work back.",
+    )
+    parser.add_argument(
+        "--mm",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Relax each pose in the protonated protein before screening it. `--no-mm` screens "
+             "every pose where DiffDock placed it; its hydrogens are added either way.",
+    )
     arguments = parser.parse_args()
 
     if arguments.reuse:
-        rows = read()
+        rows = read(arguments.name)
         _summarise(rows)
     else:
         complexes, incomplete = inventory(arguments.complexes)
         complexes, incorrect = sweep_for_near_native(complexes)
         if arguments.workers is None:
-            rows, checks = screen(complexes, force=arguments.force)
+            rows, checks = screen(
+                complexes, force=arguments.force, mm=arguments.mm, name=arguments.name
+            )
         else:
             # ProcessPoolExecutor reads None, not -1, as every core.
             workers = None if arguments.workers == -1 else arguments.workers
-            rows, checks = screen_parallel(complexes, workers=workers, force=arguments.force)
-        write(rows)
+            rows, checks = screen_parallel(
+                complexes,
+                workers=workers,
+                force=arguments.force,
+                mm=arguments.mm,
+                name=arguments.name,
+            )
+        write(rows, arguments.name)
         _summarise(rows, incomplete, incorrect, checks)
     report(rows)

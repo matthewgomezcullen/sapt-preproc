@@ -4,6 +4,8 @@ Pose hydrogens and pose minimisation, for PrepareComplex._protonate and ._minimi
 _protonate adds the protein's hydrogens with Modeller and the poses' with RDKit, in one method.
 _minimise relaxes each pose in the protonated protein, protein fixed and ligand free.
 
+A tether restrains each pose heavy atom to the coordinate DiffDock gave it.
+
     5S8I_2LY    the cheapest structure to carry through the pipeline
     6ZCY_QF8    27 of its 40 poses are rejected before minimisation
 """
@@ -27,6 +29,14 @@ CLASH = 0.75
 
 VDW = {"C": 1.7, "N": 1.6, "O": 1.55, "S": 1.8, "F": 1.47, "P": 1.8, "Cl": 1.75}
 
+TETHER = 10.0
+WEAK = 1.0
+STRONG = 100.0
+
+FEW = 4
+
+EXACT = 1e-4
+
 
 def protonated(name):
     prepared = PrepareComplex(*paths(name))
@@ -38,10 +48,7 @@ def protonated(name):
     return prepared
 
 
-def heavy(pose):
-    """
-    Heavy-atom coordinates and elements, in the pose's atom order.
-    """
+def get_heavy(pose):
     positions = pose.GetConformer().GetPositions()
     indices = [a.GetIdx() for a in pose.GetAtoms() if a.GetAtomicNum() > 1]
     return positions[indices], [pose.GetAtomWithIdx(i).GetSymbol() for i in indices]
@@ -67,7 +74,7 @@ def closest(pose, model):
     """
     The smallest ligand-protein heavy-atom separation, relative to the sum of the pair's radii.
     """
-    ligand, ligand_elements = heavy(pose)
+    ligand, ligand_elements = get_heavy(pose)
     protein, protein_elements = protein_heavy(model)
     distances = np.linalg.norm(ligand[:, None, :] - protein[None, :, :], axis=-1)
     radii = np.array([VDW.get(e, 1.7) for e in ligand_elements])[:, None] + np.array(
@@ -88,22 +95,22 @@ def test_protonate_gives_every_pose_explicit_hydrogens():
 def test_protonate_leaves_pose_heavy_atoms_where_they_were():
     before = PrepareComplex(*paths(SMALL))
     before._fetch()
-    original = [heavy(pose)[0] for pose in before.poses]
+    original = [get_heavy(pose)[0] for pose in before.poses]
 
     prepared = protonated(SMALL)
 
     for was, pose in zip(original, prepared.poses):
-        assert np.allclose(was, heavy(pose)[0])
+        assert np.allclose(was, get_heavy(pose)[0])
 
 
 def test_minimise_moves_pose_heavy_atoms():
     prepared = protonated(CLASHING)
-    before = [heavy(pose)[0] for pose in prepared.poses]
+    before = [get_heavy(pose)[0] for pose in prepared.poses]
 
     prepared._minimise()
 
     moved = [
-        np.linalg.norm(was - heavy(pose)[0], axis=-1).max()
+        np.linalg.norm(was - get_heavy(pose)[0], axis=-1).max()
         for was, pose in zip(before, prepared.poses)
     ]
     assert max(moved) > 0.1
@@ -148,16 +155,13 @@ def test_minimise_leaves_the_protein_fixed():
 
 
 def test_minimise_keeps_the_poses_in_the_protein_frame():
-    """
-    A pose that comes back wrapped or at the origin is not a pose.
-    """
     prepared = protonated(CLASHING)
-    before = [heavy(pose)[0].mean(axis=0) for pose in prepared.poses]
+    before = [get_heavy(pose)[0].mean(axis=0) for pose in prepared.poses]
 
     prepared._minimise()
 
     for was, pose in zip(before, prepared.poses):
-        assert np.linalg.norm(was - heavy(pose)[0].mean(axis=0)) < 5.0
+        assert np.linalg.norm(was - get_heavy(pose)[0].mean(axis=0)) < 5.0
 
 
 def test_charges_are_assigned_once_for_the_whole_ensemble(monkeypatch):
@@ -175,3 +179,89 @@ def test_charges_are_assigned_once_for_the_whole_ensemble(monkeypatch):
     prepared._minimise()
 
     assert len(calls) == 1
+
+
+def get_hydrogens(pose):
+    positions = pose.GetConformer().GetPositions()
+    return positions[[a.GetIdx() for a in pose.GetAtoms() if a.GetAtomicNum() == 1]]
+
+
+def heavy_at(pose):
+    return get_heavy(pose)[0]
+
+
+def distance_diff(before, poses, atoms=heavy_at):
+    return [
+        np.linalg.norm(was - atoms(pose), axis=-1).max()
+        for was, pose in zip(before, poses)
+    ]
+
+
+def ensemble_front(prepared):
+    poses = prepared.poses[:FEW]
+    return poses, [heavy_at(pose) for pose in poses]
+
+
+def test_a_tether_holds_the_heavy_atoms_closer_than_a_free_minimisation():
+    prepared = protonated(CLASHING)
+    poses, before = ensemble_front(prepared)
+
+    free = mm.minimise(prepared.whole, poses)
+    tethered = mm.minimise(prepared.whole, poses, TETHER)
+
+    assert max(distance_diff(before, tethered)) < max(distance_diff(before, free))
+
+
+def test_a_stronger_tether_holds_tighter():
+    prepared = protonated(CLASHING)
+    poses, before = ensemble_front(prepared)
+
+    weakly = mm.minimise(prepared.whole, poses, WEAK)
+    tightly = mm.minimise(prepared.whole, poses, STRONG)
+
+    assert max(distance_diff(before, tightly)) < max(distance_diff(before, weakly))
+
+
+def test_a_tether_leaves_the_pose_hydrogens_free():
+    prepared = protonated(CLASHING)
+    poses, before = ensemble_front(prepared)
+    hydrogens = [get_hydrogens(pose) for pose in poses]
+
+    tethered = mm.minimise(prepared.whole, poses, STRONG)
+
+    assert max(distance_diff(hydrogens, tethered, get_hydrogens)) > max(
+        distance_diff(before, tethered)
+    )
+
+
+def test_no_tether_is_the_free_minimisation():
+    prepared = protonated(SMALL)
+    poses = prepared.poses[:FEW]
+
+    free = mm.minimise(prepared.whole, poses)
+    unstrung = mm.minimise(prepared.whole, poses, 0.0)
+
+    for was, now in zip(free, unstrung):
+        assert np.allclose(heavy_at(was), heavy_at(now), atol=EXACT)
+
+
+def test_each_pose_is_tethered_to_its_own_coordinates():
+    prepared = protonated(CLASHING)
+    first, second = prepared.poses[0], prepared.poses[1]
+
+    forwards = mm.minimise(prepared.whole, [first, second], STRONG)
+    backwards = mm.minimise(prepared.whole, [second, first], STRONG)
+
+    assert np.allclose(heavy_at(forwards[0]), heavy_at(backwards[1]), atol=EXACT)
+    assert np.allclose(heavy_at(forwards[1]), heavy_at(backwards[0]), atol=EXACT)
+
+
+def test_a_tether_still_relieves_clashes():
+    prepared = protonated(CLASHING)
+    poses = prepared.poses[:FEW]
+    before = [closest(pose, prepared.whole) for pose in poses]
+
+    tethered = mm.minimise(prepared.whole, poses, TETHER)
+
+    after = [closest(pose, prepared.whole) for pose in tethered]
+    assert sum(1 for r in after if r < CLASH) < sum(1 for r in before if r < CLASH)

@@ -7,3 +7,4 @@
 /src/data/
 /src/out/
 releases/
+*.npy

@@ -213,7 +213,7 @@ Among accepted complexes, many cutouts are highly charged, as counter-charges th
 
 | File | Written by | Holds |
 |---|---|---|
-| `<complex>_prepared.npz` | `PrepareComplex.prepare` | `cutout` (the capped cutout, as PDB), `poses` (as protonation, minimisation and busting left them, as mol blocks), `charge`, `electrons`, `heavy_atoms`, `excluded`, `failed` |
+| `<complex>_prepared.npz` | `PrepareComplex.prepare` | `cutout` (the capped cutout, as PDB), `poses` (as protonation, minimisation and busting left them, as mol blocks), `source` (the file name, carrying rank and confidence), `charge`, `electrons`, `heavy_atoms`, `excluded`, `failed` |
 | `<complex>_rhf.chk` | `EncodeProtein.RHF`, once converged | PySCF's own `scf` group: `e_tot`, `mo_energy`, `mo_occ`, `mo_coeff` |
 | `<complex>_solved.npz` | `EncodeProtein.solve` | the space SHCI solved: `energy` (RHF), `correlation` (MP2), `shci_energy`, `active_space_size`, `active_electrons`, `orbital_initial`, `occupations` |
 | `<complex>.dice.out` | `EncodeProtein.SHCI` | Dice's own log, kept whether or not Dice succeeded |

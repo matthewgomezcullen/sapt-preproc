@@ -31,7 +31,7 @@ def _write_pdb(model, directory):
 
 def valid(model, poses):
     """
-    The poses PoseBusters finds physically plausible, and the checks the rest of them failed.
+    Indexes of poses PoseBusters finds physically plausible, and the checks the rest of them failed.
 
     `_clean` has already deleted every heterogen, so the cofactor and water checks are vacuous.
     """
@@ -51,4 +51,4 @@ def valid(model, poses):
     failed = Counter({
         check: int(count) for check, count in (~table).sum().items() if count
     })
-    return [pose for pose, ok in zip(poses, table.all(axis=1)) if ok], failed
+    return [index for index, ok in enumerate(table.all(axis=1)) if ok], failed

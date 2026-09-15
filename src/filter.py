@@ -114,30 +114,40 @@ def inventory(named=None):
     return complexes, incomplete
 
 
-def near_native(poses, native, threshold=NEAR_NATIVE):
+def rmsds(poses, native):
     """
-    The poses sitting within `threshold` of the deposited ligand, given as paths or as molecules.
+    How far each pose sits from the deposited ligand, or None where it could not be measured.
 
     RMSD is symmetry-corrected and over heavy atoms.
     """
+    poses = list(poses)
     crystal = Chem.MolFromMolFile(native) # pyright: ignore[reportAttributeAccessIssue]
     if crystal is None:
-        return []
+        return [None] * len(poses)
 
-    near = []
+    measured = []
     for pose in poses:
         docked = (
             Chem.MolFromMolFile(pose) # pyright: ignore[reportAttributeAccessIssue]
             if isinstance(pose, str)
             else pose
         )
-        if docked is None:
-            continue
-        if check_rmsd(docked, crystal, rmsd_threshold=threshold)["results"][
-            "rmsd_within_threshold"
-        ]:
-            near.append(pose)
-    return near
+        measured.append(
+            None if docked is None else check_rmsd(docked, crystal)["results"]["rmsd"]
+        )
+    return measured
+
+
+def near_native(poses, native, threshold=NEAR_NATIVE):
+    """
+    The poses sitting within `threshold` of the deposited ligand, inclusive.
+    """
+    poses = list(poses)
+    return [
+        pose
+        for pose, rmsd in zip(poses, rmsds(poses, native))
+        if rmsd is not None and rmsd <= threshold
+    ]
 
 
 def sweep_for_near_native(complexes):

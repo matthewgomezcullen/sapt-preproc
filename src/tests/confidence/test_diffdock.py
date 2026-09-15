@@ -2,8 +2,13 @@
 The scoring pass itself, for utils/diffdock.py.
 
 It runs in the interpreter DiffDock was installed into, so these are skipped unless DIFFDOCK_PYTHON
-    and DIFFDOCK_MODELS say where that interpreter and the released weights are. The first run also
-    downloads ESM-2 650M, which is gigabytes; after that a complex is a minute or so on a CPU.
+    says where that is. Three sets of weights have to be on disk already, under data/diffdock_models:
+    the confidence model, its model_parameters.yml, and esm2_t33_650M_UR50D.pt.
+
+We check that a pose handed to the model as coordinates is the pose DiffDock would have built, 
+    proven by its ordering rather than its scores. The scores cannot match because these poses are 
+    PoseBench's, docked into an ESMFold structure aligned onto the crystal binding site, and they 
+    are read here in the deposited crystal instead. 
 
     5S8I_2LY    twenty poses, the cheapest structure in the set
 """
@@ -21,12 +26,15 @@ pytestmark = pytest.mark.diffdock
 
 NAME = "5S8I_2LY"
 
-# The filenames carry two decimals, so agreement can only be asserted to about that.
-ROUNDING = 0.05
+# Spearman correlation threshold on ordering.
+ORDERING = 0.95
+
+# The two pockets agree to 0.03 on the pose DiffDock ranked first.
+TOP = 0.1
 
 
 def published(sources):
-    return {source: confidence.docked(source)[1] for source in sources}
+    return {source: confidence.docked_rank_and_score(source)[1] for source in sources}
 
 
 def untouched(directory, shuffle=False):
@@ -54,15 +62,21 @@ def run_scoring(directory, poses):
     )
 
 
-def test_the_confidence_model_reproduces_the_scores_diffdock_published(tmp_path):
+def test_the_confidence_model_orders_the_poses_as_diffdock_ordered_them(tmp_path):
+    from scipy.stats import spearmanr
+
     poses, sources = untouched(str(tmp_path))
 
     scored = run_scoring(str(tmp_path), poses)
 
     assert set(scored) == {(NAME, source) for source in sources}
     diffdock = published(sources)
-    for source in sources:
-        assert scored[(NAME, source)] == pytest.approx(diffdock[source], abs=ROUNDING)
+    ordering = spearmanr(
+        [scored[(NAME, source)] for source in sources], [diffdock[source] for source in sources]
+    ).correlation
+    assert ordering > ORDERING
+    best = min(sources, key=lambda source: confidence.docked_rank_and_score(source)[0])
+    assert scored[(NAME, best)] == pytest.approx(diffdock[best], abs=TOP)
 
 
 def test_the_most_confident_pose_is_the_one_diffdock_ranked_first(tmp_path):
@@ -71,7 +85,7 @@ def test_the_most_confident_pose_is_the_one_diffdock_ranked_first(tmp_path):
     scored = run_scoring(str(tmp_path), poses)
 
     best = max(sources, key=lambda source: scored[(NAME, source)])
-    assert confidence.docked(best)[0] == 1
+    assert confidence.docked_rank_and_score(best)[0] == 1
 
 
 def test_the_scores_do_not_depend_on_the_order_of_the_poses(tmp_path):

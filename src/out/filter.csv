@@ -1,6 +1,6 @@
 name,status,heavy_atoms,charge,electrons,poses,excluded,near_native,rejection
 5SAK_ZRY,eligible,305,-6,2320,37,3,9,
-5SB2_1K2,eligible,326,-3,2528,36,4,29,
+5SB2_1K2,eligible,330,-3,2558,37,3,28,
 5SD5_HWI,rejected,,,,40,,0,biological cofactor within the cutoff of a pose
 6M2B_EZO,rejected,,,,40,,0,biological cofactor within the cutoff of a pose
 6M73_FNR,rejected,,,,40,,0,ligand carrying a group ionised at pH 7.4
@@ -13,7 +13,7 @@ name,status,heavy_atoms,charge,electrons,poses,excluded,near_native,rejection
 6YQW_82I,eligible,126,0,946,40,0,38,
 6YR2_T1C,rejected,,,,40,,0,metal in the retained region
 6YSP_PAL,rejected,,,,40,,0,non-cofactor heterogen within the cutoff of a pose
-6YT6_PKE,eligible,251,-2,1952,15,25,11,
+6YT6_PKE,eligible,251,-2,1952,14,26,10,
 6Z14_Q4Z,rejected,,,,40,,0,ligand carrying a group ionised at pH 7.4
 6Z1C_7EY,rejected,,,,40,,0,incomplete residue in the cutout
 6Z4N_Q7B,rejected,,,,40,,0,biological cofactor within the cutoff of a pose
@@ -34,7 +34,7 @@ name,status,heavy_atoms,charge,electrons,poses,excluded,near_native,rejection
 7CUO_PHB,rejected,,,,40,,0,cutout exceeds the heavy-atom cap
 7D5C_GV6,rejected,,,,37,,0,non-cofactor heterogen within the cutoff of a pose
 7DKT_GLF,eligible,244,-1,1848,32,0,32,
-7DQL_4CL,unusable,159,-2,1250,16,23,0,no near-native pose generated
+7DQL_4CL,unusable,159,-2,1250,17,22,0,no near-native pose generated
 7DUA_HJ0,rejected,,,,32,,0,zero-occupancy heavy atom in the cutout
 7EBG_J0L,eligible,199,-1,1526,20,10,3,
 7ECR_SIN,rejected,,,,35,,0,non-cofactor heterogen within the cutoff of a pose
@@ -43,15 +43,15 @@ name,status,heavy_atoms,charge,electrons,poses,excluded,near_native,rejection
 7EPV_FDA,rejected,,,,40,,0,ligand carrying a group ionised at pH 7.4
 7ES1_UDP,rejected,,,,40,,0,non-cofactor heterogen within the cutoff of a pose
 7F51_BA7,rejected,,,,40,,0,ligand carrying a group ionised at pH 7.4
-7F5D_EUO,eligible,151,-2,1136,39,1,19,
+7F5D_EUO,eligible,151,-2,1136,39,1,18,
 7F8T_FAD,rejected,,,,40,,0,ligand carrying a group ionised at pH 7.4
 7FHA_ADX,rejected,,,,38,,0,ligand carrying a group ionised at pH 7.4
 7JG0_GAR,rejected,,,,40,,0,non-cofactor heterogen within the cutoff of a pose
-7JMV_4NC,unusable,237,1,1786,10,30,0,no near-native pose generated
+7JMV_4NC,unusable,237,1,1786,12,28,0,no near-native pose generated
 7JXX_VP7,rejected,,,,39,,0,metal coordination sphere split by the cutout
-7K0V_VQP,eligible,284,0,2172,3,33,3,
+7K0V_VQP,eligible,284,0,2172,2,34,2,
 7KB1_WBJ,rejected,,,,39,,0,biological cofactor within the cutoff of a pose
-7KZ9_XN7,eligible,214,-2,1608,13,25,8,
+7KZ9_XN7,eligible,198,-2,1490,12,26,8,
 7L03_F9F,rejected,,,,40,,0,ligand carrying a group ionised at pH 7.4
 7L5F_XNG,rejected,,,,40,,0,metal in the retained region
 7LEV_0JO,rejected,,,,11,,0,incomplete residue in the cutout
@@ -59,7 +59,7 @@ name,status,heavy_atoms,charge,electrons,poses,excluded,near_native,rejection
 7LT0_ONJ,eligible,240,0,1848,40,0,15,
 7LZD_YHY,rejected,,,,40,,0,biological cofactor within the cutoff of a pose
 7M3H_YPV,rejected,,,,40,,0,cutout exceeds the heavy-atom cap
-7MGY_ZD1,eligible,221,0,1680,3,18,3,
+7MGY_ZD1,eligible,208,0,1580,3,18,3,
 7MMH_ZJY,eligible,224,2,1704,39,0,36,
 7MOI_HPS,rejected,,,,40,,0,ligand carrying a group ionised at pH 7.4
 7MSR_DCA,rejected,,,,40,,0,metal in the retained region
@@ -70,7 +70,7 @@ name,status,heavy_atoms,charge,electrons,poses,excluded,near_native,rejection
 7N7B_T3F,rejected,,,,40,,0,non-cofactor heterogen within the cutoff of a pose
 7NF0_BYN,rejected,,,,40,,0,metal in the retained region
 7NF3_4LU,rejected,,,,40,,0,metal in the retained region
-7NFB_GEN,rejected,436,,,30,10,0,cutout exceeds the heavy-atom cap
+7NFB_GEN,rejected,436,,,32,8,0,cutout exceeds the heavy-atom cap
 7NGW_UAW,eligible,234,-1,1760,35,0,15,
 7NLV_UJE,rejected,,,,39,,0,cutout exceeds the heavy-atom cap
 7NSW_HC4,rejected,,,,38,,0,ligand carrying a group ionised at pH 7.4
@@ -90,19 +90,19 @@ name,status,heavy_atoms,charge,electrons,poses,excluded,near_native,rejection
 7P4C_5OV,eligible,231,-4,1738,40,0,40,
 7P5T_5YG,rejected,,,,40,,0,metal in the retained region
 7PGX_FMN,rejected,,,,40,,0,ligand carrying a group ionised at pH 7.4
-7PJQ_OWH,eligible,177,1,1358,11,29,2,
+7PJQ_OWH,eligible,177,1,1358,10,30,2,
 7PL1_SFG,rejected,,,,40,,0,incomplete residue in the cutout
 7PRI_7TI,rejected,,,,39,,0,metal in the retained region
-7PRM_81I,eligible,329,-1,2534,37,3,31,
+7PRM_81I,eligible,329,-1,2534,37,3,33,
 7PT3_3KK,rejected,,,,40,,0,metal in the retained region
 7PUV_84Z,rejected,,,,39,,0,metal in the retained region
 7Q25_8J9,rejected,,,,38,,0,metal in the retained region
 7Q27_8KC,rejected,,,,40,,0,metal in the retained region
-7Q2B_M6H,unusable,267,-2,2038,33,7,0,no near-native pose generated
+7Q2B_M6H,unusable,267,-2,2038,34,6,0,no near-native pose generated
 7QE4_NGA,rejected,,,,35,,0,non-cofactor heterogen within the cutoff of a pose
 7QF4_RBF,eligible,263,1,2012,40,0,40,
-7QGP_DJ8,eligible,322,-2,2474,30,10,29,
-7QPP_VDX,eligible,382,0,2930,35,5,35,
+7QGP_DJ8,eligible,314,-3,2414,31,9,31,
+7QPP_VDX,eligible,382,0,2930,36,4,36,
 7R59_I5F,eligible,130,0,982,40,0,26,
 7R6J_2I7,rejected,,,,37,,0,disulfide split by the cutout
 7R7R_AWJ,eligible,216,-2,1678,40,0,40,
@@ -143,7 +143,7 @@ name,status,heavy_atoms,charge,electrons,poses,excluded,near_native,rejection
 7VKZ_NOJ,eligible,271,-2,2058,22,18,21,
 7VWF_K55,rejected,,,,39,,0,non-cofactor heterogen within the cutoff of a pose
 7VYJ_CA0,rejected,,,,39,,0,metal in the retained region
-7W05_GMP,eligible,183,-1,1364,40,0,10,
+7W05_GMP,eligible,183,-1,1364,40,0,11,
 7W06_ITN,rejected,,,,40,,0,ligand carrying a group ionised at pH 7.4
 7WDT_NGS,rejected,,,,40,,0,ligand carrying a group ionised at pH 7.4
 7WJB_BGC,eligible,252,-5,1894,39,1,39,
@@ -154,24 +154,24 @@ name,status,heavy_atoms,charge,electrons,poses,excluded,near_native,rejection
 7XBV_APC,rejected,,,,40,,0,ligand carrying a group ionised at pH 7.4
 7XFA_D9J,eligible,207,1,1574,40,0,19,
 7XI7_4RI,eligible,193,-1,1478,40,0,40,
-7XJN_NSD,eligible,279,-5,2098,23,7,6,
+7XJN_NSD,eligible,279,-5,2098,22,8,6,
 7XPO_UPG,rejected,,,,40,,0,biological cofactor within the cutoff of a pose
 7XQZ_FPF,rejected,,,,40,,0,metal in the retained region
 7YZU_DO7,rejected,,,,40,,0,ligand carrying a group ionised at pH 7.4
 7Z1Q_NIO,rejected,,,,40,,0,ligand carrying a group ionised at pH 7.4
-7Z2O_IAJ,eligible,288,1,2154,38,1,1,
+7Z2O_IAJ,eligible,288,1,2154,36,3,1,
 7ZCC_OGA,rejected,,,,38,,0,metal in the retained region
-7ZDY_6MJ,eligible,169,0,1296,11,24,11,
+7ZDY_6MJ,eligible,186,0,1422,12,23,11,
 7ZF0_DHR,rejected,,,,40,,0,biological cofactor within the cutoff of a pose
-7ZHP_IQY,eligible,309,1,2400,39,0,8,
+7ZHP_IQY,eligible,299,1,2322,39,0,8,
 7ZL5_IWE,rejected,,,,38,,0,metal in the retained region
 7ZOC_T8E,rejected,,,,40,,0,metal in the retained region
 7ZU2_DHT,eligible,252,0,1970,40,0,40,
 8A1H_DLZ,rejected,,,,40,,0,metal in the retained region
 8AAU_LH0,rejected,,,,40,,0,metal coordination sphere split by the cutout
-8AY3_OE3,eligible,332,1,2516,32,8,15,
+8AY3_OE3,eligible,315,0,2386,32,8,15,
 8B8H_OJQ,rejected,,,,40,,0,ligand with a non-zero formal charge
-8BOM_QU6,eligible,371,-3,2852,24,16,3,
+8BOM_QU6,eligible,371,-3,2852,25,15,3,
 8BTI_RFO,rejected,,,,39,,0,incomplete residue in the cutout
 8C3N_ADP,rejected,,,,10,,0,metal in the retained region
 8D19_GSH,rejected,,,,30,,0,metal in the retained region

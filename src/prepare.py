@@ -107,6 +107,7 @@ class PrepareComplex:
         self.whole = None
         self.reduced = None
         self.poses = None
+        self.source = None
         self.protonation = None
         self.poses_protonation = None # TODO
         self.charge = None
@@ -170,6 +171,7 @@ class PrepareComplex:
             poses.append(pose)
         self.whole = protein
         self.poses = poses
+        self.source = [os.path.basename(path) for path in self.poses_paths]
 
     def _verify(self):
         """
@@ -363,7 +365,8 @@ class PrepareComplex:
                 OutOfScopeErrorType.INVALID_POSES,
                 f"PoseBusters rejected all {self.excluded} pose(s)",
             )
-        self.poses = kept
+        self.poses = [self.poses[index] for index in kept]
+        self.source = [self.source[index] for index in kept]
 
     def _reduce(self):
         """
@@ -560,6 +563,7 @@ class PrepareComplex:
             Chem.MolFromMolBlock(str(block), removeHs=False) # pyright: ignore[reportAttributeAccessIssue]
             for block in record["poses"]
         ]
+        self.source = [str(name) for name in record["source"]]
         self.charge = record["charge"]
         self.electrons = record["electrons"]
         self.heavy_atoms = record["heavy_atoms"]
@@ -569,7 +573,8 @@ class PrepareComplex:
 
     def save(self):
         """
-        The capped cutout, the poses post-protonation/minimisation/busting, and filter.py numbers.
+        The capped cutout, the poses post-protonation/minimisation/busting and the file each came
+            from, and filter.py numbers.
         """
         if not self.out:
             return
@@ -580,6 +585,7 @@ class PrepareComplex:
             {
                 "cutout": structure.make_pdb_string(),
                 "poses": [Chem.MolToMolBlock(pose) for pose in self.poses], # pyright: ignore[reportAttributeAccessIssue]
+                "source": self.source,
                 "charge": self.charge,
                 "electrons": self.electrons,
                 "heavy_atoms": self.heavy_atoms,

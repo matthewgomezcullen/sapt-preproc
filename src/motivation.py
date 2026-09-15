@@ -21,7 +21,7 @@ import filter
 ROOT = filter.ROOT
 
 TABLE = os.path.join(filter.OUT, "motivation.csv")
-FIGURE = os.path.join(filter.OUT, "motivation.png")
+FIGURE_NAME = "motivation.png"
 
 # DiffDock names a scored pose rank<N>_confidence<X>.sdf
 RANKED = re.compile(r"^rank(\d+)_confidence(-?\d+\.\d+)\.sdf$")
@@ -83,11 +83,12 @@ def rates(bins):
     )
 
 
-def plot(rows, path=FIGURE):
+def plot(rows, name=FIGURE_NAME):
     """
     Two plots over the same five bands: top-1 success against what a random pick would manage, and
         how many complexes each band holds, which is what says how much the top panel is worth.
     """
+    path = os.path.join(filter.OUT, name)
     import matplotlib
 
     matplotlib.use("Agg")
@@ -164,7 +165,7 @@ def _report(rows, incomplete=()):
           f'{statistics.mean(row["fraction"] for row in rows):9.1%}')
 
 
-def run(complexes=None, reuse=False):
+def run(complexes=None, reuse=False, name=FIGURE_NAME):
     if reuse:
         rows, incomplete = read(), ()
     else:
@@ -174,7 +175,7 @@ def run(complexes=None, reuse=False):
         rows = [_row(_found) for _found in found]
         write(rows)
     _report(rows, incomplete)
-    print("\nWrote", os.path.relpath(plot(rows), ROOT))
+    print("\nWrote", os.path.relpath(plot(rows, name), ROOT))
     return rows
 
 
@@ -192,6 +193,11 @@ if __name__ == "__main__":
         help=f"Plot the measurements already in {os.path.relpath(TABLE, ROOT)} instead of measuring "
              "every pose again.",
     )
+    parser.add_argument(
+        "--name",
+        default=FIGURE_NAME,
+        help=f"Plot the measurements under a different name."
+    )
     arguments = parser.parse_args()
 
-    run(arguments.complexes, arguments.reuse)
+    run(arguments.complexes, arguments.reuse, arguments.name)

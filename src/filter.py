@@ -29,13 +29,11 @@ from run import FAIL, POSE
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(ROOT, 'data')
-DIFFDOCK = os.path.join(DATA, "diffdock_v1_0")
+DIFFDOCK = os.path.join(DATA, "diffdock_v1_1")
 # POSEBUSTERS = os.path.join(DATA, "posebusters_v1_0")
-POSEBUSTERS = os.path.join(
-    DATA, 
-    "posebusters_v1_1", 
-    "posebusters_benchmark_holo_aligned_predicted_structures"
-)
+POSEBUSTERS = os.path.join(DATA, "posebusters_v1_1")
+
+PREDICTED = os.path.join(POSEBUSTERS, "posebusters_benchmark_holo_aligned_predicted_structures")
 OUT = os.path.join(ROOT, "out")
 
 # What a run is called, which names both of the things it writes.
@@ -74,11 +72,8 @@ def job_dir(name=NAME):
 #     ]
 
 def _get_proteins(name):
-    return [
-        os.path.join(POSEBUSTERS, f)
-        for f in sorted(os.listdir(POSEBUSTERS))
-        if f == f"{name}_holo_aligned_predicted_protein.pdb"
-    ]
+    path = os.path.join(PREDICTED, f"{name}_holo_aligned_predicted_protein.pdb")
+    return [path] if os.path.isfile(path) else []
 
 
 def _get_poses(name):

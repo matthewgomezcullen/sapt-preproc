@@ -20,8 +20,7 @@ import filter
 
 ROOT = filter.ROOT
 
-TABLE = os.path.join(filter.OUT, "motivation.csv")
-FIGURE_NAME = "motivation.png"
+NAME = "motivation"
 
 # DiffDock names a scored pose rank<N>_confidence<X>.sdf
 RANKED = re.compile(r"^rank(\d+)_confidence(-?\d+\.\d+)\.sdf$")
@@ -33,9 +32,11 @@ INTEGERS = ["poses", "near_native", "rank_top1"]
 DECIMALS = ["fraction", "rmsd_top1"]
 BOOLEANS = ["top1"]
 
-# The five bands.
+# The five/six bands.
+# EDGES = [0.19, 0.39, 0.59, 0.79]
+# LABELS = ["0%", "20%", "40%", "60%", "80%", "100%"]
 EDGES = [0.25, 0.50, 0.75]
-LABELS = ["0%", "0-25%", "25-50%", "50-75%", "75-100%"]
+LABELS = ["0%", "25%", "50%", "75%", "100%"]
 
 
 def rank_of(path):
@@ -83,12 +84,12 @@ def rates(bins):
     )
 
 
-def plot(rows, name=FIGURE_NAME):
+def plot(rows, name=NAME):
     """
     Two plots over the same five bands: top-1 success against what a random pick would manage, and
         how many complexes each band holds, which is what says how much the top panel is worth.
     """
-    path = os.path.join(filter.OUT, name)
+    path = os.path.join(filter.OUT, f"{name}.png")
     import matplotlib
 
     matplotlib.use("Agg")
@@ -122,7 +123,8 @@ def plot(rows, name=FIGURE_NAME):
     return path
 
 
-def write(rows, path=TABLE):
+def write(rows, name=NAME):
+    path = os.path.join(filter.OUT, f"{name}.csv")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=FIELDS)
@@ -130,7 +132,8 @@ def write(rows, path=TABLE):
         writer.writerows(rows)
 
 
-def read(path=TABLE):
+def read(name=NAME):
+    path = os.path.join(filter.OUT, f"{name}.csv")
     with open(path, newline="") as file:
         rows = list(csv.DictReader(file))
     for row in rows:
@@ -165,15 +168,15 @@ def _report(rows, incomplete=()):
           f'{statistics.mean(row["fraction"] for row in rows):9.1%}')
 
 
-def run(complexes=None, reuse=False, name=FIGURE_NAME):
+def run(complexes=None, reuse=False, name=NAME):
     if reuse:
-        rows, incomplete = read(), ()
+        rows, incomplete = read(name=name), ()
     else:
         found, incomplete = filter.inventory(complexes)
         if not found:
             raise SystemExit("No complex has both an ensemble and a deposited ligand")
         rows = [_row(_found) for _found in found]
-        write(rows)
+        write(rows, name=name)
     _report(rows, incomplete)
     print("\nWrote", os.path.relpath(plot(rows, name), ROOT))
     return rows
@@ -190,12 +193,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--reuse",
         action="store_true",
-        help=f"Plot the measurements already in {os.path.relpath(TABLE, ROOT)} instead of measuring "
-             "every pose again.",
+        help=f"Plot the measurements stored under the name of measuring every pose again.",
     )
     parser.add_argument(
         "--name",
-        default=FIGURE_NAME,
+        default=NAME,
         help=f"Plot the measurements under a different name."
     )
     arguments = parser.parse_args()

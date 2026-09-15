@@ -8,3 +8,5 @@
 /src/out/
 releases/
 *.npy
+af3_inference/
+inference/

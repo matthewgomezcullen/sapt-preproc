@@ -26,8 +26,8 @@ from run import FAIL, POSE
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(ROOT, 'data')
-DIFFDOCK = os.path.join(DATA, "diffdock")
-POSEBUSTERS = os.path.join(DATA, "posebusters")
+DIFFDOCK = os.path.join(DATA, "diffdock_1.1")
+POSEBUSTERS = os.path.join(DATA, "posebusters_1.1")
 OUT = os.path.join(ROOT, "out")
 TABLE = os.path.join(OUT, "filter.csv")
 JOB = os.path.join(OUT, "filter")

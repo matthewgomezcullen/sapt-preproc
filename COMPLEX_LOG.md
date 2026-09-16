@@ -2,7 +2,7 @@
 
 Every complex that changed how this pipeline works, rather than exercising a rule it already had. A few appear twice because they forced separate decisions at different stages.
 
-Only the 36 complexes the tests use are kept under `src/tests/data`; the rest were measured during dataset-wide surveys and would need re-downloading to re-check.
+Only the 33 complexes the tests use are kept under `src/tests/data`, and the encoding tests read two more, `7BJJ_TVW` and `7LOE_Y84`, as prepared artefacts rather than inputs; the rest were measured during dataset-wide surveys and would need re-downloading to re-check.
 
 ## Fetching
 

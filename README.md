@@ -209,7 +209,7 @@ Among accepted complexes, many cutouts are highly charged, as counter-charges th
 
 ## `run.py`
 
-`python run.py <name>` carries every complex in `data/`, or those `--complexes` names, from preparation to the Hamiltonian. Each complex keeps its artefacts in `out/<name>/<complex>/`, and `filter.py` keeps its preparations the same way in `out/filter/<complex>/` (i.e., `name=filter`).
+`python run.py <name>` carries every complex in `data/`, or those `--complexes` names, from preparation to the Hamiltonian. Each complex keeps its artefacts in `out/<name>/<complex>/`, and `filter.py` keeps its preparations the same way in `out/filter/<complex>/`, or `out/filter_<name>/<complex>/` under `--name`, with its `filter.csv` and `confidence.py`'s tables beside them.
 
 | File | Written by | Holds |
 |---|---|---|

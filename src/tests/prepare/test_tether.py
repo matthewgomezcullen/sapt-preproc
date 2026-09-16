@@ -5,7 +5,7 @@ Held against the analytic well rather than against a minimised pose. `mm.minimis
     context on OpenMM's fastest platform, and the CPU one sums forces in whatever order its threads
     finish in, so two runs over the same input do not land in the same place and nothing comparing
     them can be exact. These are exact, and take milliseconds. What a tether does to a real pose in
-    a real pocket is test_mm.py's, behind --long-protonate.
+    a real pocket is test_mm.py's, behind --prepare-long.
 """
 
 import numpy as np

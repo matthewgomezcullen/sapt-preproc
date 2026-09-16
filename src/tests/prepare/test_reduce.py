@@ -33,8 +33,8 @@ from conftest import paths, verify_protein
 from prepare import PrepareComplex, OutOfScopeError, OutOfScopeErrorType
 from utils import verify
 
-# Every test here runs the preparation pipeline over several complexes. --long-protonate adds them.
-pytestmark = pytest.mark.long_protonate
+# Every test here runs the preparation pipeline over several complexes. --prepare-long adds them.
+pytestmark = pytest.mark.prepare_long
 
 SIMPLE = "5S8I_2LY"
 GAPPED = "7WPW_F15"

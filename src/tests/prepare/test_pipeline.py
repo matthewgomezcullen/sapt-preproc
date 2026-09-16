@@ -58,7 +58,7 @@ def test_without_mm_prepare_drops_the_minimisation_and_nothing_else(monkeypatch)
     assert ran == [stage for stage in STAGES if stage != "_minimise"]
 
 
-@pytest.mark.long_protonate
+@pytest.mark.prepare_long
 def test_without_mm_the_prepared_poses_are_the_docked_ones(monkeypatch):
     docked = PrepareComplex(*paths(SMALL))
     docked._fetch()

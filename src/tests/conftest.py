@@ -60,7 +60,7 @@ def pytest_addoption(parser):
         help="Run only the encoding tests, for a change that touches nothing before them.",
     )
     parser.addoption(
-        "--long-protonate",
+        "--prepare-long",
         action="store_true",
         help="Also run the tests that carry complexes through the repair and protonation "
              "pipelines. Minutes each.",
@@ -91,7 +91,7 @@ def pytest_addoption(parser):
 
 
 OPTIONAL = {
-    "long_protonate": "--long-protonate",
+    "prepare-long": "--prepare-long",
     "hpc": "--hpc",
     "hpc_long_stab": "--hpc-long-stab",
     "hpc_long_dice": "--hpc-long-dice",

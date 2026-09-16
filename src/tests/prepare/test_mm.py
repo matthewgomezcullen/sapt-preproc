@@ -19,7 +19,7 @@ from conftest import paths
 from prepare import PrepareComplex
 from utils import mm
 
-pytestmark = pytest.mark.long_protonate
+pytestmark = pytest.mark.prepare_long
 
 SMALL = "5S8I_2LY"
 CLASHING = "6ZCY_QF8"

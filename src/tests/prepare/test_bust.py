@@ -129,7 +129,7 @@ def test_bust_rejects_a_complex_posebusters_empties(monkeypatch):
     assert rejection.value.error_type is OutOfScopeErrorType.INVALID_POSES
 
 
-@pytest.mark.long_protonate
+@pytest.mark.prepare_long
 def test_bust_keeps_the_poses_posebusters_accepts():
     prepared = minimised(CLASHING)
     before = list(prepared.poses)
@@ -142,7 +142,7 @@ def test_bust_keeps_the_poses_posebusters_accepts():
     assert [pose for pose in before if pose in prepared.poses] == list(prepared.poses)
 
 
-@pytest.mark.long_protonate
+@pytest.mark.prepare_long
 def test_bust_records_how_many_it_excluded():
     """
     filter.py writes this into the screen.
@@ -155,7 +155,7 @@ def test_bust_records_how_many_it_excluded():
     assert prepared.excluded == before - len(prepared.poses)
 
 
-@pytest.mark.long_protonate
+@pytest.mark.prepare_long
 def test_bust_rejects_a_complex_with_no_valid_pose():
     """
     An ensemble PoseBusters empties is out of scope.
@@ -170,7 +170,7 @@ def test_bust_rejects_a_complex_with_no_valid_pose():
     assert rejection.value.error_type is OutOfScopeErrorType.INVALID_POSES
 
 
-@pytest.mark.long_protonate
+@pytest.mark.prepare_long
 def test_bust_drops_a_pose_that_fails_any_check():
     """
     The positions it hands back are what _bust narrows both of its lists by.
@@ -184,7 +184,7 @@ def test_bust_drops_a_pose_that_fails_any_check():
     assert failed
 
 
-@pytest.mark.long_protonate
+@pytest.mark.prepare_long
 def test_bust_holds_a_pose_against_the_protein_only():
     """
     _clean has already deleted every heterogen, so the cofactor and water checks are vacuous.
@@ -196,7 +196,7 @@ def test_bust_holds_a_pose_against_the_protein_only():
     assert not [check for check in failed if "cofactor" in check or "water" in check]
 
 
-@pytest.mark.long_protonate
+@pytest.mark.prepare_long
 def test_bust_does_not_hold_distance_from_the_protein_against_a_pose():
     prepared = minimised(CLASHING)
     away = displaced(prepared.poses[0], AWAY)
@@ -207,7 +207,7 @@ def test_bust_does_not_hold_distance_from_the_protein_against_a_pose():
     assert not [check for check in failed if "maximum_distance" in check]
 
 
-@pytest.mark.long_protonate
+@pytest.mark.prepare_long
 def test_reduce_takes_the_cutout_over_the_surviving_poses():
     """
     The union is over what will be scored.

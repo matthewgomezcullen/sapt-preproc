@@ -297,7 +297,7 @@ def onto(poses, target):
     return moved
 
 
-@pytest.mark.long_protonate
+@pytest.mark.prepare_long
 def test_verify_stashes_the_molecules_clean_deletes():
     prepared = PrepareComplex(*paths(REJECT))
     prepared._fetch()
@@ -320,14 +320,14 @@ def test_verify_stashes_the_molecules_clean_deletes():
     assert stashed(prepared, metal=True)
 
 
-@pytest.mark.long_protonate
+@pytest.mark.prepare_long
 def test_reverify_accepts_a_cutout_the_poses_did_not_change():
     prepared = reduced(ACCEPT)
 
     prepared._reverify()
 
 
-@pytest.mark.long_protonate
+@pytest.mark.prepare_long
 def test_reverify_rejects_a_metal_the_moved_poses_reached():
     prepared = reduced(REJECT)
     prepared.poses = onto(prepared.poses, stashed(prepared, metal=True)[0])
@@ -338,7 +338,7 @@ def test_reverify_rejects_a_metal_the_moved_poses_reached():
     assert rejected.value.error_type is OutOfScopeErrorType.METAL
 
 
-@pytest.mark.long_protonate
+@pytest.mark.prepare_long
 def test_reverify_rejects_a_heterogen_the_moved_poses_reached():
     prepared = reduced(REJECT)
     myristoyl = next(position for name, position, _ in prepared.deleted if name == MYA)
@@ -350,7 +350,7 @@ def test_reverify_rejects_a_heterogen_the_moved_poses_reached():
     assert rejected.value.error_type is OutOfScopeErrorType.HETEROGEN
 
 
-@pytest.mark.long_protonate
+@pytest.mark.prepare_long
 def test_reverify_rejects_a_split_metal_coordination_sphere():
     prepared = reduced(REJECT)
     retained = next(
@@ -368,7 +368,7 @@ def test_reverify_rejects_a_split_metal_coordination_sphere():
     assert rejected.value.error_type is OutOfScopeErrorType.SPLIT_METAL_COORDINATION
 
 
-@pytest.mark.long_protonate
+@pytest.mark.prepare_long
 def test_reverify_rejects_a_zero_occupancy_residue_the_cutout_reached():
     """
     _fix destroys the occupancies, so this rule reads a stash of every residue in the structure

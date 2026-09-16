@@ -180,7 +180,7 @@ def _row(name, status, prepared, near, rejection=""):
     }
 
 
-def _prepare(one, force=False, mm=True, out=None):
+def _prepare(one, force=False, mm=True, tether=None, out=None):
     """
     One complex prepared, or read back, and then checked for near-native existence.
 
@@ -190,7 +190,9 @@ def _prepare(one, force=False, mm=True, out=None):
     Can run in its own process.
     """
     name, protein, poses, native = one
-    prepared = PrepareComplex(protein, poses, os.path.join(out or job_dir(), name), mm=mm)
+    prepared = PrepareComplex(
+        protein, poses, os.path.join(out or job_dir(), name), mm=mm, tether=tether
+    )
     try:
         if force or not prepared.prepared():
             prepared.prepare()
@@ -205,7 +207,7 @@ def _prepare(one, force=False, mm=True, out=None):
     return _row(name, "eligible", prepared, near), prepared.failed
 
 
-def screen(complexes, force=False, mm=True, name=NAME):
+def screen(complexes, force=False, mm=True, tether=None, name=NAME):
     """
     Prepare every complex.
 
@@ -215,7 +217,10 @@ def screen(complexes, force=False, mm=True, name=NAME):
     rows, checks = [], Counter()
     out = job_dir(name)
     prepared = tqdm(
-        (_prepare(complex, force=force, mm=mm, out=out) for complex in complexes),
+        (
+            _prepare(complex, force=force, mm=mm, tether=tether, out=out)
+            for complex in complexes
+        ),
         total=len(complexes),
         desc="Screening",
         unit="complex",
@@ -227,7 +232,7 @@ def screen(complexes, force=False, mm=True, name=NAME):
 
 
 
-def screen_parallel(complexes, workers=None, force=False, mm=True, name=NAME):
+def screen_parallel(complexes, workers=None, force=False, mm=True, tether=None, name=NAME):
     """
     Parallelised. `map` keeps the rows in the order the complexes came in.
     """
@@ -235,7 +240,8 @@ def screen_parallel(complexes, workers=None, force=False, mm=True, name=NAME):
     with ProcessPoolExecutor(max_workers=workers) as pool:
         prepared = tqdm(
             pool.map(
-                partial(_prepare, force=force, mm=mm, out=job_dir(name)), complexes
+                partial(_prepare, force=force, mm=mm, tether=tether, out=job_dir(name)),
+                complexes,
             ),
             total=len(complexes),
             desc="Screening",
@@ -393,6 +399,14 @@ if __name__ == "__main__":
         help="Relax each pose in the protonated protein before screening it. `--no-mm` screens "
              "every pose where DiffDock placed it; its hydrogens are added either way.",
     )
+    parser.add_argument(
+        "--tether",
+        type=float,
+        default=None,
+        help="Hold each pose's heavy atoms to where DiffDock put them while it relaxes, at this "
+             "strength in kcal/mol/A^2. Free by default, which moves a pose enough to re-rank the "
+             "ensemble. Nothing to relax under `--no-mm`, so nothing to hold.",
+    )
     arguments = parser.parse_args()
 
     if arguments.reuse:
@@ -403,7 +417,11 @@ if __name__ == "__main__":
         complexes, incorrect = sweep_for_near_native(complexes)
         if arguments.workers is None:
             rows, checks = screen(
-                complexes, force=arguments.force, mm=arguments.mm, name=arguments.name
+                complexes,
+                force=arguments.force,
+                mm=arguments.mm,
+                tether=arguments.tether,
+                name=arguments.name,
             )
         else:
             # ProcessPoolExecutor reads None, not -1, as every core.
@@ -413,6 +431,7 @@ if __name__ == "__main__":
                 workers=workers,
                 force=arguments.force,
                 mm=arguments.mm,
+                tether=arguments.tether,
                 name=arguments.name,
             )
         write(rows, arguments.name)

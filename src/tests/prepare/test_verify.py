@@ -175,13 +175,21 @@ def test_verify_accepts_a_ligand_with_no_ionisable_group():
     prepared._verify()
 
 
-def test_verify_rejects_oversized_cutout():
+def test_verify_leaves_the_size_cap_to_reduce():
     """
-    Provisional cap of 400 heavy atoms in the cutout.
+    The cutout here is the union over every input pose, and the poses PoseBusters goes on to drop
+        inflate it: 58 of the 60 cap rejections in the v1.1 screen were raised here rather than in
+        _reduce, which caps the union over the poses that survived.
 
-    7CIJ_G0C's cutout holds 427 heavy atoms.
+    7CIJ_G0C's provisional cutout holds 427 heavy atoms, over the cap of 400.
     """
-    assert rejection("7CIJ_G0C") is OutOfScopeErrorType.SIZE_CAP
+    prepared = PrepareComplex(*paths("7CIJ_G0C"))
+    prepared._fetch()
+
+    try:
+        prepared._verify()
+    except OutOfScopeError as rejected:
+        assert rejected.error_type is not OutOfScopeErrorType.SIZE_CAP
 
 
 def test_verify_rejects_incomplete_residue_in_cutout():

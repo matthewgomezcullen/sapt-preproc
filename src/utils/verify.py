@@ -1,6 +1,6 @@
 import numpy as np
 from pdbfixer import PDBFixer
-from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
+from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 
 def identifier(chain, residue):
     """

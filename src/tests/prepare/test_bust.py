@@ -72,6 +72,19 @@ def displaced(pose, distance):
     return copy
 
 
+def swallow_single_residues(model, keep):
+    """
+    Swallow single residues between two kept ones.
+    """
+    widened = set(keep)
+    for chain in model:
+        identifiers = [verify.identifier(chain, residue) for residue in chain]
+        for before, gap, after in zip(identifiers, identifiers[1:], identifiers[2:]):
+            if before in keep and after in keep:
+                widened.add(gap)
+    return widened
+
+
 def residues(model):
     return {
         (chain.name, residue.seqid.num, residue.seqid.icode)
@@ -88,7 +101,7 @@ def test_bust_narrows_the_sources_with_the_poses(monkeypatch):
     prepared = fetched(SMALL)
     before = list(prepared.source)
     assert len(before) == 3
-    monkeypatch.setattr(bust, "valid", keeping([0, 2]))
+    monkeypatch.setattr(bust, "valid_idxs", keeping([0, 2]))
 
     prepared._bust()
 
@@ -98,7 +111,7 @@ def test_bust_narrows_the_sources_with_the_poses(monkeypatch):
 
 def test_bust_counts_what_it_dropped_against_the_sources_it_kept(monkeypatch):
     prepared = fetched(SMALL)
-    monkeypatch.setattr(bust, "valid", keeping([1]))
+    monkeypatch.setattr(bust, "valid_idxs", keeping([1]))
 
     prepared._bust()
 
@@ -108,7 +121,7 @@ def test_bust_counts_what_it_dropped_against_the_sources_it_kept(monkeypatch):
 
 def test_bust_rejects_a_complex_posebusters_empties(monkeypatch):
     prepared = fetched(SMALL)
-    monkeypatch.setattr(bust, "valid", keeping([]))
+    monkeypatch.setattr(bust, "valid_idxs", keeping([]))
 
     with pytest.raises(OutOfScopeError) as rejection:
         prepared._bust()
@@ -165,7 +178,7 @@ def test_bust_drops_a_pose_that_fails_any_check():
     prepared = minimised(SMALL)
     sound = prepared.poses[0]
 
-    kept, failed = bust.valid(prepared.whole, [sound, broken(sound)])
+    kept, failed = bust.valid_idxs(prepared.whole, [sound, broken(sound)])
 
     assert kept == [0]
     assert failed
@@ -178,7 +191,7 @@ def test_bust_holds_a_pose_against_the_protein_only():
     """
     prepared = minimised(CLASHING)
 
-    _, failed = bust.valid(prepared.whole, prepared.poses)
+    _, failed = bust.valid_idxs(prepared.whole, prepared.poses)
 
     assert not [check for check in failed if "cofactor" in check or "water" in check]
 
@@ -188,7 +201,7 @@ def test_bust_does_not_hold_distance_from_the_protein_against_a_pose():
     prepared = minimised(CLASHING)
     away = displaced(prepared.poses[0], AWAY)
 
-    kept, failed = bust.valid(prepared.whole, [away])
+    kept, failed = bust.valid_idxs(prepared.whole, [away])
 
     assert kept == [0]
     assert not [check for check in failed if "maximum_distance" in check]
@@ -210,4 +223,4 @@ def test_reduce_takes_the_cutout_over_the_surviving_poses():
 
     prepared._reduce()
 
-    assert residues(prepared.reduced) <= surviving
+    assert residues(prepared.reduced) <= swallow_single_residues(prepared.whole, surviving)

@@ -65,7 +65,7 @@ def test_without_mm_the_prepared_poses_are_the_docked_ones(monkeypatch):
     original = dict(zip(docked.source, (get_heavy_atoms(pose) for pose in docked.poses)))
 
     prepared = PrepareComplex(*paths(SMALL), mm=False)
-    monkeypatch.setattr(bust, "valid", keep_all_poses)
+    monkeypatch.setattr(bust, "valid_idxs", keep_all_poses)
     prepared.prepare()
 
     assert prepared.source
@@ -128,7 +128,7 @@ def test_busting_keeps_the_displacements_parallel_to_the_poses(monkeypatch):
     prepared = fetch()
     prepared.displacement = [float(index) for index in range(len(prepared.poses))]
     sources = list(prepared.source)
-    monkeypatch.setattr(bust, "valid", keep([0, 2]))
+    monkeypatch.setattr(bust, "valid_idxs", keep([0, 2]))
 
     prepared._bust()
 

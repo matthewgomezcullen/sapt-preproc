@@ -51,10 +51,10 @@ class EncodeProtein:
         self.energy = None
 
         # RHF
-        self.rhf_max_cycle = 50 # RHF maximum number of cycles for convergence.
+        self.rhf_max_cycle = 50 # RHF maximum number of cycles for convergence.
         self.verbose = 0 # PySCF prints its SCF table. Silent by default. Set = 4 for logging.
 
-        # AVAS
+        # AVAS
         self.active_space_size = None # active-space-size
         self.active_electrons = None # active-electrons
         self.orbital_initial = None # orbital-initial-guess-for-CASCI/CASSCF
@@ -65,7 +65,7 @@ class EncodeProtein:
         self.avas_threshold = 0.2 # AVAS threshold. PySCF's own default.
         
         # MP2
-        self.density_fit = True # Density fit MP2
+        self.density_fit = True # Density fit MP2
         self.nmax = 50 # Number of natural orbitals the MP2 caps
 
         # Dice

@@ -29,15 +29,11 @@ from encode import EncodeProtein, EncodingError
 # eight. 
 TRACTABLE_ORBITALS = 50
 
-# Small enough to bite the fragment's 35-orbital space, and matching the paper's own pipeline
-# The top eight here come back four occupied- and four virtual-derived: an (8e, 8o) window.
-CAP = 8
+NMAX = 8
 
-# Agreement with the independent reference. Loose enough that an implementation integrating the
-# MP2 differently (e.g., density fitting) still agrees, and orders of magnitude tighter than the 
-# stale-energy mistake the margin exists to catch.
+# Agreement with the independent reference.
 CORRELATION = 1e-3  # relative, on the correlation energy
-OCCUPATION = 1e-4   # absolute, on a natural occupation; the selection boundary gap is 4.8e-4
+OCCUPATION = 1e-4   # absolute, on a natural occupation
 
 
 @functools.lru_cache(maxsize=None)
@@ -72,7 +68,7 @@ def reference():
         np.linalg.eigvalsh(density[:occupied, :occupied]),
         np.linalg.eigvalsh(density[occupied:, occupied:]),
     ])
-    kept = sorted(occupations, key=lambda n: min(n, 2 - n), reverse=True)[:CAP]
+    kept = sorted(occupations, key=lambda n: min(n, 2 - n), reverse=True)[:NMAX]
     return raw, correlation, np.sort(kept)[::-1]
 
 
@@ -85,7 +81,7 @@ def capped():
     encoded = EncodeProtein(fragment())
     encoded.RHF()
     encoded.AVAS(targets=all_carbons(encoded.mol))
-    encoded.nmax = CAP
+    encoded.nmax = NMAX
     encoded.MP2()
     return encoded
 
@@ -99,7 +95,7 @@ def exactly():
     encoded.density_fit = False
     encoded.RHF()
     encoded.AVAS(targets=all_carbons(encoded.mol))
-    encoded.nmax = CAP
+    encoded.nmax = NMAX
     encoded.MP2()
     return encoded
 
@@ -169,8 +165,8 @@ def test_mp2_keeps_the_nmax_most_fractional_orbitals():
     raw, _, occupations = reference()
     encoded = capped()
 
-    assert raw > CAP
-    assert encoded.active_space_size == encoded.nmax == CAP
+    assert raw > NMAX
+    assert encoded.active_space_size == encoded.nmax == NMAX
     assert np.allclose(encoded.occupations, occupations, atol=OCCUPATION)
 
 

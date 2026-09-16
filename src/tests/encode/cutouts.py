@@ -1,12 +1,7 @@
 """
 The cutouts the encoding tests are built on, and what it costs to get them.
 
-The bin under test is Q1 of the size quartiles with |q_A| <= 1: the smallest eligible cutouts
-    carrying at most one net charge, so the cheapest SCF in the set and the least distorted by the
-    cut. `filter.py --reuse` names all twelve; three are tracked as fixtures.
-
-Nothing here is cheap, and the SCFs are not cheap by three orders of magnitude, so everything is
-    cached and shared across the modules that import it.
+Nothing here is cheap, so everything is cached and shared across the modules that import it.
 """
 
 import functools
@@ -18,8 +13,6 @@ from conftest import paths
 from encode import EncodeProtein
 from prepare import PrepareComplex
 
-# Q1, |q_A| <= 1, restricted to the complexes tracked as fixtures. The nine left out are 7BJJ_TVW,
-# 6YQW_82I, 7R59_I5F, 7LOE_Y84, 7W05_GMP, 7PJQ_OWH, 7XI7_4RI, 7EBG_J0L and 7Z1Q_NIO.
 SUBSET = ["7USH_82V", "7W06_ITN", "7R9N_F97"]
 
 # Heavy atoms, net charge and electrons, from the screen in out/filter.csv.
@@ -30,7 +23,7 @@ EXPECTED = {
 }
 
 # A capped run lifted whole out of 5S8I_2LY's cutout, which is one chain of ten of them. Small
-# enough to solve here, and using the coordinates are the ones the pipeline produced.
+# enough to solve here, and using the coordinates the pipeline produced.
 FRAGMENT = "5S8I_2LY"
 FRAGMENT_SLICE = (4, 7)
 FRAGMENT_RESIDUES = ["ACE", "VAL", "NME"]

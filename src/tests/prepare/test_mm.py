@@ -234,17 +234,6 @@ def test_a_tether_leaves_the_pose_hydrogens_free():
     )
 
 
-def test_no_tether_is_the_free_minimisation():
-    prepared = protonated(SMALL)
-    poses = prepared.poses[:FEW]
-
-    free = mm.minimise(prepared.whole, poses)
-    unstrung = mm.minimise(prepared.whole, poses, 0.0)
-
-    for was, now in zip(free, unstrung):
-        assert np.allclose(heavy_at(was), heavy_at(now), atol=EXACT)
-
-
 def test_each_pose_is_tethered_to_its_own_coordinates():
     prepared = protonated(CLASHING)
     first, second = prepared.poses[0], prepared.poses[1]

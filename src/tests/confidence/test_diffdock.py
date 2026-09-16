@@ -26,7 +26,7 @@ pytestmark = pytest.mark.diffdock
 
 NAME = "5S8I_2LY"
 
-# Spearman correlation threshold on ordering.
+# Spearman correlation threshold on ordering.
 ORDERING = 0.95
 
 # The two pockets agree to 0.03 on the pose DiffDock ranked first.

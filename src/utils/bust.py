@@ -1,4 +1,3 @@
-import io
 import os
 import tempfile
 from collections import Counter
@@ -9,10 +8,7 @@ from posebusters import PoseBusters
 
 VALIDITY = "dock"
 
-# TODO: Evaluate number of excluded poses from this.
-# # PoseBusters' `not_too_far_away`, as the result table names it. It fails any pose sitting more
-# # than 5 A from the protein, which detects a docking failure rather than an implausible structure.
-# FAR = "protein-ligand_maximum_distance"
+FAR = "protein-ligand_maximum_distance"
 
 
 class BustError(RuntimeError):
@@ -29,7 +25,7 @@ def _write_pdb(model, directory):
     return path
 
 
-def valid(model, poses):
+def valid_idxs(model, poses):
     """
     Indexes of poses PoseBusters finds physically plausible, and the checks the rest of them failed.
 
@@ -40,8 +36,8 @@ def valid(model, poses):
         table = PoseBusters(VALIDITY, max_workers=0).bust(
             poses, None, _write_pdb(model, directory)
         )
-    # See TODO above.
-    # table = table.drop(columns=FAR, errors="ignore")
+
+    table = table.drop(columns=FAR, errors="ignore").fillna(False).astype(bool)
 
     if len(table) != len(poses):
         raise BustError(

@@ -1,8 +1,9 @@
 """
 Artefacts of a complex, for utils/save.
 
-save.py reads and writes plain records; PrepareComplex and EncodeProtein decide what goes into them.
-Everything one complex produces sits in the directory its caller hands over, out/<job>/<complex>.
+save.py reads and writes plain records; PrepareComplex, EncodeProtein and SolveLigand decide what goes
+into them. Everything one complex produces sits in the directory its caller hands over,
+out/<job>/<complex>, and the SCF of each of its poses in a pose_scf directory within it.
 """
 
 import os
@@ -53,6 +54,23 @@ SCF = {
 
 def stage(name):
     return getattr(save, f"save_{name}"), getattr(save, f"load_{name}")
+
+
+def write_every_artefact(directory):
+    save.save_prepared(RECORD, NAME, directory)
+    save.save_scf(SCF, NAME, directory)
+    with open(save.dice_log_path(NAME, directory), "w") as file:
+        file.write("Dice's own log")
+    save.save_solved(RECORD, NAME, directory)
+    save.save_encoded(RECORD, NAME, directory)
+
+
+def on_disk(directory):
+    return [
+        artefact
+        for artefact in WRITTEN
+        if os.path.isfile(getattr(save, f"{artefact}_path")(NAME, directory))
+    ]
 
 
 def test_every_artefact_sits_in_the_complex_directory(tmp_path):
@@ -157,21 +175,12 @@ def test_the_stages_are_separate_files(tmp_path):
 )
 def test_saving_an_artefact_discards_the_ones_built_on_it(tmp_path, name, kept):
     directory = str(tmp_path)
-    save.save_prepared(RECORD, NAME, directory)
-    save.save_scf(SCF, NAME, directory)
-    with open(save.dice_log_path(NAME, directory), "w") as file:
-        file.write("Dice's own log")
-    save.save_solved(RECORD, NAME, directory)
-    save.save_encoded(RECORD, NAME, directory)
+    write_every_artefact(directory)
 
     store, _ = stage(name)
     store(SCF if name == "scf" else RECORD, NAME, directory)
 
-    assert [
-        artefact
-        for artefact in WRITTEN
-        if os.path.isfile(getattr(save, f"{artefact}_path")(NAME, directory))
-    ] == kept
+    assert on_disk(directory) == kept
 
 
 def test_a_record_that_needs_pickling_is_refused_on_save(tmp_path):
@@ -181,3 +190,71 @@ def test_a_record_that_needs_pickling_is_refused_on_save(tmp_path):
     """
     with pytest.raises(ValueError):
         save.save_prepared({"failed": Counter({"bond_lengths": 3})}, NAME, str(tmp_path))
+
+
+def test_each_pose_scf_sits_in_the_pose_scf_directory(tmp_path):
+    directory = str(tmp_path)
+
+    assert save.pose_scf_path(NAME, directory, 3) == os.path.join(
+        directory, "pose_scf", f"{NAME}_pose3_rhf.chk"
+    )
+
+
+def test_a_pose_scf_survives_a_round_trip_apart_from_every_other_scf(tmp_path):
+    directory = str(tmp_path)
+
+    save.save_pose_scf(SCF, NAME, directory, 1)
+
+    loaded = save.load_pose_scf(NAME, directory, 1)
+    assert loaded.keys() == SCF.keys()
+    for key, value in SCF.items():
+        np.testing.assert_array_equal(loaded[key], value)
+    assert save.load_pose_scf(NAME, directory, 0) is None
+    assert save.load_scf(NAME, directory) is None
+
+
+def test_an_unreadable_pose_scf_loads_as_none_and_is_written_over(tmp_path):
+    directory = str(tmp_path)
+    save.save_pose_scf(SCF, NAME, directory, 0)
+    path = save.pose_scf_path(NAME, directory, 0)
+    with open(path, "rb") as file:
+        whole = file.read()
+    with open(path, "wb") as file:
+        file.write(whole[:len(whole) // 2])
+
+    assert save.load_pose_scf(NAME, directory, 0) is None
+    save.save_pose_scf(SCF, NAME, directory, 0)
+    assert save.load_pose_scf(NAME, directory, 0)["e_tot"] == SCF["e_tot"]
+
+
+def test_a_new_preparation_discards_every_pose_scf(tmp_path):
+    directory = str(tmp_path)
+    for index in range(3):
+        save.save_pose_scf(SCF, NAME, directory, index)
+
+    save.save_prepared(RECORD, NAME, directory)
+
+    assert not any(os.path.isfile(save.pose_scf_path(NAME, directory, index)) for index in range(3))
+
+
+@pytest.mark.parametrize("name", ["scf", "solved", "encoded"])
+def test_the_proteins_own_artefacts_leave_the_pose_scfs_alone(tmp_path, name):
+    directory = str(tmp_path)
+    save.save_pose_scf(SCF, NAME, directory, 0)
+    store, _ = stage(name)
+
+    store(SCF if name == "scf" else RECORD, NAME, directory)
+
+    assert os.path.isfile(save.pose_scf_path(NAME, directory, 0))
+
+
+def test_saving_a_pose_scf_discards_no_other_artefact(tmp_path):
+    directory = str(tmp_path)
+    write_every_artefact(directory)
+    save.save_pose_scf(SCF, NAME, directory, 0)
+    save.save_pose_scf(SCF, NAME, directory, 1)
+
+    save.save_pose_scf(SCF, NAME, directory, 0)
+
+    assert on_disk(directory) == WRITTEN
+    assert os.path.isfile(save.pose_scf_path(NAME, directory, 1))

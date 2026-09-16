@@ -1,3 +1,4 @@
+import glob
 import os
 import zipfile
 
@@ -6,6 +7,9 @@ from pyscf import lib
 
 
 UNREADABLE = (OSError, EOFError, ValueError, zipfile.BadZipFile)
+
+# The poses' SCFs are kept together.
+POSE_SCF = "pose_scf"
 
 
 def prepared_path(name, dir):
@@ -26,16 +30,30 @@ def scf_path(name, dir):
 
 
 def load_scf(name, dir):
-    try:
-        return lib.chkfile.load(scf_path(name, dir), "scf")
-    except (OSError, KeyError):
-        return None
+    return _load_chk(scf_path(name, dir))
 
 
 def save_scf(record, name, dir):
     _supersede(scf_path, name, dir)
-    os.makedirs(dir, exist_ok=True)
-    lib.chkfile.save(scf_path(name, dir), "scf", record)
+    _save_chk(record, scf_path(name, dir))
+
+
+def pose_scf_path(name, dir, index):
+    return os.path.join(dir, POSE_SCF, f"{name}_pose{index}_rhf.chk")
+
+
+def load_pose_scf(name, dir, index):
+    return _load_chk(pose_scf_path(name, dir, index))
+
+
+def save_pose_scf(record, name, dir, index):
+    """
+    Nothing is built on a pose's SCF, so only discard the file replaced. 
+    """
+    path = pose_scf_path(name, dir, index)
+    if os.path.exists(path):
+        os.remove(path)
+    _save_chk(record, path)
 
 
 def solved_path(name, dir):
@@ -88,12 +106,30 @@ def _save(record, path):
     np.savez(path, allow_pickle=False, **arrays)
 
 
+def _load_chk(path):
+    try:
+        return lib.chkfile.load(path, "scf")
+    except (OSError, KeyError):
+        return None
+
+
+def _save_chk(record, path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    lib.chkfile.save(path, "scf", record)
+
+
 def _supersede(artefact, name, dir):
     """
     Discard `artefact`, and everything written after it.
+
+    The poses' SCFs are built on the preparation alone, so a new preparation is the only artefact
+        that discards them.
     """
     order = [prepared_path, scf_path, dice_log_path, solved_path, encoded_path]
     for later in order[order.index(artefact):]:
         path = later(name, dir)
         if os.path.exists(path):
+            os.remove(path)
+    if artefact is prepared_path:
+        for path in glob.glob(pose_scf_path(glob.escape(name), glob.escape(dir), "*")):
             os.remove(path)

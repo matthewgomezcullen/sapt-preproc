@@ -12,7 +12,7 @@ import os
 import re
 
 from prepare import PrepareComplex
-from encode import EncodeProtein
+from encode import EncodeProtein, SolveLigand
 
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -65,6 +65,10 @@ def run(name, data, out, complexes=None, force=False, prepare_only=False):
             complex.prepare()
         if prepare_only:
             continue
+        # Before the protein, so a pose that cannot be solved shows first.
+        ligand = SolveLigand(complex, complex.out)
+        if force or not ligand.solved():
+            ligand.RHF()
         protein = EncodeProtein(complex, complex.out)
         if force or not protein.solved():
             protein.solve()

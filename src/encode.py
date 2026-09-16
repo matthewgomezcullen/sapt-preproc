@@ -4,14 +4,15 @@ import tempfile
 from subprocess import CalledProcessError
 
 from pyscf.mcscf import avas
+from rdkit import Chem
 
 from prepare import PrepareComplex, PrepareError
 from utils.reduce import CAPS
 from utils import encode, save
 
 
-# The valence p shell README targets, per element it keeps. Hydrogen has no p shell and is not
-# named; anything else in the cutout was rejected by `_verify` for having no 6-31G basis.
+# The valence p shell per element. Hydrogen has no p shell; anything else in the cutout was 
+# rejected by `_verify` for having no 6-31G basis.
 VALENCE = {"C": "2p", "N": "2p", "O": "2p", "S": "3p", "P": "3p"}
 
 SCF = ("e_tot", "mo_energy", "mo_occ", "mo_coeff")
@@ -382,9 +383,10 @@ class EncodeProtein:
 
 
 class SolveLigand:
-
     """
-    SolveLigand takes a PreparedComplex, solves RHF for each pose, then stores the per-pose integrals.
+    SolveLigand takes a PreparedComplex and solves RHF over each of its poses.
+
+    A job resumes from the poses it solved.
 
     `out` is the complex's directory. Whatever a previous run left there is read back, which needs
         `prepared` prepared or read back first.
@@ -395,43 +397,105 @@ class SolveLigand:
         prepared: PrepareComplex,
         out=None
     ):
-        pass
-    
+        self.prepared = prepared
+        self.mols = None
+        self.mean_fields = None
+        self.energies = None # the RHF energy per pose
+
+        # RHF
+        self.rhf_max_cycle = 50
+        self.verbose = 0 # PySCF prints its SCF table. Silent by default. Set = 4 for logging.
+
+        # Load
+        self.out = out
+        if out:
+            self._load()
+
 
     def RHF(self):
-        # Run RHF for each pose. Implicitly handles saving.
-        ...
+        """
+        Solves RHF over every pose not yet solved, in order.
+
+        Only the solution is kept. What is kept of a pose is its solution. PySCF holds a molecule's two-electron integrals on its
+            mean field and an entire ensemble's worth would not fit in memory.
+
+        An unconverged pose is rejected, and the poses solved before it are kept.
+        """
+        if self.mols is None:
+            self._molecules()
+        if self.mean_fields is None:
+            self.mean_fields = [None] * len(self.mols)
+            self.energies = [None] * len(self.mols)
+        for index, mol in enumerate(self.mols):
+            if self.mean_fields[index] is not None:
+                continue
+            mean_field = encode.rhf(mol, self.rhf_max_cycle)
+            if not mean_field.converged:
+                raise EncodingError(
+                    f"RHF did not converge in {self.rhf_max_cycle} cycles over pose "
+                    f"{self.prepared.source[index]}"
+                )
+            record = {key: getattr(mean_field, key) for key in SCF}
+            if self.out:
+                save.save_pose_scf(record, self._name(), self.out, index)
+            self.mean_fields[index] = encode.restore(mol, record)
+            self.energies[index] = mean_field.e_tot
+        return self.mean_fields
+
+    def _molecules(self):
+        """
+        Build the PySCF molecule each pose is solved as.
+
+        N_B = \\sum_I Z_I - q_B. Preparation leaves every pose a closed shell, so an odd N_B means the
+            preparation is wrong, and the pose is refused before PySCF is handed it.
+        """
+        if not self.prepared.prepared():
+            raise PrepareError("Cannot build the poses before the complex is prepared")
+        for pose, source in zip(self.prepared.poses, self.prepared.source):
+            electrons = (
+                sum(atom.GetAtomicNum() for atom in pose.GetAtoms())
+                - Chem.GetFormalCharge(pose) # pyright: ignore[reportAttributeAccessIssue]
+            )
+            if electrons % 2:
+                raise PrepareError(
+                    f"pose {source} holds {electrons} electrons, which no closed-shell singlet can hold"
+                )
+        self.mols = [
+            encode.pose_molecule(pose, self.prepared.spin, self.prepared.basis, self.verbose)
+            for pose in self.prepared.poses
+        ]
+        return self.mols
+
 
     def solved(self):
         """
-        Whether RHF has solved the space.
+        Whether RHF has solved every pose.
         """
-        return self.shci_energy is not None
+        return self.mean_fields is not None and all(
+            mean_field is not None for mean_field in self.mean_fields
+        )
 
 
     def _load(self):
         """
-        Read back the SCF.
+        Read back the SCF for all poses in `out`.
         """
         name = self._name()
-        stored = save.load_scf(name, self.out)
-        solved = save.load_solved(name, self.out)
-        if stored is None and solved is None:
+        stored = [
+            save.load_pose_scf(name, self.out, index)
+            for index in range(len(self.prepared.poses or []))
+        ]
+        if all(record is None for record in stored):
             return
 
-        self._molecule()
-        self.mean_field = encode.restore(self.mol, stored)
-        if stored is not None:
-            self.energy = self.mean_field.e_tot
-        if solved is None:
-            return
-        for key in SOLVED:
-            setattr(self, key, solved[key])
-
-        encoded = save.load_encoded(name, self.out)
-        if encoded is not None:
-            for key in ENCODED:
-                setattr(self, key, encoded[key])
+        self._molecules()
+        self.mean_fields = [
+            None if record is None else encode.restore(mol, record)
+            for mol, record in zip(self.mols, stored)
+        ]
+        self.energies = [
+            None if mean_field is None else mean_field.e_tot for mean_field in self.mean_fields
+        ]
 
 
     def _name(self):

@@ -1,5 +1,6 @@
 import numpy as np
 from prepare import PrepareComplex
+from rdkit import Chem
 from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 
 from pyscf import ao2mo, gto, mcscf, mp, scf
@@ -19,6 +20,21 @@ def molecule(prepared: PrepareComplex, verbose):
         verbose=verbose,
     )
     return mol
+
+def pose_molecule(pose, spin, basis, verbose):
+    """
+    Build the PySCF molecule of a pose.
+    """
+    return gto.M(
+        atom=[
+            (atom.GetSymbol(), tuple(position))
+            for atom, position in zip(pose.GetAtoms(), pose.GetConformer().GetPositions())
+        ],
+        charge=Chem.GetFormalCharge(pose), # pyright: ignore[reportAttributeAccessIssue]
+        spin=spin,
+        basis=basis,
+        verbose=verbose,
+    )
 
 def rhf(mol, max_cycle, density_fit=False):
     """

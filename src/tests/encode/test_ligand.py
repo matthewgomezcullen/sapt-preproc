@@ -33,7 +33,7 @@ LIGAND_FUNCTIONS = 100
 
 POSES = 3
 
-REPRODUCIBILE_THRESHOLD = 1e-9
+REPRODUCIBLE_THRESHOLD = 1e-9
 
 DISTINCT_POSES_THRESHOLD = 1e-5
 
@@ -72,7 +72,7 @@ def without_a_hydrogen(pose):
 
 def rhf_counted(calls, rhf):
     """
-    RHF stub, counting every molecule it is handed.
+    Wraps RHF to count every molecule it is handed.
     """
     return lambda mol, *args, **kwargs: calls.append(mol) or rhf(mol, *args, **kwargs)
 
@@ -143,7 +143,7 @@ def test_each_pose_is_solved_at_its_own_geometry():
 
     alone.RHF()
 
-    assert alone.energies[0] == pytest.approx(ligand.energies[-1], abs=REPRODUCIBILE_THRESHOLD)
+    assert alone.energies[0] == pytest.approx(ligand.energies[-1], abs=REPRODUCIBLE_THRESHOLD)
     for first, second in itertools.combinations(ligand.energies, 2):
         assert abs(first - second) > DISTINCT_POSES_THRESHOLD
 
@@ -223,4 +223,4 @@ def test_an_interrupted_ensemble_resumes_from_the_poses_it_kept(tmp_path, monkey
 
     assert len(calls) == POSES - 1
     assert resumed.solved()
-    assert resumed.energies == pytest.approx(reference, abs=REPRODUCIBILE_THRESHOLD)
+    assert resumed.energies == pytest.approx(reference, abs=REPRODUCIBLE_THRESHOLD)

@@ -6,7 +6,7 @@ Experiments will be run using DiffDock's generated poses for the PoseBusters Ben
 
 ## Pre-processing
 
-Given a protein structure and candidate poses, `prepare.py` prepares the protein, then `encode.py` solves RHF for molecular orbitals and encodes a tractable active space for SAPT with VQE/CASCI as a Hamiltonian. The implementation aims to map as closely as possible to the original [SAPT(VQE) paper](https://arxiv.org/abs/2110.01589), while remaining applicable to any protein-ligand complex and across several candidate poses.
+Given a protein structure and candidate poses, `prepare.py` prepares the protein, then `encode.py` solves RHF for molecular orbitals and encodes a tractable active space for SAPT with VQE/CASCI as a Hamiltonian, and solves each pose at RHF. The implementation aims to map as closely as possible to the original [SAPT(VQE) paper](https://arxiv.org/abs/2110.01589), while remaining applicable to any protein-ligand complex and across several candidate poses.
 
 An extended list of these deviations from the original paper are detailed in a section below.
 
@@ -163,6 +163,10 @@ The original protein-ligand experiment used monomer-centered bases, treated ever
 
 1. Take poses from `PrepareComplex.poses`. They already carry explicit hydrogens and have been minimised and screened.
 2. Verify that the number of electrons is even: $$N_{e}^{B_{i}} = \sum_{I} Z_{I} - q_{B_{i}}$$.
+3. Build the pose as a PySCF molecule at $q_{B_{i}}$ and $S = 0$, in the cutout's `basis`. The basis holds the pose's own functions and none of the cutout's.
+4. Solve RHF over the pose. An unconverged pose is rejected, and the poses solved before it are kept.
+
+`SolveLigand` does this over every pose of a complex. 
 
 ## Setup
 
@@ -214,12 +218,13 @@ Among accepted complexes, many cutouts are highly charged, as counter-charges th
 | File | Written by | Holds |
 |---|---|---|
 | `<complex>_prepared.npz` | `PrepareComplex.prepare` | `cutout` (the capped cutout, as PDB), `poses` (as protonation, minimisation and busting left them, as mol blocks), `source` (the file name, carrying rank and confidence), `charge`, `electrons`, `heavy_atoms`, `excluded`, `failed` |
+| `pose_scf/<complex>_pose<k>_rhf.chk` | `SolveLigand.RHF`, as each pose converges | PySCF's own `scf` group for the pose at position `k` of `_prepared.npz`'s `poses` |
 | `<complex>_rhf.chk` | `EncodeProtein.RHF`, once converged | PySCF's own `scf` group: `e_tot`, `mo_energy`, `mo_occ`, `mo_coeff` |
 | `<complex>_solved.npz` | `EncodeProtein.solve` | the space SHCI solved: `energy` (RHF), `correlation` (MP2), `shci_energy`, `active_space_size`, `active_electrons`, `orbital_initial`, `occupations` |
 | `<complex>.dice.out` | `EncodeProtein.SHCI` | Dice's own log, kept whether or not Dice succeeded |
 | `<complex>_encoded.npz` | `EncodeProtein.encode` | `e_core`, `h1`, `h2`, and the window they are over: `active_space_size`, `active_electrons`, `occupations` |
 
-Each class reads back whatever its directory holds when it is constructed, and a stage already there is not run again. Writing an artefact discards every one written after it, since they were built on the one it replaces, so `--force` reruns everything and deleting `_prepared.npz`, `_solved.npz` or `_encoded.npz` reruns from that stage on. An artefact that cannot be read, such as one cut off mid-write, counts as absent and is written over. Nothing is kept for a rejected complex.
+Each class reads back whatever its directory holds when it is constructed, and a stage already there is not run again. Writing an artefact discards every one written after it, since they were built on the one it replaces, so `--force` reruns everything and deleting `_prepared.npz`, `_solved.npz` or `_encoded.npz` reruns from that stage on. The poses' SCFs are an exception; each is built on `_prepared.npz` alone, so a new preparation discards every one of them, nothing the protein's encoding writes touches them, and deleting one solves only that pose again. An artefact that cannot be read, such as one cut off mid-write, counts as absent and is written over. Nothing is kept for a rejected complex.
 
 Artefacts are matched on the job's name alone, so a job is assumed consistent: a change to preparation wants a new name or `--force`.
 
@@ -268,4 +273,6 @@ Both are given `seed = 1`. `_fix` also runs on the reference platform, which rep
 AVAS produces an active space that is too large. We use MP2 to pick the most correlated active orbitals.
 
 `MP2` requires storing four-index electron-repulsion integrals, $(ij|ab)$, which scales $O(N^{4})$ in the number of orbitals. We use density fitting, scaling at $O(N^{3})$ instead.
+
+PySCF keeps a molecule's two-electron integrals on its mean field whenever they fit under `max_memory`. `SolveLigand` keeps only each pose's solution, since forty poses of 200 basis functions would exceed memory.
 

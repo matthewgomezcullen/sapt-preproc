@@ -11,6 +11,10 @@
 #
 # `encode.py` looks for it on the PATH, which the environment puts it on when it is activated.
 #
+# The DiffDock tests score poses with DiffDock's own code, which src/diffdock holds as a submodule that
+# a clone leaves empty, so it is checked out here. DiffDock's environment is not built here: test.sh
+# borrows the one exp_1 built.
+#
 # pyscf comes from PyPI rather than conda-forge, conda-forge's only linux-64 builds of pyscf 2.14.0 
 # are python 3.10, and both require _x86_64-microarch-level >=4, meaning AVX-512. scipy 1.17.1 
 # needs 3.11 or newer, so the conda route cannot honour environment.yml on Linux at all. PyPI's 
@@ -58,6 +62,11 @@ try:
 except Exception:
     pass
 PY
+fi
+
+if [ -e "$REPO/.git" ]; then
+    echo "[$(date +%T)] Checking out src/diffdock"
+    git -C "$REPO" submodule update --init src/diffdock
 fi
 
 module purge

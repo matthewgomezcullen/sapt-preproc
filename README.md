@@ -191,7 +191,7 @@ For `run_size.sh` and `test.sh`, you may alternatively download the data from th
 
 | Flag | Adds | Cost |
 |---|---|---|
-| `--long-protonate` | the repair, protonation, minimisation and busting pipelines, over several complexes | minutes each |
+| `--prepare-long` | the repair, protonation, minimisation and busting pipelines, over several complexes | minutes each |
 | `--hpc` | RHF, AVAS and the MP2 cap over a real cutout of the bin | about an hour a cutout |
 | `--hpc-long-stab` | the stability analysis of a cutout's converged SCF | six to ten hours each, an order of magnitude beyond the solve it checks |
 | `--hpc-long-dice` | Dice over the fifty orbitals MP2 leaves on a cutout | unmeasured; this is what the flag exists to find out |

@@ -359,6 +359,37 @@ def report(rows):
         print(f'  {label:5s}{banded[0]:8d}{banded[1]:10d}{banded[2]:9d}')
 
 
+def run(complexes=None, name=Name, mm=True, tether=None, reuse=False, force=False, workers=None):
+    if reuse:
+        rows = read(name)
+        _summarise(rows)
+    else:
+        complexes, incomplete = inventory(complexes)
+        complexes, incorrect = sweep_for_near_native(complexes)
+        if workers is None:
+            rows, checks = screen(
+                complexes,
+                force=force,
+                mm=mm,
+                tether=tether,
+                name=name,
+            )
+        else:
+            # ProcessPoolExecutor reads None, not -1, as every core.
+            workers = None if workers == -1 else workers
+            rows, checks = screen_parallel(
+                complexes,
+                workers=workers,
+                force=force,
+                mm=mm,
+                tether=tether,
+                name=name,
+            )
+        write(rows, name)
+        _summarise(rows, incomplete, incorrect, checks)
+    report(rows)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -409,31 +440,12 @@ if __name__ == "__main__":
     )
     arguments = parser.parse_args()
 
-    if arguments.reuse:
-        rows = read(arguments.name)
-        _summarise(rows)
-    else:
-        complexes, incomplete = inventory(arguments.complexes)
-        complexes, incorrect = sweep_for_near_native(complexes)
-        if arguments.workers is None:
-            rows, checks = screen(
-                complexes,
-                force=arguments.force,
-                mm=arguments.mm,
-                tether=arguments.tether,
-                name=arguments.name,
-            )
-        else:
-            # ProcessPoolExecutor reads None, not -1, as every core.
-            workers = None if arguments.workers == -1 else arguments.workers
-            rows, checks = screen_parallel(
-                complexes,
-                workers=workers,
-                force=arguments.force,
-                mm=arguments.mm,
-                tether=arguments.tether,
-                name=arguments.name,
-            )
-        write(rows, arguments.name)
-        _summarise(rows, incomplete, incorrect, checks)
-    report(rows)
+    run(
+        complexes=arguments.complexes,
+        name=arguments.name,
+        mm=arguments.mm,
+        tether=arguments.tether,
+        reuse=arguments.reuse,
+        force=arguments.force,
+        workers=arguments.workers
+    )

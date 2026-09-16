@@ -18,14 +18,11 @@ from cutouts import (
 )
 from encode import EncodeProtein
 
-# 6-31G puts about 11.1 functions on a heavy atom of a cutout of this composition, so every member
-# of the bin lands between roughly 1000 and 2300. Wide enough to be a sanity check, not a pin.
+# 6-31G puts about 11.1 functions on a heavy atom of a cutout of this composition
 FUNCTIONS_PER_HEAVY_ATOM = (9.0, 13.0)
 
-# Canonical orthogonalisation drops any AO the overlap says is redundant, which would renumber
-# every atom after it and silently move the orbitals AVAS was asked for. 6-31G is far from that;
-# the measured minimum over the bin is 7e-4.
-CONDITIONING = 1e-6
+# PySCF's eigenvalue threshold for discarding AOs
+ZERO_EIGENVALUE_THRESHOLD = 1e-6
 
 
 def test_the_fragment_is_a_capped_run():
@@ -124,7 +121,7 @@ def test_molecule_carries_no_redundant_basis_functions(name):
     encoded._molecule()
 
     overlap = np.linalg.eigvalsh(encoded.mol.intor("int1e_ovlp"))
-    assert overlap.min() > CONDITIONING
+    assert overlap.min() > ZERO_EIGENVALUE_THRESHOLD
 
 
 def test_molecule_carries_the_cutout_geometry_unchanged():

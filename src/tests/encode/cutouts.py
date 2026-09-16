@@ -1,56 +1,70 @@
 """
-The cutouts the encoding tests are built on, and what it costs to get them.
+The cutouts the encoding tests are built on.
 
-Nothing here is cheap, so everything is cached and shared across the modules that import it.
+Each is read back from the artefact filter.py saved rather than prepared again, so a change to
+    preparation reaches these tests only once the artefacts are copied again. Solving them is not
+    cheap, so everything is cached and shared across the modules that import it.
 """
 
 import functools
+import os
 
 import gemmi
 import numpy as np
 
-from conftest import paths
+from conftest import PREPARED
 from encode import EncodeProtein
 from prepare import PrepareComplex
 
-SUBSET = ["7USH_82V", "7W06_ITN", "7R9N_F97"]
+# 7BJJ_TVW is charged
+# 7LOE_Y84 has a sulfur within the cutoff of a pose
+SUBSET = ["7BJJ_TVW", "7LOE_Y84"]
 
-# Heavy atoms, net charge and electrons, from the screen in out/filter.csv.
+# Heavy atoms, net charge and electrons, from the screen in out/filter_v1_1_mm_unsize.csv.
 EXPECTED = {
-    "7USH_82V": (157, -1, 1188),
-    "7W06_ITN": (168, +1, 1286),
-    "7R9N_F97": (169, -1, 1314),
+    "7BJJ_TVW": (96, -1, 756),
+    "7LOE_Y84": (147, 0, 1144),
 }
 
-# A capped run lifted whole out of 5S8I_2LY's cutout, which is one chain of ten of them. Small
-# enough to solve here, and using the coordinates the pipeline produced.
-FRAGMENT = "5S8I_2LY"
-FRAGMENT_SLICE = (4, 7)
+# ACE-VAL-NME: VAL A21 of 7BJJ_TVW's cutout, which the cut left capped on either side.
+FRAGMENT = "7BJJ_TVW"
+FRAGMENT_RESIDUE = ("A", "VAL", 21)
 FRAGMENT_RESIDUES = ["ACE", "VAL", "NME"]
 FRAGMENT_ATOMS = 28
 FRAGMENT_ELECTRONS = 94
 
 
-@functools.lru_cache(maxsize=None)
-def prepare(name):
-    """
-    A complex carried through the whole pipeline.
-    """
-    prepared = PrepareComplex(*paths(name))
-    prepared.prepare()
+def read(name):
+    prepared = PrepareComplex("", [], os.path.join(PREPARED, name))
+    if not prepared.prepared():
+        raise FileNotFoundError(f"No prepared artefact for {name} under {PREPARED}")
     return prepared
 
 
-def slice_out(model, start, stop):
+@functools.lru_cache(maxsize=None)
+def prepare(name):
     """
-    A run of residues lifted out of a cutout as a model of its own.
+    A complex carried through the whole pipeline, read once and shared.
     """
+    return read(name)
+
+
+def slice_out(model, chain, name, number):
+    """
+    A residue and its neighbours either side in its chain, lifted out of a cutout.
+    """
+    residues = list(model[chain])
+    index = next(
+        index
+        for index, residue in enumerate(residues)
+        if residue.name == name and residue.seqid.num == number
+    )
     structure = gemmi.Structure() # pyright: ignore[reportAttributeAccessIssue]
     sliced = gemmi.Model("1") # pyright: ignore[reportAttributeAccessIssue]
-    chain = gemmi.Chain(model[0].name) # pyright: ignore[reportAttributeAccessIssue]
-    for residue in list(model[0])[start:stop]:
-        chain.add_residue(residue)
-    sliced.add_chain(chain)
+    kept = gemmi.Chain(chain) # pyright: ignore[reportAttributeAccessIssue]
+    for residue in residues[index - 1:index + 2]:
+        kept.add_residue(residue)
+    sliced.add_chain(kept)
     structure.add_model(sliced)
     structure.setup_entities()
     return structure[0]
@@ -61,9 +75,8 @@ def fragment():
     """
     ACE-VAL-NME, prepared and charged, standing in for a cutout small enough to solve.
     """
-    prepared = PrepareComplex(*paths(FRAGMENT))
-    prepared.prepare()
-    prepared.reduced = slice_out(prepared.reduced, *FRAGMENT_SLICE)
+    prepared = read(FRAGMENT)
+    prepared.reduced = slice_out(prepared.reduced, *FRAGMENT_RESIDUE)
     prepared._calculate_charge()
     prepared._verify_num_electrons()
     prepared.heavy_atoms = sum(

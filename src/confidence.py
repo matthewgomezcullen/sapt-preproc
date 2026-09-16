@@ -3,9 +3,10 @@ How well DiffDock's confidence model ranks the poses the screen kept.
 
 Every kept pose was minimised, which moves it, so the confidence DiffDock published no longer
     describes the pose on disk. Each is scored again as it now stands, ranked on that score, and the
-    top-ranked one held against the deposited ligand. out/confidence.csv is a row a pose;
-    out/confidence_summary.csv is a row a complex, carrying both the top-1 and the share of the
-    ensemble that is near-native, which is the rate a random pick off it would manage.
+    top-ranked one held against the deposited ligand. confidence.csv is a row a pose;
+    confidence_summary.csv is a row a complex, carrying both the top-1 and the share of the
+    ensemble that is near-native, which is the rate a random pick off it would manage. Both are
+    written into the directory of the screen they score, out/filter or out/filter_<name>.
 
 The scoring runs as a subprocess in the interpreter DiffDock was installed into, because DiffDock's
     `utils` package shadows ours and its pins are a different python. DIFFDOCK_PYTHON says where that
@@ -32,14 +33,17 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 # Only ever run, never imported
 SCRIPT = os.path.join(ROOT, "utils", "diffdock.py")
 
-# The complexes the screen prepared, and the two tables this script produces.
+# The screen scored when none is named, and the directory its preparations are kept in.
+NAME = filter.NAME
 JOB = filter.job_dir()
-TABLE = os.path.join(filter.OUT, "confidence.csv")
-SUMMARY = os.path.join(filter.OUT, "confidence_summary.csv")
 
-# Input and output. Output is left on disk for `--reuse`
-MANIFEST = os.path.join(filter.OUT, "confidence_manifest.csv")
-SCORES = os.path.join(filter.OUT, "confidence_scores.csv")
+# The two tables this script produces, written into the directory of the screen it scores.
+TABLE_NAME = "confidence.csv"
+SUMMARY_NAME = "confidence_summary.csv"
+
+# Input and output, kept there too. Output is left on disk for `--reuse`
+MANIFEST_NAME = "confidence_manifest.csv"
+SCORES_NAME = "confidence_scores.csv"
 
 PYTHON = os.environ.get("DIFFDOCK_PYTHON")
 MODELS = os.environ.get("DIFFDOCK_MODELS", os.path.join(filter.DATA, "diffdock_models"))
@@ -67,12 +71,12 @@ BOOLEANS = ["top1_minimised", "top1_docked"]
 SCORED = re.compile(r"^rank(\d+)_confidence(-?\d+\.\d+)\.sdf$")
 
 
-def complex_dir(name):
-    return os.path.join(JOB, name)
+def complex_dir(name, job=None):
+    return os.path.join(job or JOB, name)
 
 
-def poses_path(name):
-    return os.path.join(complex_dir(name), f"{name}{POSES}")
+def poses_path(name, job=None):
+    return os.path.join(complex_dir(name, job), f"{name}{POSES}")
 
 
 def docked_rank_and_score(source):
@@ -82,13 +86,14 @@ def docked_rank_and_score(source):
     return int(scored.group(1)), float(scored.group(2))
 
 
-def _prepared(name):
+def _prepared(name, job=None):
     """
     The poses a complex's artefact holds and the source file.
     """
-    record = save.load_prepared(name, complex_dir(name))
+    directory = complex_dir(name, job)
+    record = save.load_prepared(name, directory)
     if record is None:
-        raise FileNotFoundError(f"{name} has no readable preparation in {complex_dir(name)}")
+        raise FileNotFoundError(f"{name} has no readable preparation in {directory}")
     return (
         [
             Chem.MolFromMolBlock(str(block), removeHs=False) # pyright: ignore[reportAttributeAccessIssue]
@@ -108,20 +113,20 @@ def write_poses(molecules, sources, path):
     return path
 
 
-def export(name):
-    molecules, sources = _prepared(name)
-    return write_poses(molecules, sources, poses_path(name))
+def export(name, job=None):
+    molecules, sources = _prepared(name, job)
+    return write_poses(molecules, sources, poses_path(name, job))
 
 
-def initial_rows(name, native):
-    molecules, sources = _prepared(name)
+def initial_rows(name, native, job=None):
+    molecules, sources = _prepared(name, job)
     return [
         dict(zip(FIELDS, (name, source, *docked_rank_and_score(source), None, None, rmsd)))
         for source, rmsd in zip(sources, filter.calc_rmsds(molecules, native))
     ]
 
 
-def score(work, python=None, models=None, esm=None, manifest=MANIFEST, scores=SCORES):
+def score(work, manifest, scores, python=None, models=None, esm=None):
     """
     Every complex's poses scored by the confidence model in one pass over `work`, which is a
         (complex, deposited PDB, exported SDF) triple each.
@@ -254,28 +259,37 @@ def _report(summary, skipped=(), missing=()):
     print(f'        a random pick off the ensemble, {chance:.1%}')
 
 
-def run(complexes=None, python=None, models=None, esm=None, reuse=False):
+def run(complexes=None, python=None, models=None, esm=None, reuse=False, name=NAME):
     """
-    Every prepared complex exported, scored, ranked and summarised into the two tables.
+    Every complex the screen prepared exported, scored, ranked and summarised into the two tables,
+        which are written into the screen's directory beside its preparations.
 
     `reuse` reads back the last pass's scores instead of running it again.
     """
     rows, work, skipped = [], [], []
-    for name, protein, _, native in filter.inventory(complexes)[0]:
-        if save.load_prepared(name, complex_dir(name)) is None:
-            skipped.append(name)
+    job = filter.job_dir(name)
+    for complex, protein, _, native in filter.inventory(complexes)[0]:
+        if save.load_prepared(complex, complex_dir(complex, job)) is None:
+            skipped.append(complex)
             continue
-        work.append((name, protein, export(name)))
-        rows += initial_rows(name, native)
+        work.append((complex, protein, export(complex, job)))
+        rows += initial_rows(complex, native, job)
     if not work:
-        raise SystemExit(f"No prepared complex under {JOB}; run filter.py first")
+        raise SystemExit(f"No prepared complex under {job}; run filter.py first")
 
-    scores = read_scores(SCORES) if reuse else score(work, python, models, esm)
+    scores = read_scores(os.path.join(job, SCORES_NAME)) if reuse else score(
+        work,
+        os.path.join(job, MANIFEST_NAME),
+        os.path.join(job, SCORES_NAME),
+        python,
+        models,
+        esm
+    )
     rows, missing = join(rows, scores)
     rows = rank(rows)
     summary = summarise(rows)
-    write_table(rows, TABLE, FIELDS)
-    write_table(summary, SUMMARY, SUMMARY_FIELDS)
+    write_table(rows, os.path.join(job, TABLE_NAME), FIELDS)
+    write_table(summary, os.path.join(job, SUMMARY_NAME), SUMMARY_FIELDS)
     _report(summary, skipped, missing)
     return rows, summary
 
@@ -291,8 +305,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--reuse",
         action="store_true",
-        help=f"Rank and summarise the scores already in {os.path.relpath(SCORES, ROOT)} instead of "
-             "scoring every pose again.",
+        help="Rank and summarise the scores the last pass left in the screen's directory instead "
+             "of scoring every pose again.",
     )
     parser.add_argument(
         "--python",
@@ -309,6 +323,12 @@ if __name__ == "__main__":
         default=ESM,
         help="The ESM-2 650M weights.",
     )
+    parser.add_argument(
+        "--name",
+        default=NAME,
+        help="The screen to score, as it was named for filter.py. Its preparations are read from, "
+             "and the tables written into, out/filter_<name>, or out/filter without a name.",
+    )
     arguments = parser.parse_args()
 
-    run(arguments.complexes, arguments.python, arguments.models, arguments.esm, arguments.reuse)
+    run(arguments.complexes, arguments.python, arguments.models, arguments.esm, arguments.reuse, arguments.name)

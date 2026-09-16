@@ -26,7 +26,6 @@ from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 from cutouts import SUBSET, fragment, prepare, solved
 from encode import EncodeProtein, EncodingError
 from prepare import PrepareComplex, PrepareError
-from conftest import paths
 
 # A cap stands in for a residue the truncation removed. It is an artefact of the cut, so its
 # orbitals are not part of the chemistry the active space is meant to describe.
@@ -164,14 +163,14 @@ def test_target_orbitals_refuse_a_complex_with_no_molecule():
     """
     There is nothing to address before the molecule is built.
     """
-    encoded = EncodeProtein(PrepareComplex(*paths("5S8I_2LY")))
+    encoded = EncodeProtein(PrepareComplex("", []))
 
     with pytest.raises(PrepareError):
         encoded._generate_target_orbitals()
 
 
 # --------------------------------------------------------------------------------------------
-# AVAS itself, on the fragment. Two of its carbons fall within the cutoff of a pose.
+# AVAS itself, on the fragment. Three of its carbons fall within the cutoff of a pose.
 # --------------------------------------------------------------------------------------------
 
 

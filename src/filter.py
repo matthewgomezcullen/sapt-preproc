@@ -1,14 +1,15 @@
 """
 Screen the benchmark set, then bin eligible cutouts by the size and charge of its cutout.
 
-The per-complex numbers are written to out/filter.csv. `--reuse` reads that file back and
-    reprints the tables without screening again.
-
 Each complex's preparation is kept in out/filter/<complex> and read back by the next screen.
     `--force` prepares every complex again.
 
-`--name` moves both, so a run that screens the poses differently -- `--no-mm` leaves them where
-    DiffDock placed them -- does not read the last one's work back.
+The per-complex numbers are written beside them, to out/filter/filter.csv. `--reuse` reads that
+    file back and reprints the tables without screening again.
+
+`--name` moves the directory to out/filter_<name>, and both with it, so a run that screens the
+    poses differently -- `--no-mm` leaves them where DiffDock placed them -- does not read the
+    last one's work back.
 """
 
 import argparse
@@ -36,8 +37,9 @@ POSEBUSTERS = os.path.join(DATA, "posebusters_v1_1")
 PREDICTED = os.path.join(POSEBUSTERS, "posebusters_benchmark_holo_aligned_predicted_structures")
 OUT = os.path.join(ROOT, "out")
 
-# What a run is called, which names both of the things it writes.
-NAME = "filter"
+# What a run is called, which names the directory everything it writes is kept in: out/filter
+# unnamed, out/filter_<name> otherwise.
+NAME = None
 
 NEAR_NATIVE = 2.0
 
@@ -56,11 +58,11 @@ COUNTS = ["heavy_atoms", "charge", "electrons", "poses", "excluded", "near_nativ
 
 
 def table_file(name=NAME):
-    return os.path.join(OUT, f"{name}.csv")
+    return os.path.join(job_dir(name), "filter.csv")
 
 
 def job_dir(name=NAME):
-    return os.path.join(OUT, name)
+    return os.path.join(OUT, "filter" if name is None else f"filter_{name}")
 
 
 # def _get_proteins(name):
@@ -359,7 +361,7 @@ def report(rows):
         print(f'  {label:5s}{banded[0]:8d}{banded[1]:10d}{banded[2]:9d}')
 
 
-def run(complexes=None, name=Name, mm=True, tether=None, reuse=False, force=False, workers=None):
+def run(complexes=None, name=NAME, mm=True, tether=None, reuse=False, force=False, workers=None):
     if reuse:
         rows = read(name)
         _summarise(rows)
@@ -420,8 +422,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--name",
         default=NAME,
-        help="Screen under another name, which is both the table written and the directory the "
-             "preparations are kept in, so one run does not read another's work back.",
+        help="Screen under a name, which keeps the preparations and the table in out/filter_<name> "
+             "rather than out/filter, so one run does not read another's work back.",
     )
     parser.add_argument(
         "--mm",

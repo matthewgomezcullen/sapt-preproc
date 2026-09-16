@@ -5,12 +5,12 @@ It runs in the interpreter DiffDock was installed into, so these are skipped unl
     says where that is. Three sets of weights have to be on disk already, under data/diffdock_models:
     the confidence model, its model_parameters.yml, and esm2_t33_650M_UR50D.pt.
 
-We check that a pose handed to the model as coordinates is the pose DiffDock would have built, 
-    proven by its ordering rather than its scores. The scores cannot match because these poses are 
-    PoseBench's, docked into an ESMFold structure aligned onto the crystal binding site, and they 
-    are read here in the deposited crystal instead. 
+We check that a pose handed to the model as coordinates is the pose DiffDock would have built,
+    proven by its ordering rather than its scores. The published scores are no exact reference:
+    these poses are not PoseBench's, nothing records the structure DiffDock docked them into, and
+    they are read here in the deposited crystal.
 
-    5S8I_2LY    twenty poses, the cheapest structure in the set
+    5S8I_2LY    twenty poses from a DiffDock run with no record, the cheapest structure in the set
 """
 
 import os
@@ -29,7 +29,7 @@ NAME = "5S8I_2LY"
 # Spearman correlation threshold on ordering.
 ORDERING = 0.95
 
-# The two pockets agree to 0.03 on the pose DiffDock ranked first.
+# The re-scored and published confidences agree to 0.03 on the pose DiffDock ranked first.
 TOP = 0.1
 
 

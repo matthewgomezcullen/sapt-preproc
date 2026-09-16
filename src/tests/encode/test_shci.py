@@ -22,17 +22,16 @@ from pyscf import mcscf
 from cutouts import SUBSET, all_carbons, contact_weight, fragment, prepare, solved, window
 from encode import EncodeProtein, EncodingError
 
-# The MP2 cap the fragment is carried through. Eight orbitals is 4900 determinants, so the space
-# SHCI is asked to select within can also be diagonalised exactly.
-CAP = 8
+# Eight orbitals is 4900 determinants; the space to select within can also be diagonalised exactly.
+NMAX = 8
 
 # The original paper's window. The driver maps its Hamiltonian over this.
 PAPER = (0.02, 1.97)
 
 # Windows cut against the fragment's own exact spectrum, which runs
-#   1.9933 1.9906 1.9818 1.9761 | 0.0240 0.0183 0.0093 0.0066.
+#   1.9927 1.9891 1.9822 1.9781 | 0.0221 0.0178 0.0106 0.0073.
 NARROW, NARROWED = (0.015, 1.985), (4, 4)  # (lo, hi), (nelecas, ncas)
-WIDE, WIDENED = (0.008, 1.992), (6, 6)
+WIDE, WIDENED = (0.009, 1.991), (6, 6)
 
 # A window that keeps everything.
 EVERYTHING = (0.0, 2.0)
@@ -45,19 +44,16 @@ COARSE = 1e-3
 ENERGY = 1e-5  # absolute, Hartree
 OCCUPATION = 1e-5  # absolute, on a natural occupation
 
-# Size constraint for VQE. Currently, abitrary budget rather than derived.
+# Size constraint for VQE. Currently, arbitrary budget rather than derived.
 SIMULABLE_ORBITALS = 16
 
 
 @functools.lru_cache(maxsize=None)
 def _capped():
-    """
-    The fragment through RHF, AVAS over every carbon, and the MP2 cap.
-    """
     encoded = EncodeProtein(fragment())
     encoded.RHF()
     encoded.AVAS(targets=all_carbons(encoded.mol))
-    encoded.nmax = CAP
+    encoded.nmax = NMAX
     encoded.MP2()
     return encoded
 
@@ -81,7 +77,7 @@ def capped():
 @functools.lru_cache(maxsize=None)
 def reference():
     """
-    Exact diagonalisation of the capped space, which at eight orbitals is affordable.
+    Exact diagonalisation of the capped space (affordable at eight orbitals).
     """
     encoded = _capped()
     exact = mcscf.CASCI(encoded.mean_field, encoded.active_space_size, encoded.active_electrons)
@@ -93,10 +89,6 @@ def reference():
 
 @pytest.mark.dice
 def test_shci_reproduces_the_exact_solution_of_the_space_it_is_given():
-    """
-    SHCI recovers the energy and the density full CI would have given. Run with a window 
-        that keeps everything, so what is compared is the solve alone.
-    """
     energy, occupations = reference()
     encoded = capped()
 
@@ -108,9 +100,6 @@ def test_shci_reproduces_the_exact_solution_of_the_space_it_is_given():
 
 @pytest.mark.dice
 def test_shci_lowers_the_energy_the_mean_field_settled_on():
-    """
-    Selected CI is variational, so it sits above exact and below Hartree-Fock.
-    """
     energy, _ = reference()
     encoded = capped()
 
@@ -122,9 +111,6 @@ def test_shci_lowers_the_energy_the_mean_field_settled_on():
 
 @pytest.mark.dice
 def test_a_tighter_selection_cutoff_is_a_closer_answer():
-    """
-    Smaller `eps1` increases accuracy.
-    """
     energy, occupations = reference()
 
     coarse, fine = capped(), capped()
@@ -140,9 +126,6 @@ def test_a_tighter_selection_cutoff_is_a_closer_answer():
 
 @pytest.mark.dice
 def test_shci_is_reproducible():
-    """
-    The same capped space gives the same truncation twice.
-    """
     first, second = capped(), capped()
 
     first.SHCI(eps1=SELECTION, lo=NARROW[0], hi=NARROW[1])
@@ -156,9 +139,6 @@ def test_shci_is_reproducible():
 
 @pytest.mark.dice
 def test_shci_keeps_exactly_the_occupations_inside_the_window():
-    """
-    The exact spectrum the window admits, in descending order.
-    """
     _, occupations = reference()
     lo, hi = NARROW
     encoded = capped()
@@ -266,7 +246,7 @@ def test_shci_keeps_the_active_space_on_the_contact():
     """
     What survives the truncation still sits on the targeted atoms.
 
-    The fragment's four survivors carry mean weight 0.46 on the target AOs, never below 0.39,
+    The fragment's four survivors carry mean weight 0.46 on the target AOs, never below 0.40,
         against the 0.2 AVAS demanded of every orbital it admitted.
     """
     encoded = capped()
@@ -338,11 +318,11 @@ def test_shci_refuses_a_window_that_leaves_nothing_to_correct(lo, hi):
 @pytest.mark.dice
 def test_the_paper_window_is_too_narrow_for_the_fragment():
     """
-    The original window keeps one orbital of the fragment, at n = 0.024, so (0e, 1o).
+    The original window keeps one orbital of the fragment, at n = 0.022, so (0e, 1o).
 
     The window was set on KDM5A, whose active space is built round an open-shell iron centre. A
         saturated peptide has no static correlation for it to find: the fragment's occupations run
-        1.9933 to 1.9761 and 0.0240 to 0.0066, and the window falls in the gap between them.
+        1.9927 to 1.9781 and 0.0221 to 0.0073, and the window falls in the gap between them.
     """
     encoded = capped()
 
@@ -475,9 +455,6 @@ def test_shci_solves_the_space_mp2_leaves_on_a_real_cutout(name):
 @pytest.mark.hpc_long_dice
 @pytest.mark.parametrize("name", SUBSET)
 def test_the_window_leaves_the_subset_a_space_a_vqe_could_carry(name):
-    """
-    VQE can handle the output.
-    """
     encoded = reduced(name)
     lo, hi = PAPER
 

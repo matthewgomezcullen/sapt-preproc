@@ -1,17 +1,17 @@
 """
 Capping the active space with MP2 natural orbitals.
 
-AVAS is handed every valence p shell on the contact and returns those with weight on it, which
-    over the bin is roughly 140 to 270 orbitals against Dice's ceiling of about fifty. The cap
-    correlates the AVAS space with MP2, ranks its natural orbitals by fractionality min(n, 2 - n),
-    and keeps the nmax most fractional: the orbitals MP2 says carry the correlation.
+AVAS is handed every valence p shell on the contact, 81 target AOs on 7BJJ_TVW and 141 on
+    7LOE_Y84, and returns the orbitals with weight on them, against Dice's ceiling of about fifty.
+    The cap correlates the AVAS space with MP2, ranks its natural orbitals by fractionality
+    min(n, 2 - n), and keeps the nmax most fractional: the orbitals MP2 says carry the correlation.
 
 AVAS semicanonicalizes its orbitals but returns no orbital energies, and mf.mo_energy still holds 
     the canonical SCF values. MP2 divides by those energies. Every comparison here is against a 
     reference that recomputes the energies from the Fock matrix.
 
-We run the fragment with every carbon targeted, 35 orbitals from 24 target AOs, capped to eight so 
-    the truncation has something to do; the default rule reaches only two of its atoms. The bin 
+We run the fragment with every carbon targeted, 34 orbitals from 24 target AOs, capped to eight so 
+    the truncation has something to do; the default rule reaches only three of its atoms. The bin 
     needs a converged SCF first and sits at the bottom, marked hpc.
 """
 
@@ -159,8 +159,8 @@ def test_mp2_keeps_the_nmax_most_fractional_orbitals():
     """
     The window holds the nmax natural orbitals MP2 ranks most fractional.
     
-    On the fragment the eight keep 0.498 of the summed fractionality of the 35-orbital space and 
-        0.231 of its correlation energy: the recorded cost of the cap.
+    On the fragment the eight keep 0.537 of the summed fractionality of the 34-orbital space and 
+        0.274 of its correlation energy: the recorded cost of the cap.
     """
     raw, _, occupations = reference()
     encoded = capped()
@@ -225,7 +225,7 @@ def test_mp2_keeps_the_active_space_on_the_contact():
     What survives the cap still sits on the targeted atoms.
     
     On the fragment the retained window carries mean weight 0.65 on the target AOs, never below 
-        0.38, against the 0.2 AVAS demanded of every orbital it admitted.
+        0.42, against the 0.2 AVAS demanded of every orbital it admitted.
     """
     encoded = capped()
 
@@ -237,7 +237,7 @@ def test_mp2_leaves_a_space_the_cap_already_fits():
     """
     A space within nmax passes through whole: same size, same electrons, same span.
 
-    The default rule reaches two of the fragment's atoms and AVAS builds seven orbitals from
+    The default rule reaches three of the fragment's atoms and AVAS builds twelve orbitals from
         them, so the cap has nothing to cut and the only change is the basis within the window.
     """
     encoded = solved(fragment())

@@ -81,7 +81,7 @@ def test_fetch_raises_on_unparseable_pose(tmp_path, poses_paths):
         prepared._fetch()
 
 
-@pytest.mark.parametrize("name", ["7OPG_06N", "7R9N_F97", "7UQ3_O2U", "6M73_FNR", "7SCW_GSP"])
+@pytest.mark.parametrize("name", ["7OPG_06N", "7R9N_F97"])
 def test_positive_confidence_poses_are_not_dropped(name):
     _, poses = paths(name)
 

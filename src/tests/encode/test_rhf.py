@@ -1,9 +1,10 @@
 """
 Solving RHF over a prepared cutout.
 
-None of the bin can be solved here. One Fock build of the smallest, 7USH_82V at 1733 basis
-    functions, is 227 s on twelve cores, so a converged SCF is one to two hours. What runs here is
-    a full SCF over ACE-VAL-NME, one capped run lifted out of a prepared cutout.
+None of the bin can be solved here. One Fock build at 1733 basis functions, measured on 7USH_82V,
+    is 227 s on twelve cores, so a converged SCF there is one to two hours; the subset's cutouts
+    carry 1108 and 1695. What runs here is a full SCF over ACE-VAL-NME, one capped run lifted out
+    of a prepared cutout.
 
 The bin itself is at the bottom, marked hpc and skipped unless asked for.
 """
@@ -11,8 +12,7 @@ The bin itself is at the bottom, marked hpc and skipped unless asked for.
 import numpy as np
 import pytest
 
-from conftest import paths
-from cutouts import FRAGMENT, SUBSET, fragment, prepare, solved
+from cutouts import SUBSET, fragment, prepare, solved
 from encode import EncodeProtein, EncodingError
 from prepare import PrepareComplex, PrepareError
 
@@ -26,7 +26,7 @@ def test_rhf_refuses_a_complex_that_was_never_prepared():
     """
     There is no cutout to solve before the pipeline has run.
     """
-    encoded = EncodeProtein(PrepareComplex(*paths(FRAGMENT)))
+    encoded = EncodeProtein(PrepareComplex("", []))
 
     with pytest.raises(PrepareError):
         encoded.RHF()

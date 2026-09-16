@@ -17,6 +17,9 @@ from prepare import OutOfScopeError, OutOfScopeErrorType # noqa: E402
 DATA = os.path.join(HERE, "data")
 POSEBUSTERS = os.path.join(DATA, "posebusters")
 DIFFDOCK = os.path.join(DATA, "diffdock")
+# Complexes as filter.py left them, copied out of a screen, so the encoding tests read them back
+# rather than preparing them again.
+PREPARED = os.path.join(DATA, "prepared")
 
 POSE_PATTERN = re.compile(r"rank\d+_confidence-?[\d.]+\.sdf")
 DROPPED_CONFIDENCE = "confidence-1000.00.sdf"
@@ -91,7 +94,7 @@ def pytest_addoption(parser):
 
 
 OPTIONAL = {
-    "prepare-long": "--prepare-long",
+    "prepare_long": "--prepare-long",
     "hpc": "--hpc",
     "hpc_long_stab": "--hpc-long-stab",
     "hpc_long_dice": "--hpc-long-dice",

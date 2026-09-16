@@ -14,7 +14,7 @@ from conftest import POSEBUSTERS, paths
 
 NAME = "6YT6_PKE"
 
-RUN = "filter_no_mm"
+RUN = "no_mm"
 
 TETHER = 10.0
 
@@ -132,7 +132,7 @@ def test_a_named_run_keeps_its_preparations_apart(tmp_path, monkeypatch):
 
     filter.screen([inventory_entry()], name=RUN)
 
-    assert [call["out"] for call in calls] == [os.path.join(tmp_path, RUN, NAME)]
+    assert [call["out"] for call in calls] == [os.path.join(tmp_path, f"filter_{RUN}", NAME)]
 
 
 def test_a_named_parallel_run_keeps_its_preparations_apart(tmp_path, monkeypatch):
@@ -141,7 +141,7 @@ def test_a_named_parallel_run_keeps_its_preparations_apart(tmp_path, monkeypatch
 
     filter.screen_parallel([inventory_entry()], name=RUN)
 
-    assert [call["out"] for call in calls] == [os.path.join(tmp_path, RUN, NAME)]
+    assert [call["out"] for call in calls] == [os.path.join(tmp_path, f"filter_{RUN}", NAME)]
 
 
 def test_an_unnamed_run_keeps_its_preparations_where_it_always_did(tmp_path, monkeypatch):
@@ -149,7 +149,7 @@ def test_an_unnamed_run_keeps_its_preparations_where_it_always_did(tmp_path, mon
 
     filter.screen([inventory_entry()])
 
-    assert [call["out"] for call in calls] == [os.path.join(tmp_path, filter.NAME, NAME)]
+    assert [call["out"] for call in calls] == [os.path.join(tmp_path, "filter", NAME)]
 
 
 def test_a_named_run_writes_its_own_table(tmp_path, monkeypatch):
@@ -157,8 +157,8 @@ def test_a_named_run_writes_its_own_table(tmp_path, monkeypatch):
 
     filter.write(ROWS, name=RUN)
 
-    assert os.path.exists(os.path.join(tmp_path, f"{RUN}.csv"))
-    assert not os.path.exists(os.path.join(tmp_path, f"{filter.NAME}.csv"))
+    assert os.path.exists(os.path.join(tmp_path, f"filter_{RUN}", "filter.csv"))
+    assert not os.path.exists(os.path.join(tmp_path, "filter", "filter.csv"))
 
 
 def test_a_named_table_reads_back_as_it_was_written(tmp_path, monkeypatch):

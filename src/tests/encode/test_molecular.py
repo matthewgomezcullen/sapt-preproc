@@ -18,7 +18,7 @@ from cutouts import (
 )
 from encode import EncodeProtein
 
-# 6-31G puts about 11.1 functions on a heavy atom of a cutout of this composition
+# 6-31G puts about 11.5 functions on a heavy atom of a cutout of this composition
 FUNCTIONS_PER_HEAVY_ATOM = (9.0, 13.0)
 
 # PySCF's eigenvalue threshold for discarding AOs
@@ -94,7 +94,7 @@ def test_molecule_is_too_large_to_hold_its_integrals(name):
     """
     A cutout this size has to be solved integral-direct.
 
-    Held in memory the two-electron integrals of the smallest member run to nine terabytes.
+    Held in memory the two-electron integrals of the smallest member run to terabytes.
     """
     prepared = prepare(name)
     encoded = EncodeProtein(prepared)

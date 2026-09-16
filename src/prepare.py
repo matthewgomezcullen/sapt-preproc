@@ -6,7 +6,7 @@ import numpy as np
 from rdkit import Chem
 from pyscf.gto.basis import load as load_basis
 from pyscf.lib.exceptions import BasisNotFoundError
-from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
+from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 from enum import Enum
 from utils import bust, charge, clean, fix, mm, protonate, reduce, save, verify
 
@@ -84,6 +84,12 @@ def _is_amino_acid(name):
     return bool(info) and info.is_amino_acid()
 
 
+def _heavy_coordinates(pose):
+    return pose.GetConformer().GetPositions()[
+        [atom.GetIdx() for atom in pose.GetAtoms() if atom.GetAtomicNum() > 1]
+    ]
+
+
 def _is_water(name):
     info = gemmi.find_tabulated_residue(name) # pyright: ignore[reportAttributeAccessIssue]
     return bool(info) and info.is_water()
@@ -102,6 +108,7 @@ class PrepareComplex:
         poses_paths: list[str],
         out=None,
         mm=True,
+        tether=None,
     ):
         self.protein_path = protein_path
         self.poses_paths = poses_paths
@@ -110,12 +117,15 @@ class PrepareComplex:
         self.poses = None
         self.source = None
         self.protonation = None
-        self.poses_protonation = None # TODO
+        self.poses_protonation = None # TODO
         self.charge = None
         self.electrons = None
         self.heavy_atoms = None
         self.excluded = None
         self.failed = Counter()
+
+        # Furthest distance of a heavy atom per pose from minimising
+        self.displacement = []
 
         # What _verify records for _reverify
         self.deleted = []
@@ -141,6 +151,9 @@ class PrepareComplex:
         # confidence model produced. The hydrogens _protonate gives a pose are RDKit's rather than
         # any mechanics, so a pose carries them either way.
         self.mm = mm
+
+        # None minimises free,
+        self.tether_strength = tether
 
         # Load
         self.out = out
@@ -302,13 +315,6 @@ class PrepareComplex:
                 f"cutout retains CYS {half} without its disulfide partner",
             )
 
-        heavy_atoms = sum(len(heavy) for _, _, heavy, _ in prepared)
-        if heavy_atoms > self.size_cap:
-            raise OutOfScopeError(
-                OutOfScopeErrorType.SIZE_CAP,
-                f"cutout holds {heavy_atoms} heavy atoms, over the cap of {self.size_cap}",
-            )
-
         for path, pose in zip(self.poses_paths, self.poses):
             for group, pattern in ACIDIC.items():
                 if pose.HasSubstructMatch(pattern):
@@ -337,12 +343,7 @@ class PrepareComplex:
         Heavy-atom coordinates of every candidate pose stacked into one array.
         """
         assert self.poses
-        return np.vstack([
-            pose.GetConformer().GetPositions()[
-                [atom.GetIdx() for atom in pose.GetAtoms() if atom.GetAtomicNum() > 1]
-            ]
-            for pose in self.poses
-        ])
+        return np.vstack([_heavy_coordinates(pose) for pose in self.poses])
 
     def _protonate(self):
         """
@@ -356,9 +357,15 @@ class PrepareComplex:
 
     def _minimise(self):
         """
-        Relaxes every pose in the field of the protonated protein, protein fixed and ligand free.
+        Relaxes every pose in the field of the protonated protein, the protein fixed and the pose
+            free, or tethered to where it was docked.
         """
-        self.poses = mm.minimise(self.whole, self.poses)
+        before = [_heavy_coordinates(pose) for pose in self.poses]
+        self.poses = mm.minimise(self.whole, self.poses, self.tether_strength)
+        self.displacement = [
+            float(np.linalg.norm(was - _heavy_coordinates(pose), axis=-1).max())
+            for was, pose in zip(before, self.poses)
+        ]
 
     def _bust(self):
         """
@@ -366,15 +373,17 @@ class PrepareComplex:
 
         _clean has deleted every heterogen, so a pose is only ever held against the polymer.
         """
-        kept, self.failed = bust.valid(self.whole, self.poses)
+        kept, self.failed = bust.valid_idxs(self.whole, self.poses)
         self.excluded = len(self.poses) - len(kept)
         if not kept:
             raise OutOfScopeError(
                 OutOfScopeErrorType.INVALID_POSES,
                 f"PoseBusters rejected all {self.excluded} pose(s)",
             )
+        measured = len(self.displacement) == len(self.poses)
         self.poses = [self.poses[index] for index in kept]
         self.source = [self.source[index] for index in kept]
+        self.displacement = [self.displacement[index] for index in kept] if measured else []
 
     def _reduce(self):
         """
@@ -577,6 +586,7 @@ class PrepareComplex:
         self.heavy_atoms = record["heavy_atoms"]
         self.excluded = record["excluded"]
         self.failed = Counter(record["failed"].tolist())
+        self.displacement = [float(value) for value in record.get("displacement", [])]
 
 
     def save(self):
@@ -598,6 +608,7 @@ class PrepareComplex:
                 "electrons": self.electrons,
                 "heavy_atoms": self.heavy_atoms,
                 "excluded": self.excluded,
+                "displacement": self.displacement,
                 # A Counter would need pickling. Its elements, each repeated, count back into one.
                 "failed": list(self.failed.elements()),
             },

@@ -3,7 +3,7 @@ import warnings
 
 import gemmi
 import numpy as np
-from openmm import LocalEnergyMinimizer, VerletIntegrator, Context, unit
+from openmm import CustomExternalForce, LocalEnergyMinimizer, VerletIntegrator, Context, unit
 from openmm.app import Modeller, NoCutoff, PDBFile
 from rdkit import Chem
 
@@ -19,9 +19,13 @@ STEP = 0.001
 
 ANGSTROM = 0.1
 
+# A tether is quoted in kcal/mol/A^2, as the original paper's tethered minimisations were. OpenMM
+# works in kJ/mol and nm and converts the strength itself.
+TETHER = unit.kilocalories_per_mole / unit.angstrom**2
+
 # There is no box and no solvent, so nothing is periodic and nothing is cut off. Constraints are
 # off because the protein is frozen by zero mass, and OpenMM will not constrain a massless atom;
-# they would also stop the hydrogens relaxing, which is half of what this step is for.
+# they would also stop the hydrogens relaxing.
 FORCEFIELD_KWARGS = {
     "constraints": None,
     "rigidWater": False,
@@ -60,6 +64,28 @@ def _coordinates(pose):
     return pose.GetConformer().GetPositions() * ANGSTROM
 
 
+def _get_heavy_idxs(pose):
+    return [atom.GetIdx() for atom in pose.GetAtoms() if atom.GetAtomicNum() > 1]
+
+
+def _tether(heavy, offset, strength):
+    """
+    A restraint holding each heavy atom of a pose to wherever the pose is handed in.
+
+    The hydrogens are left out. Their coordinates should be untethered.
+
+    The reference is a per-particle parameter, so one force serves the whole ensemble and is reset 
+        onto each pose in turn. `offset` is where the ligand's atoms start in the combined system.
+    """
+    force = CustomExternalForce("0.5*k*((x-x0)^2+(y-y0)^2+(z-z0)^2)")
+    force.addGlobalParameter("k", strength * TETHER)
+    for reference in ("x0", "y0", "z0"):
+        force.addPerParticleParameter(reference)
+    for index in heavy:
+        force.addParticle(offset + index, [0.0, 0.0, 0.0])
+    return force
+
+
 def _move(pose, coordinates):
     from rdkit.Geometry import Point3D
 
@@ -70,9 +96,14 @@ def _move(pose, coordinates):
     return moved
 
 
-def minimise(model, poses):
+def minimise(model, poses, tether=None):
     """
     Every pose relaxed in the field of the protein, with the protein fixed and the ligand free.
+
+    `tether` is the strength, in kcal/mol/A^2, of a restraint holding each pose heavy atom to 
+        where it was handed in, so the placement DiffDock produced is kept while the hydrogens and 
+        the clash relief stay free. None is the free minimisation, and a strength of zero is the 
+        same relaxation through a force that cannot pull.
     """
     from openff.interchange.warnings import PresetChargesAndVirtualSitesWarning
     from openmmforcefields.generators import SystemGenerator
@@ -103,6 +134,12 @@ def minimise(model, poses):
     for index in range(fixed):
         system.setParticleMass(index, 0)
 
+    # Added before the context, which is what reads the system's forces.
+    heavy = _get_heavy_idxs(poses[0])
+    restraint = None if tether is None else _tether(heavy, fixed, tether)
+    if restraint is not None:
+        system.addForce(restraint)
+
     # OpenMM takes its fastest platform, on every core the machine has. OPENMM_DEFAULT_PLATFORM and
     # OPENMM_CPU_THREADS override it.
     context = Context(system, VerletIntegrator(STEP))
@@ -112,14 +149,17 @@ def minimise(model, poses):
 
     minimised = []
     for pose in poses:
+        coordinates = _coordinates(pose)
+        if restraint is not None:
+            for particle, index in enumerate(heavy):
+                restraint.setParticleParameters(particle, fixed + index, coordinates[index])
+            restraint.updateParametersInContext(context)
         context.setPositions(
-            unit.Quantity(
-                np.vstack([protein_coordinates, _coordinates(pose)]), unit.nanometer
-            )
+            unit.Quantity(np.vstack([protein_coordinates, coordinates]), unit.nanometer)
         )
         LocalEnergyMinimizer.minimize(context, maxIterations=MAX_ITERATIONS)
-        coordinates = context.getState(getPositions=True).getPositions(
+        relaxed = context.getState(getPositions=True).getPositions(
             asNumpy=True
         ).value_in_unit(unit.angstrom)
-        minimised.append(_move(pose, coordinates[fixed:]))
+        minimised.append(_move(pose, relaxed[fixed:]))
     return minimised

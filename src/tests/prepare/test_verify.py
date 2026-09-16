@@ -22,9 +22,9 @@ from rdkit.Geometry import Point3D
 from conftest import paths
 from prepare import PrepareComplex, OutOfScopeError, OutOfScopeErrorType
 
-# 6TW5_9M2 is accepted, and carries both kinds of stash outside its shell: three loose Mg ions and
-# MYA, a myristoyl chain that is no crystallisation additive.
-STASHED = "6TW5_9M2"
+# 6TW5_9M2 is verified, but carries three loose Mg ions and MYA outside the poses.
+REJECT = "6TW5_9M2"
+ACCEPT = "7R9N_F97"
 MYA = "MYA"
 
 
@@ -299,7 +299,7 @@ def onto(poses, target):
 
 @pytest.mark.long_protonate
 def test_verify_stashes_the_molecules_clean_deletes():
-    prepared = PrepareComplex(*paths(STASHED))
+    prepared = PrepareComplex(*paths(REJECT))
     prepared._fetch()
     prepared._verify()
 
@@ -322,17 +322,14 @@ def test_verify_stashes_the_molecules_clean_deletes():
 
 @pytest.mark.long_protonate
 def test_reverify_accepts_a_cutout_the_poses_did_not_change():
-    prepared = reduced(STASHED)
+    prepared = reduced(ACCEPT)
 
     prepared._reverify()
 
 
 @pytest.mark.long_protonate
 def test_reverify_rejects_a_metal_the_moved_poses_reached():
-    """
-    A metal outside the input shell can fall inside it once minimisation has moved the pose.
-    """
-    prepared = reduced(STASHED)
+    prepared = reduced(REJECT)
     prepared.poses = onto(prepared.poses, stashed(prepared, metal=True)[0])
 
     with pytest.raises(OutOfScopeError) as rejected:
@@ -343,7 +340,7 @@ def test_reverify_rejects_a_metal_the_moved_poses_reached():
 
 @pytest.mark.long_protonate
 def test_reverify_rejects_a_heterogen_the_moved_poses_reached():
-    prepared = reduced(STASHED)
+    prepared = reduced(REJECT)
     myristoyl = next(position for name, position, _ in prepared.deleted if name == MYA)
     prepared.poses = onto(prepared.poses, myristoyl)
 
@@ -355,11 +352,7 @@ def test_reverify_rejects_a_heterogen_the_moved_poses_reached():
 
 @pytest.mark.long_protonate
 def test_reverify_rejects_a_split_metal_coordination_sphere():
-    """
-    This rule reads the retained residues rather than the poses, so the stashed metal is put on one
-        rather than the poses moved onto the metal.
-    """
-    prepared = reduced(STASHED)
+    prepared = reduced(REJECT)
     retained = next(
         (atom.pos.x, atom.pos.y, atom.pos.z)
         for chain in prepared.reduced
@@ -380,12 +373,8 @@ def test_reverify_rejects_a_zero_occupancy_residue_the_cutout_reached():
     """
     _fix destroys the occupancies, so this rule reads a stash of every residue in the structure
         holding a zero-occupancy heavy atom.
-
-    Which residue is retained depends on where minimisation left the poses, so one of the retained
-        ones is put into the stash rather than a fixture hunted for that happens to have a
-        zero-occupancy atom just outside its shell.
     """
-    prepared = reduced(STASHED)
+    prepared = reduced(ACCEPT)
     assert isinstance(prepared.unoccupied, set)
     retained = next(
         (chain.name, residue.seqid.num, residue.seqid.icode)

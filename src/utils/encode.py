@@ -3,7 +3,7 @@ from prepare import PrepareComplex
 from rdkit import Chem
 from scipy.spatial import cKDTree # pyright: ignore[reportAttributeAccessIssue]
 
-from pyscf import ao2mo, gto, mcscf, mp, scf
+from pyscf import ao2mo, fci, gto, mcscf, mp, scf
 
 def molecule(prepared: PrepareComplex, verbose):
     """
@@ -236,6 +236,24 @@ def integrals(mean_field, orbitals, ncas, nelecas):
     correlated.mo_coeff = orbitals
     h1, e_core = correlated.get_h1eff()
     return e_core, h1, ao2mo.restore(1, correlated.get_h2eff(), ncas)
+
+def casci(e_core, h1, h2, ncas, nelecas, max_cycle, verbose=0):
+    """
+    Diagonalise the active space exactly, from its integrals alone.
+
+    This is the solver PySCF's own CASCI hands the integrals to once it has built them. It is the
+        general one rather than the singlet one, so a ground state of another spin is reported.
+
+    Returns whether it converged, the energy, <S^2>, and the spin-summed one- and two-particle
+        density matrices.
+    """
+    solver = fci.direct_spin1.FCI()
+    solver.max_cycle = max_cycle
+    solver.verbose = verbose
+    energy, state = solver.kernel(h1, h2, ncas, nelecas, ecore=e_core)
+    spin_square, _ = solver.spin_square(state, ncas, nelecas)
+    rdm1, rdm2 = solver.make_rdm12(state, ncas, nelecas)
+    return solver.converged, energy, spin_square, rdm1, rdm2
 
 def qubits(e_core, h1, h2, mapping="jordan_wigner"):
     """

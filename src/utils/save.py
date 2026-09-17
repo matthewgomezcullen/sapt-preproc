@@ -86,6 +86,19 @@ def save_encoded(record, name, dir):
     _save(record, encoded_path(name, dir))
 
 
+def casci_path(name, dir):
+    return os.path.join(dir, f"{name}_casci.npz")
+
+
+def load_casci(name, dir):
+    return _load(casci_path(name, dir))
+
+
+def save_casci(record, name, dir):
+    _supersede(casci_path, name, dir)
+    _save(record, casci_path(name, dir))
+
+
 def _load(path):
     try:
         with np.load(path, allow_pickle=False) as stored:
@@ -125,7 +138,7 @@ def _supersede(artefact, name, dir):
     The poses' SCFs are built on the preparation alone, so a new preparation is the only artefact
         that discards them.
     """
-    order = [prepared_path, scf_path, dice_log_path, solved_path, encoded_path]
+    order = [prepared_path, scf_path, dice_log_path, solved_path, encoded_path, casci_path]
     for later in order[order.index(artefact):]:
         path = later(name, dir)
         if os.path.exists(path):

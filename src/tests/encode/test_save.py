@@ -17,11 +17,11 @@ from utils import save
 
 NAME = "ABC_123"
 
-STAGES = ["prepared", "solved", "encoded"]
+STAGES = ["prepared", "solved", "encoded", "casci"]
 
 ARTEFACTS = STAGES + ["scf"]
 
-WRITTEN = ["prepared", "scf", "dice_log", "solved", "encoded"]
+WRITTEN = ["prepared", "scf", "dice_log", "solved", "encoded", "casci"]
 
 # One heavy atom and one hydrogen, enough for RDKit to read back and for a coordinate to be checked.
 POSE = """ABC_123
@@ -63,6 +63,7 @@ def write_every_artefact(directory):
         file.write("Dice's own log")
     save.save_solved(RECORD, NAME, directory)
     save.save_encoded(RECORD, NAME, directory)
+    save.save_casci(RECORD, NAME, directory)
 
 
 def on_disk(directory):
@@ -79,6 +80,7 @@ def test_every_artefact_sits_in_the_complex_directory(tmp_path):
         save.prepared_path: f"{NAME}_prepared.npz",
         save.solved_path: f"{NAME}_solved.npz",
         save.encoded_path: f"{NAME}_encoded.npz",
+        save.casci_path: f"{NAME}_casci.npz",
         save.dice_log_path: f"{NAME}.dice.out",
         save.scf_path: f"{NAME}_rhf.chk",
     }
@@ -171,6 +173,7 @@ def test_the_stages_are_separate_files(tmp_path):
         ("scf", ["prepared", "scf"]),
         ("solved", ["prepared", "scf", "dice_log", "solved"]),
         ("encoded", ["prepared", "scf", "dice_log", "solved", "encoded"]),
+        ("casci", ["prepared", "scf", "dice_log", "solved", "encoded", "casci"]),
     ],
 )
 def test_saving_an_artefact_discards_the_ones_built_on_it(tmp_path, name, kept):
@@ -237,7 +240,7 @@ def test_a_new_preparation_discards_every_pose_scf(tmp_path):
     assert not any(os.path.isfile(save.pose_scf_path(NAME, directory, index)) for index in range(3))
 
 
-@pytest.mark.parametrize("name", ["scf", "solved", "encoded"])
+@pytest.mark.parametrize("name", ["scf", "solved", "encoded", "casci"])
 def test_the_proteins_own_artefacts_leave_the_pose_scfs_alone(tmp_path, name):
     directory = str(tmp_path)
     save.save_pose_scf(SCF, NAME, directory, 0)

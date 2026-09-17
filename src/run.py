@@ -1,6 +1,6 @@
 """
-Carry complexes of the benchmark set through preparation and encoding, keeping what each stage
-    produces in <out>/<name>/<complex>.
+Carry complexes of the benchmark set through preparation, encoding and CASCI, keeping what each
+    stage produces in <out>/<name>/<complex>.
 
 A stage whose artefact is already kept is read back rather than run again. A complex whose
     preparation is kept needs none of its inputs, so a job can start from a screen's preparations
@@ -70,6 +70,8 @@ def run(name, out=OUT, complexes=None, force=False, prepare_only=False):
             # takes by default, and the solved space is kept as Dice left it.
             protein.rewindow()
             protein.encode()
+        if force or not protein.correlated():
+            protein.CASCI()
 
 
 if __name__ == "__main__":

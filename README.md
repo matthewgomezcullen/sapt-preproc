@@ -6,7 +6,7 @@ Experiments will be run using DiffDock's generated poses for the PoseBusters Ben
 
 ## Pre-processing
 
-Given a protein structure and candidate poses, `prepare.py` prepares the protein, then `encode.py` solves RHF for molecular orbitals and encodes a tractable active space for SAPT with VQE/CASCI as a Hamiltonian, and solves each pose at RHF. The implementation aims to map as closely as possible to the original [SAPT(VQE) paper](https://arxiv.org/abs/2110.01589), while remaining applicable to any protein-ligand complex and across several candidate poses.
+Given a protein structure and candidate poses, `prepare.py` prepares the protein, then `encode.py` solves RHF for molecular orbitals, encodes a tractable active space for SAPT with VQE/CASCI as a Hamiltonian, solves that space with CASCI for the density matrices SAPT reads, and solves each pose at RHF. The implementation aims to map as closely as possible to the original [SAPT(VQE) paper](https://arxiv.org/abs/2110.01589), while remaining applicable to any protein-ligand complex and across several candidate poses.
 
 An extended list of these deviations from the original paper are detailed in a section below.
 
@@ -109,11 +109,16 @@ Solving RHF for large cutouts is computationally very expensive. Also, highly ch
 1. ~XXX Run Semistochastic Heat-Bath Configuration Interaction (SHCI) with Dice on AVAS active space, and restrict orbitals to $\text{lo} \le n_{i} \le \text{hi}$.~
     1. ~XXX (*) Matching the original occupation window does not guarantee $(8e, 8o)$, as in the original paper. _TBC_~
 1. Run Semistochastic Heat-Bath Configuration Interaction (SHCI) with Dice over the space MP2 capped, diagonalise its one-particle density, and keep the natural orbitals with $\text{lo} \le n_{i} \le \text{hi}$. An orbital above the window is doubly occupied and retires its pair to the core; one below it is empty and joins the virtuals.
-    1. (*) `run.py` solves at $0.0 \le n_{i} \le 2.0$ and keeps the whole space Dice returned, then applies the paper's $0.02 \le n_{i} \le 1.97$ at the next step. Narrowing is arithmetic on the occupations, so one solve answers for any window. `EncodeProtein.SHCI` called directly cuts at the paper's window by default.
+    1. (*) `run.py` solves at $0.0 \le n_{i} \le 2.0$ and keeps the whole space Dice returned, then applies the paper's $0.02 \le n_{i} \le 1.97$ at the next step. Narrowing is arithmetic on the occupations, so one solve answers for any window. `EncodeProtein.SHCI` keeps the whole space by default, and `EncodeProtein.rewindow` narrows to the paper's window by default.
     1. (*) A window fixes no size, so it can leave a space with no excitation in it, whose correction to SAPT is exactly zero. That is rejected.
-1. Finally, narrow the solved space to the paper's window and map the active-space fermionic Hamiltonian to a qubit Hamiltonian following the Jordan-Wigner transformation. CASCI supplies the core energy $E_{\text{core}}$, which holds the nuclear repulsion and the frozen electrons; the one-electron integrals $h_{pq}$ with the core's Coulomb and exchange folded in; and the two-electron integrals $(pq|rs)$ over the active orbitals. `qiskit-nature` maps them, and the core energy is carried as the identity so the eigenvalues are total energies.
+1. Narrow the solved space to the paper's window and map the active-space fermionic Hamiltonian to a qubit Hamiltonian following the Jordan-Wigner transformation. CASCI supplies the core energy $E_{\text{core}}$, which holds the nuclear repulsion and the frozen electrons; the one-electron integrals $h_{pq}$ with the core's Coulomb and exchange folded in; and the two-electron integrals $(pq|rs)$ over the active orbitals. `qiskit-nature` maps them, and the core energy is carried as the identity so the eigenvalues are total energies.
     1. (*) Jordan-Wigner instead of Bravyi-Kitaev.
     1. (*) The three integrals are what is stored, not the operator. They rebuild it under any mapping and are smaller than it by orders of magnitude.
+1. Finally, solve the narrowed space with Complete Active Space Configuration Interaction (CASCI), from the three integrals, and keep its energy and the ground state's spin-summed one- and two-particle density matrices over the active orbitals.
+    1. (*) VQE is left out for now. CASCI stands in for it, as the classical reference.
+    1. (*) A space of more than 16 orbitals is refused before it is solved. At half filling, 16 orbitals are $\binom{16}{8}^{2} \approx 1.7 \times 10^{8}$ determinants, 1.3 GB a CI vector, and 32 qubits for VQE.
+    1. The ground state has to be a singlet. RHF assumed one, and SAPT's density matrices are written for one, so a space whose ground state has any other spin is refused rather than forced into a singlet; this is why the solver is PySCF's general one rather than its singlet one. An unconverged solve is refused too.
+    1. The density matrices follow PySCF's convention, in which $E = E_{\text{core}} + \sum_{pq} h_{pq} \gamma_{qp} + \frac{1}{2} \sum_{pqrs} (pq|rs) \Gamma_{pqrs}$.
 
 #### Chemically relevant atomic valence orbitals
 
@@ -154,7 +159,8 @@ The following deviations apply relative to the KDM5A workflow in the original pa
 - **AVAS targets:** the original selected Fe $3d$ orbitals and particular O $2p$ and N $2p$ orbitals from the metal centre, two waters, glutamate, and histidines. The automatic MVP instead targets chemically nontrivial protein atoms using the distance rule above.
 - **MCP filter:** Novel contribution to ensure the active space is tractable and the AOs chosen are the most correlated.
 - **Electronic-structure software:** the original used TeraChem/Lightspeed for classical SCF and integral generation, Gaussian for structural calculations, and in-house quantum code. This implementation substitutes PySCF, and Dice for the SHCI as the original did. Dice has no conda package and only builds on Linux, so `setup.sh` builds it on the cluster and installs it into the environment; nothing else knows where it is, because `encode.py` finds it on the PATH.
-- **Final active-space size:** neither window fixes a size, and no automatic truncation to eight orbitals is attributed to the original method. Nothing in the pipeline bounds what the window returns, so a $\pi$-rich contact can leave more than a simulator can carry.
+- **Final active-space size:** neither window fixes a size, and no automatic truncation to eight orbitals is attributed to the original method. Nothing bounds what the window returns, so a $\pi$-rich contact can leave more than a simulator can carry. CASCI refuses a space of more than 16 orbitals, which leaves that complex without a correlated protein.
+- **Active space solver:** the original solved the protein's active space with VQE and benchmarked it against CASCI over the same space. VQE is left out for now, and CASCI stands in for it.
 - **Perturbative correction:** Dice is run variationally, with the schedule tightening onto $\epsilon_1$ over six iterations and `nPTiter 0`. The semistochastic perturbative correction is an energy correction and is not variational, and nothing downstream reads the energy: the natural occupations that decide the window are those of the variational wavefunction either way.
 
 ### Ligand Preparation and Encoding
@@ -199,7 +205,7 @@ For `run_size.sh` and `test.sh`, you may alternatively download the data from th
 | `--hpc` | RHF, AVAS and the MP2 cap over a real cutout of the bin | about an hour a cutout |
 | `--hpc-long-stab` | the stability analysis of a cutout's converged SCF | six to ten hours each, an order of magnitude beyond the solve it checks |
 | `--hpc-long-dice` | Dice over the fifty orbitals MP2 leaves on a cutout | unmeasured; this is what the flag exists to find out |
-| `--hpc-long-run` | the driver, end to end over a cutout, as far as the Hamiltonian | repeats AVAS, MP2 and Dice rather than sharing the cached ones |
+| `--hpc-long-run` | the driver, end to end over a cutout, as far as CASCI | repeats AVAS, MP2 and Dice rather than sharing the cached ones |
 
 Every test carries exactly one of these marks: `pytest tests --encode --hpc --hpc-long-dice` solves a cutout and runs Dice over it, without also paying for the stability analysis or a second pass through the driver.
 
@@ -213,7 +219,7 @@ Among accepted complexes, many cutouts are highly charged, as counter-charges th
 
 ## `run.py`
 
-`python run.py <name>` carries every complex of the benchmark set, or those `--complexes` names, from preparation to the Hamiltonian. Each complex keeps its artefacts in `out/<name>/<complex>/`, and `filter.py` keeps its preparations the same way in `out/filter/<complex>/`, or `out/filter_<name>/<complex>/` under `--name`, with its `filter.csv` and `confidence.py`'s tables beside them.
+`python run.py <name>` carries every complex of the benchmark set, or those `--complexes` names, from preparation to the CASCI solution of its Hamiltonian. Each complex keeps its artefacts in `out/<name>/<complex>/`, and `filter.py` keeps its preparations the same way in `out/filter/<complex>/`, or `out/filter_<name>/<complex>/` under `--name`, with its `filter.csv` and `confidence.py`'s tables beside them.
 
 A complex whose preparation is kept is read back without its inputs, so a job named after a screen's directory, such as `python run.py filter_v1_1_mm_unsize --complexes 7LOE_Y84`, carries on from that screen's preparations with no benchmark set on disk. `scripts/run.sh` runs the complexes of that screen's `chosen.csv` this way on the cluster. A complex that has to be prepared, or every one under `--force`, is found in the benchmark set by `filter.inventory`, from the same inputs `filter.py` screens.
 
@@ -225,12 +231,15 @@ A complex whose preparation is kept is read back without its inputs, so a job na
 | `<complex>_solved.npz` | `EncodeProtein.solve` | the space SHCI solved: `energy` (RHF), `correlation` (MP2), `shci_energy`, `active_space_size`, `active_electrons`, `orbital_initial`, `occupations` |
 | `<complex>.dice.out` | `EncodeProtein.SHCI` | Dice's own log, kept whether or not Dice succeeded |
 | `<complex>_encoded.npz` | `EncodeProtein.encode` | `e_core`, `h1`, `h2`, and the window they are over: `active_space_size`, `active_electrons`, `occupations` |
+| `<complex>_casci.npz` | `EncodeProtein.CASCI` | the ground state: `casci_energy`, and the spin-summed one- and two-particle density matrices `rdm1` and `rdm2` |
 
-Each class reads back whatever its directory holds when it is constructed, and a stage already there is not run again. Writing an artefact discards every one written after it, since they were built on the one it replaces, so `--force` reruns everything and deleting `_prepared.npz`, `_solved.npz` or `_encoded.npz` reruns from that stage on. The poses' SCFs are an exception; each is built on `_prepared.npz` alone, so a new preparation discards every one of them, nothing the protein's encoding writes touches them, and deleting one solves only that pose again. An artefact that cannot be read, such as one cut off mid-write, counts as absent and is written over. Nothing is kept for a rejected complex.
+Each class reads back whatever its directory holds when it is constructed, and a stage already there is not run again. Writing an artefact discards every one written after it, since they were built on the one it replaces, so `--force` reruns everything and deleting `_prepared.npz`, `_solved.npz`, `_encoded.npz` or `_casci.npz` reruns from that stage on. The poses' SCFs are an exception; each is built on `_prepared.npz` alone, so a new preparation discards every one of them, nothing the protein's encoding writes touches them, and deleting one solves only that pose again. An artefact that cannot be read, such as one cut off mid-write, counts as absent and is written over. Nothing is kept for a rejected complex.
 
 Artefacts are matched on the job's name alone, so a job is assumed consistent: a change to preparation wants a new name or `--force`.
 
 The solved space is not rewritten once the Hamiltonian is built, so it stays at the window SHCI solved, which any narrower window can be taken from.
+
+A complex whose narrowed space holds more than 16 orbitals, or whose ground state is not a singlet, fails at CASCI with its Hamiltonian already kept.
 
 The qubit operator is built and not stored. `utils.encode.qubits(e_core, h1, h2)` rebuilds it exactly, under any of the three mappings.
 
@@ -277,4 +286,6 @@ AVAS produces an active space that is too large. We use MP2 to pick the most cor
 `MP2` requires storing four-index electron-repulsion integrals, $(ij|ab)$, which scales $O(N^{4})$ in the number of orbitals. We use density fitting, scaling at $O(N^{3})$ instead.
 
 PySCF keeps a molecule's two-electron integrals on its mean field whenever they fit under `max_memory`. `SolveLigand` keeps only each pose's solution, since forty poses of 200 basis functions would exceed memory.
+
+CASCI's solver holds its subspace in memory only while it fits under `max_memory`, and writes it to a temporary file otherwise. A 16-orbital space needs about 36 GB to stay in memory; `scripts/run.sh` sets `PYSCF_MAX_MEMORY` to three quarters of the job's memory.
 

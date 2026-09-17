@@ -17,13 +17,18 @@ VALENCE = {"C": "2p", "N": "2p", "O": "2p", "S": "3p", "P": "3p"}
 
 SCF = ("e_tot", "mo_energy", "mo_occ", "mo_coeff")
 
-# The Hamiltonian's carries the window it was built over; the orbitals are the space's, which a 
+# The Hamiltonian carries the window it was built over; the orbitals are the space's, which a 
 # window does not change.
 SOLVED = (
     "energy", "correlation", "shci_energy", "active_space_size", "active_electrons",
     "orbital_initial", "occupations",
 )
 ENCODED = ("e_core", "h1", "h2", "active_space_size", "active_electrons", "occupations")
+# The ground state of the encoded space.
+CORRELATED = ("casci_energy", "rdm1", "rdm2")
+
+# <S^2> of a converged singlet is close to zero, and a triplet's is two.
+SINGLET = 1e-6
 
 DICE_LOG = "output.dat"
 
@@ -35,7 +40,8 @@ class EncodingError(RuntimeError):
 class EncodeProtein:
     """
     EncodeProtein takes a PreparedComplex, solves RHF then encodes a tractable active space for
-        SAPT(VQE) corrections.
+        SAPT(VQE) corrections. CASCI solves that space for the density matrices SAPT reads, standing
+        in for VQE.
 
     `out` is the complex's directory. Whatever a previous run left there is read back, which needs
         `prepared` prepared or read back first.
@@ -81,6 +87,13 @@ class EncodeProtein:
         self.h2 = None # two-electron integrals over the active orbitals
         self.hamiltonian = None # the active space as a qubit operator
 
+        # CASCI
+        self.AS_limit = 16 # the most active orbitals CASCI solves
+        self.casci_max_cycle = 100 # CASCI maximum number of iterations. PySCF's own default.
+        self.casci_energy = None # CASCI total energy of the encoded space
+        self.rdm1 = None # spin-summed one-particle density matrix over the active orbitals
+        self.rdm2 = None # spin-summed two-particle density matrix over the active orbitals
+
         # Load
         self.out = out
         if out:
@@ -89,6 +102,7 @@ class EncodeProtein:
 
     def solve(self):
         self.e_core = self.h1 = self.h2 = self.hamiltonian = None
+        self.casci_energy = self.rdm1 = self.rdm2 = None
         self.RHF()
         self.AVAS()
         self.MP2()
@@ -303,9 +317,12 @@ class EncodeProtein:
 
         The integrals are kept as well as the operator. They are what the driver writes, because
             they rebuild the operator under any mapping and are much smaller than it.
+
+        A CASCI solution of the last Hamiltonian is discarded.
         """
         if self.active_space_size is None:
             raise EncodingError("Cannot build the Hamiltonian before an active space is chosen")
+        self.casci_energy = self.rdm1 = self.rdm2 = None
 
         self.e_core, self.h1, self.h2 = encode.integrals(
             self.mean_field,
@@ -318,6 +335,51 @@ class EncodeProtein:
         except ValueError as error:
             raise EncodingError(str(error)) from error
         return self.hamiltonian
+
+    def CASCI(self):
+        """
+        Solve the encoded space exactly, for the density matrices SAPT reads the protein through.
+
+        Complete Active Space Configuration Interaction (CASCI) diagonalises the Hamiltonian H() 
+            kept. It stands in for VQE, as the reference the paper benchmarked VQE against.
+
+        The energy is kept, and the ground state's spin-summed one- and two-particle density
+            matrices over the active orbitals, in PySCF's convention: rdm1[p, q] = <q+ p> and
+            rdm2[p, q, r, s] = <p+ r+ s q>.
+
+        A space of more than `AS_limit` orbitals is refused for computational constraints.
+        
+        RHF assumed a singlet, and SAPT's density matrices are written for one, so a ground state of
+            any other spin is refused.
+        """
+        if self.e_core is None or self.h1 is None or self.h2 is None:
+            raise EncodingError("Cannot solve the active space before its Hamiltonian is built")
+        if self.active_space_size > self.AS_limit:
+            raise EncodingError(
+                f"({self.active_electrons}e, {self.active_space_size}o) is wider than the "
+                f"{self.AS_limit} orbitals CASCI solves"
+            )
+
+        converged, energy, spin_square, rdm1, rdm2 = encode.casci(
+            self.e_core,
+            self.h1,
+            self.h2,
+            self.active_space_size,
+            self.active_electrons,
+            self.casci_max_cycle,
+            self.verbose,
+        )
+        if not converged:
+            raise EncodingError(f"CASCI did not converge in {self.casci_max_cycle} cycles")
+        if abs(spin_square) > SINGLET:
+            raise EncodingError(
+                f"The ground state of ({self.active_electrons}e, {self.active_space_size}o) is not a "
+                f"singlet: <S^2> = {spin_square:.3f}"
+            )
+
+        self.casci_energy, self.rdm1, self.rdm2 = energy, rdm1, rdm2
+        self.save()
+        return self.casci_energy, self.rdm1, self.rdm2
 
 
     def solved(self):
@@ -334,9 +396,17 @@ class EncodeProtein:
         return self.solved() and self.e_core is not None
 
 
+    def correlated(self):
+        """
+        Whether CASCI has solved the encoded space.
+        """
+        return self.encoded() and self.casci_energy is not None
+
+
     def _load(self):
         """
-        Read back the SCF, the solved space and the Hamiltonian, whichever of them `out` holds.
+        Read back the SCF, the solved space, the Hamiltonian and its CASCI solution, whichever of them
+            `out` holds.
         """
         name = self._name()
         stored = save.load_scf(name, self.out)
@@ -354,18 +424,29 @@ class EncodeProtein:
             setattr(self, key, solved[key])
 
         encoded = save.load_encoded(name, self.out)
-        if encoded is not None:
-            for key in ENCODED:
-                setattr(self, key, encoded[key])
+        if encoded is None:
+            return
+        for key in ENCODED:
+            setattr(self, key, encoded[key])
+
+        correlated = save.load_casci(name, self.out)
+        if correlated is not None:
+            for key in CORRELATED:
+                setattr(self, key, correlated[key])
 
 
     def save(self):
         """
-        Write the space SHCI solved, or once H() has run over it, the integrals and their window.
+        Write the latest stage: the space SHCI solved, the integrals H() built over it and their
+            window, or the state CASCI solved them to.
         """
         if not self.out:
             return
-        if self.e_core is not None:
+        if self.casci_energy is not None:
+            save.save_casci(
+                {key: getattr(self, key) for key in CORRELATED}, self._name(), self.out
+            )
+        elif self.e_core is not None:
             save.save_encoded(
                 {key: getattr(self, key) for key in ENCODED}, self._name(), self.out
             )

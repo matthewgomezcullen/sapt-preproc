@@ -1,7 +1,7 @@
 """
 Re-scoring the filtered, minimised poses with DiffDock's confidence model, for confidence.py.
 
-The scoring runs in another interpreter. Everything else is tested here: the export, the RMSD labels, the join, the ranking and the two tables.
+The scoring runs in another interpreter. Everything else is tested here: the export, the RMSD labels, the join, the ranking, the two tables and the figure drawn from them.
 
     5S8I_2LY    the cheapest structure in the set, and none of its twenty poses is near-native
     6ZCY_QF8    a second complex, for the tests that require more than one
@@ -16,6 +16,7 @@ from rdkit.Chem import MolFromMolBlock, MolFromMolFile, MolToMolBlock, SDMolSupp
 
 import confidence
 import filter
+import motivation
 from conftest import DATA, paths
 from utils import save
 
@@ -31,11 +32,32 @@ THIRD = "rank12_confidence-3.21.sdf"
 # Every real pose is about 4.9 A out, and a coordinate survives a mol block only to four decimals.
 AS_DOCKED, EXACT = 4.0, 0.01
 
+JOB_DIR_NAME = "plotted"
+
 
 @pytest.fixture
 def job(tmp_path, monkeypatch):
     monkeypatch.setattr(confidence, "JOB", str(tmp_path))
     return str(tmp_path)
+
+
+@pytest.fixture
+def scored_complex(tmp_path, monkeypatch):
+    monkeypatch.setattr(filter, "OUT", str(tmp_path))
+    monkeypatch.setattr(confidence, "JOB", filter.job_dir(JOB_DIR_NAME))
+    protein, poses = paths(NAME)
+    monkeypatch.setattr(filter, "inventory", lambda named=None: ([(NAME, protein, poses, NATIVE)], []))
+    first, second, deposited = artefact(count=2, deposited=True)
+    confidence.write_table(
+        [
+            {"name": NAME, "source": first, "confidence": 0.5},
+            {"name": NAME, "source": second, "confidence": -0.5},
+            {"name": NAME, "source": deposited, "confidence": -1.0},
+        ],
+        os.path.join(filter.job_dir(JOB_DIR_NAME), confidence.SCORES_NAME),
+        confidence.SCORE_FIELDS,
+    )
+    return JOB_DIR_NAME
 
 
 def artefact(name=NAME, count=3, deposited=False):
@@ -265,3 +287,26 @@ def test_the_tables_round_trip_a_missing_rmsd(tmp_path):
     assert summarised[0]["near_native"] == 0
     assert confidence.read_table(poses) == ranked
     assert confidence.read_table(summary) == summarised
+
+
+@pytest.mark.parametrize("plot", [True, False])
+def test_run_draws_the_figure_into_the_screens_directory_only_when_asked(scored_complex, plot):
+    confidence.run(complexes=[NAME], reuse=True, name=scored_complex, plot=plot)
+
+    assert os.path.isfile(f"{motivation.motivation_path(scored_complex, job=True)}.png") is plot
+
+
+def test_run_plots_the_top1_of_the_rescored_ranking_a_row_a_complex(scored_complex, monkeypatch):
+    plotted = []
+
+    def record(rows, *arguments, **keywords):
+        plotted.append(rows)
+        return f"{motivation.motivation_path(scored_complex, job=True)}.png"
+
+    monkeypatch.setattr(motivation, "plot", record)
+
+    confidence.run(complexes=[NAME], reuse=True, name=scored_complex, plot=True)
+
+    # The deposited ligand is the one near-native pose, and the re-scoring ranked it last.
+    assert len(plotted) == 1
+    assert [(row["name"], row["top1"]) for row in plotted[0]] == [(NAME, False)]

@@ -26,6 +26,7 @@ import subprocess
 from rdkit import Chem
 
 import filter
+import motivation
 from utils import save
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -259,12 +260,13 @@ def _report(summary, skipped=(), missing=()):
     print(f'        a random pick off the ensemble, {chance:.1%}')
 
 
-def run(complexes=None, python=None, models=None, esm=None, reuse=False, name=NAME):
+def run(complexes=None, python=None, models=None, esm=None, reuse=False, name=NAME, plot=True):
     """
     Every complex the screen prepared exported, scored, ranked and summarised into the two tables,
         which are written into the screen's directory beside its preparations.
 
-    `reuse` reads back the last pass's scores instead of running it again.
+    `reuse` reads back the last pass's scores instead of running it again. `plot` draws the re-scored
+        top-1 beside them, as motivation.py's figure.
     """
     rows, work, skipped = [], [], []
     job = filter.job_dir(name)
@@ -291,6 +293,13 @@ def run(complexes=None, python=None, models=None, esm=None, reuse=False, name=NA
     write_table(rows, os.path.join(job, TABLE_NAME), FIELDS)
     write_table(summary, os.path.join(job, SUMMARY_NAME), SUMMARY_FIELDS)
     _report(summary, skipped, missing)
+    if plot:
+        answered = [
+            {**row, "top1": row["top1_minimised"]}
+            for row in summary
+            if row["top1_minimised"] is not None
+        ]
+        print("\nWrote", os.path.relpath(motivation.plot(answered, name, job=True), ROOT))
     return rows, summary
 
 
@@ -329,6 +338,19 @@ if __name__ == "__main__":
         help="The screen to score, as it was named for filter.py. Its preparations are read from, "
              "and the tables written into, out/filter_<name>, or out/filter without a name.",
     )
+    parser.add_argument(
+        "--plot",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Plot the confidence using motivation.py's plot function."
+    )
     arguments = parser.parse_args()
 
-    run(arguments.complexes, arguments.python, arguments.models, arguments.esm, arguments.reuse, arguments.name)
+    run(arguments.complexes,
+        arguments.python,
+        arguments.models,
+        arguments.esm,
+        arguments.reuse,
+        arguments.name,
+        arguments.plot
+    )

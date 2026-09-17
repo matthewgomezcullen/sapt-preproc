@@ -230,6 +230,10 @@ def run(manifest, scores, models, esm):
     manifest, scores, models, esm = (os.path.abspath(path) for path in (manifest, scores, models, esm))
     _diffdock()
 
+    # numpy before torch, as DiffDock's inference.py imports them. A process loads one libstdc++,
+    # whichever is asked for first: the environment's numpy asks for the environment's, torch's wheel
+    # for the system's, which is older than scipy was built against.
+    import numpy  # noqa: F401
     import torch
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

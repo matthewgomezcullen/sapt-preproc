@@ -20,7 +20,7 @@ import filter
 
 ROOT = filter.ROOT
 
-NAME = "motivation"
+NAME_PREFIX = "motivation"
 
 # DiffDock names a scored pose rank<N>_confidence<X>.sdf
 RANKED = re.compile(r"^rank(\d+)_confidence(-?\d+\.\d+)\.sdf$")
@@ -37,6 +37,12 @@ BOOLEANS = ["top1"]
 # LABELS = ["0%", "20%", "40%", "60%", "80%", "100%"]
 EDGES = [0.25, 0.50, 0.75]
 LABELS = ["0%", "25%", "50%", "75%", "100%"]
+
+
+def motivation_path(name, job=False):
+    out = filter.job_dir(name) if job else filter.OUT
+    file_base = f"{NAME_PREFIX}_{name}" if name else NAME_PREFIX
+    return os.path.join(out, file_base)
 
 
 def rank_of(path):
@@ -84,12 +90,12 @@ def rates(bins):
     )
 
 
-def plot(rows, name=NAME):
+def plot(rows, name=None, job=False):
     """
     Two plots over the same five bands: top-1 success against what a random pick would manage, and
         how many complexes each band holds, which is what says how much the top panel is worth.
     """
-    path = os.path.join(filter.OUT, f"{name}.png")
+    path = f"{motivation_path(name, job)}.png"
     import matplotlib
 
     matplotlib.use("Agg")
@@ -123,8 +129,8 @@ def plot(rows, name=NAME):
     return path
 
 
-def write(rows, name=NAME):
-    path = os.path.join(filter.OUT, f"{name}.csv")
+def write(rows, name=None):
+    path = f"{motivation_path(name)}.csv"
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=FIELDS)
@@ -132,8 +138,8 @@ def write(rows, name=NAME):
         writer.writerows(rows)
 
 
-def read(name=NAME):
-    path = os.path.join(filter.OUT, f"{name}.csv")
+def read(name=None):
+    path = f"{motivation_path(name)}.csv"
     with open(path, newline="") as file:
         rows = list(csv.DictReader(file))
     for row in rows:
@@ -168,7 +174,7 @@ def _report(rows, incomplete=()):
           f'{statistics.mean(row["fraction"] for row in rows):9.1%}')
 
 
-def run(complexes=None, reuse=False, name=NAME):
+def run(complexes=None, reuse=False, name=None):
     if reuse:
         rows, incomplete = read(name=name), ()
     else:
@@ -197,7 +203,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--name",
-        default=NAME,
+        default=None,
         help=f"Plot the measurements under a different name."
     )
     arguments = parser.parse_args()

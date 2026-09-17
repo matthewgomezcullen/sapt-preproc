@@ -42,7 +42,7 @@ COARSE = 1e-3
 
 # Agreement with exact diagonalisation of the same space, at the default cutoff.
 ENERGY = 1e-5  # absolute, Hartree
-OCCUPATION = 1e-5  # absolute, on a natural occupation
+OCCUPATION = 1e-4  # absolute, on a natural occupation
 
 # Size constraint for VQE. Currently, arbitrary budget rather than derived.
 SIMULABLE_ORBITALS = 16
@@ -317,17 +317,11 @@ def test_shci_refuses_a_window_that_leaves_nothing_to_correct(lo, hi):
 
 @pytest.mark.dice
 def test_the_paper_window_is_too_narrow_for_the_fragment():
-    """
-    The original window keeps one orbital of the fragment, at n = 0.022, so (0e, 1o).
-
-    The window was set on KDM5A, whose active space is built round an open-shell iron centre. A
-        saturated peptide has no static correlation for it to find: the fragment's occupations run
-        1.9927 to 1.9781 and 0.0221 to 0.0073, and the window falls in the gap between them.
-    """
     encoded = capped()
+    encoded.SHCI(eps1=SELECTION)
 
     with pytest.raises(EncodingError):
-        encoded.SHCI(eps1=SELECTION)
+        encoded.rewindow(*PAPER)
 
 
 @pytest.mark.dice

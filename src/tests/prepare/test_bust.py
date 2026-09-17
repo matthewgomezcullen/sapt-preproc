@@ -208,10 +208,7 @@ def test_bust_does_not_hold_distance_from_the_protein_against_a_pose():
 
 
 @pytest.mark.prepare_long
-def test_reduce_takes_the_cutout_over_the_surviving_poses():
-    """
-    The union is over what will be scored.
-    """
+def test_reduce_takes_the_cutout_over_the_surviving_poses(monkeypatch):
     prepared = minimised(CLASHING)
     prepared._bust()
     surviving = {
@@ -220,6 +217,7 @@ def test_reduce_takes_the_cutout_over_the_surviving_poses():
             prepared.whole, prepared._pose_coordinates(), prepared.cutoff
         )
     }
+    monkeypatch.setattr(verify, "incomplete_residues", lambda protein_path: set())
 
     prepared._reduce()
 

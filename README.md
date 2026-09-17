@@ -213,7 +213,9 @@ Among accepted complexes, many cutouts are highly charged, as counter-charges th
 
 ## `run.py`
 
-`python run.py <name>` carries every complex in `data/`, or those `--complexes` names, from preparation to the Hamiltonian. Each complex keeps its artefacts in `out/<name>/<complex>/`, and `filter.py` keeps its preparations the same way in `out/filter/<complex>/`, or `out/filter_<name>/<complex>/` under `--name`, with its `filter.csv` and `confidence.py`'s tables beside them.
+`python run.py <name>` carries every complex of the benchmark set, or those `--complexes` names, from preparation to the Hamiltonian. Each complex keeps its artefacts in `out/<name>/<complex>/`, and `filter.py` keeps its preparations the same way in `out/filter/<complex>/`, or `out/filter_<name>/<complex>/` under `--name`, with its `filter.csv` and `confidence.py`'s tables beside them.
+
+A complex whose preparation is kept is read back without its inputs, so a job named after a screen's directory, such as `python run.py filter_v1_1_mm_unsize --complexes 7LOE_Y84`, carries on from that screen's preparations with no benchmark set on disk. `scripts/run.sh` runs the complexes of that screen's `chosen.csv` this way on the cluster. A complex that has to be prepared, or every one under `--force`, is found in the benchmark set by `filter.inventory`, from the same inputs `filter.py` screens.
 
 | File | Written by | Holds |
 |---|---|---|

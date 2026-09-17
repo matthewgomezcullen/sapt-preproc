@@ -16,6 +16,7 @@ import argparse
 import bisect
 import csv
 import os
+import re
 import statistics
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
@@ -26,7 +27,6 @@ from rdkit import Chem
 from tqdm import tqdm
 
 from prepare import PrepareComplex, OutOfScopeError, PrepareError
-from run import FAIL, POSE
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(ROOT, 'data')
@@ -36,6 +36,13 @@ POSEBUSTERS = os.path.join(DATA, "posebusters_v1_1")
 
 PREDICTED = os.path.join(POSEBUSTERS, "posebusters_benchmark_holo_aligned_predicted_structures")
 OUT = os.path.join(ROOT, "out")
+
+# DiffDock names each pose it kept rank<N>_confidence<X>.sdf. Alongside those it writes a bare
+# rank1.sdf copy of the top-ranked pose and, for some complexes, an energy-minimised
+# rank<N>_confidence<X>_ensemble_relaxed.sdf.
+POSE = re.compile(r"^rank\d+_confidence-?\d+\.\d+\.sdf$")
+
+FAIL = "confidence-1000"
 
 # What a run is called, which names the directory everything it writes is kept in: out/filter
 # unnamed, out/filter_<name> otherwise.

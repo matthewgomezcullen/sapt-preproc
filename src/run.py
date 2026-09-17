@@ -1,66 +1,59 @@
 """
-Carry complexes of the benchmark set through preparation and encoding, keeping what each stage 
+Carry complexes of the benchmark set through preparation and encoding, keeping what each stage
     produces in <out>/<name>/<complex>.
 
-A stage whose artefact is already kept is read back rather than run again.
+A stage whose artefact is already kept is read back rather than run again. A complex whose
+    preparation is kept needs none of its inputs, so a job can start from a screen's preparations
+    with no benchmark set on disk.
 
-    python run.py bin --complexes 7USH_82V 7R9N_F97
+    python run.py filter_v1_1_mm_unsize --complexes 7LOE_Y84 7F5D_EUO
 """
 
 import argparse
 import os
-import re
 
+import filter
 from prepare import PrepareComplex
 from encode import EncodeProtein, SolveLigand
 
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(ROOT, "out")
-DATA = os.path.join(ROOT, "data")
-
-# DiffDock names each pose it kept rank<N>_confidence<X>.sdf. Alongside those it writes a bare
-# rank1.sdf copy of the top-ranked pose and, for some complexes, an energy-minimised
-# rank<N>_confidence<X>_ensemble_relaxed.sdf.
-POSE = re.compile(r"^rank\d+_confidence-?\d+\.\d+\.sdf$")
-
-FAIL = "confidence-1000"
 
 
-def _poses(directory):
-    return sorted(
-        os.path.join(directory, entry)
-        for entry in os.listdir(directory)
-        if POSE.match(entry) and FAIL not in entry
-    )
-
-
-def _load(data, out, complexes) -> list[PrepareComplex]:
+def _load(out, complexes=None, force=False) -> list[PrepareComplex]:
     """
-    The complexes under `data`, or those of them `complexes` names, each kept in a directory of its
-        own under `out`.
+    The complexes `complexes` names, or every one in the benchmark set.
+
+    A kept preparation is read back without its inputs, unless `force` is going to prepare it again.
     """
-    proteins, poses = os.path.join(data, "posebusters"), os.path.join(data, "diffdock")
+    loaded = {}
+    if complexes is not None and not force:
+        for name in complexes:
+            kept = PrepareComplex("", [], os.path.join(out, name))
+            if kept.prepared():
+                loaded[name] = kept
+
+    wanted = None if complexes is None else [name for name in complexes if name not in loaded]
+    # An empty list would ask filter.inventory for every complex.
+    if wanted is None or wanted:
+        for name, protein, poses, _ in filter.inventory(wanted)[0]:
+            loaded[name] = PrepareComplex(protein, poses, os.path.join(out, name))
+
     if complexes is None:
-        complexes = sorted(
-            name
-            for name in set(os.listdir(proteins)) & set(os.listdir(poses))
-            if os.path.isdir(os.path.join(poses, name))
+        return list(loaded.values())
+    missing = [name for name in complexes if name not in loaded]
+    if missing:
+        raise SystemExit(
+            f"{', '.join(missing)} kept no preparation under {out}, and the benchmark set holds no "
+            "complete inputs to prepare them from"
         )
-    return [
-        PrepareComplex(
-            os.path.join(proteins, complex, f"{complex}_protein.pdb"),
-            _poses(os.path.join(poses, complex)),
-            os.path.join(out, complex),
-        )
-        for complex in complexes
-    ]
+    return [loaded[name] for name in complexes]
 
 
-def run(name, data, out, complexes=None, force=False, prepare_only=False):
+def run(name, out=OUT, complexes=None, force=False, prepare_only=False):
     out = os.path.join(out, name)
-    complexes = _load(data, out, complexes)
-    for complex in complexes:
+    for complex in _load(out, complexes, force):
         if force or not complex.prepared():
             complex.prepare()
         if prepare_only:
@@ -73,23 +66,21 @@ def run(name, data, out, complexes=None, force=False, prepare_only=False):
         if force or not protein.solved():
             protein.solve()
         if force or not protein.encoded():
+            # Dice solved the whole window. The Hamiltonian is over the paper's, which `rewindow`
+            # takes by default, and the solved space is kept as Dice left it.
+            protein.rewindow()
             protein.encode()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("name", help="The job, which names its directory under --out.")
-    parser.add_argument(
-        "--data",
-        default=DATA,
-        help="The benchmark set, split into posebusters/ and diffdock/.",
-    )
     parser.add_argument("--out", default=OUT, help="Where jobs are kept.")
     parser.add_argument(
         "--complexes",
         nargs="+",
         default=None,
-        help="The complexes to run, by name. Every one in --data by default.",
+        help="The complexes to run, by name. Every one in the benchmark set by default.",
     )
     parser.add_argument(
         "--force",
@@ -100,9 +91,8 @@ if __name__ == "__main__":
     arguments = parser.parse_args()
     run(
         arguments.name,
-        arguments.data,
         arguments.out,
         arguments.complexes,
-        arguments.force, 
+        arguments.force,
         arguments.prepare_only
     )

@@ -5,6 +5,9 @@ Dice solves the space at the whole window, 0 <= n <= 2, and the Hamiltonian is e
     narrower one: the thresholds the job was given, or, given none, the orbitals its limit leaves.
     The solved space stays kept at the window Dice solved it at.
 
+Once CASCI has correlated the protein, SAPT scores every pose against it, and the scores are kept
+    beside the protein's artefacts.
+
     7BJJ_TVW       a preparation kept with none of its inputs in the test data
     6YT6_PKE       a complex whose inputs are in the test data
     ACE-VAL-NME    7BJJ_TVW's fragment, kept as a job with one pose and carried through RHF, AVAS and
@@ -24,6 +27,7 @@ from conftest import POSEBUSTERS, PREPARED, paths
 from cutouts import EXPECTED, all_carbons, fragment
 from encode import EncodeProtein, SolveLigand
 from prepare import PrepareComplex
+from sapt import SAPT
 from utils import save
 
 JOB = "job"
@@ -107,12 +111,26 @@ def refuse(*args, **kwargs):
     raise AssertionError("a stage that was kept ran again")
 
 
+def interaction_stub(calls=None):
+    """
+    SAPT.interaction stub.
+    """
+
+    def interaction(self):
+        if calls is not None:
+            calls.append(self)
+
+    return interaction
+
+
 def encode(kept, out, **asked):
     """
     The kept job, carried through the driver again in a directory of its own under `asked`.
     """
     shutil.copytree(kept, out, dirs_exist_ok=True)
-    run.run(JOB, out, complexes=[KEPT], **asked)
+    with pytest.MonkeyPatch.context() as patched:
+        patched.setattr(SAPT, "interaction", interaction_stub())
+        run.run(JOB, out, complexes=[KEPT], **asked)
     return os.path.join(out, JOB, KEPT)
 
 
@@ -164,6 +182,7 @@ def test_a_kept_preparation_is_read_back_without_its_inputs(tmp_path, monkeypatc
     monkeypatch.setattr(PrepareComplex, "prepare", recording(prepared))
     monkeypatch.setattr(run, "SolveLigand", handed_on(handed))
     monkeypatch.setattr(run, "EncodeProtein", handed_on(handed))
+    monkeypatch.setattr(SAPT, "interaction", interaction_stub())
 
     run.run(JOB, str(tmp_path), complexes=[KEPT])
 
@@ -237,19 +256,52 @@ def test_the_solved_space_stays_at_the_window_dice_solved(encoded_job):
 def test_a_finished_complex_is_read_back_rather_than_run_again(encoded_job, tmp_path, monkeypatch):
     shutil.copytree(encoded_job, str(tmp_path), dirs_exist_ok=True)
     directory = os.path.join(str(tmp_path), JOB, KEPT)
-    before = save.load_encoded(KEPT, directory)
+    before = [save.load_encoded(KEPT, directory), save.load_sapt(KEPT, directory)]
     monkeypatch.setattr(filter, "inventory", refuse)
     monkeypatch.setattr(PrepareComplex, "prepare", refuse)
     monkeypatch.setattr(SolveLigand, "RHF", refuse)
-    for stage in ("RHF", "AVAS", "MP2", "SHCI", "rewindow", "H"):
+    for stage in ("RHF", "AVAS", "MP2", "SHCI", "rewindow", "H", "CASCI"):
         monkeypatch.setattr(EncodeProtein, stage, refuse)
+    for stage in ("elst", "exch", "interaction"):
+        monkeypatch.setattr(SAPT, stage, refuse)
 
     run.run(JOB, str(tmp_path), complexes=[KEPT])
 
-    after = save.load_encoded(KEPT, directory)
-    assert after.keys() == before.keys()
-    for key, value in before.items():
-        np.testing.assert_array_equal(after[key], value)
+    after = [save.load_encoded(KEPT, directory), save.load_sapt(KEPT, directory)]
+    for was, now in zip(before, after):
+        assert now.keys() == was.keys()
+        for key, value in was.items():
+            np.testing.assert_array_equal(now[key], value)
+
+
+def test_every_pose_is_scored_against_the_correlated_protein(encoded_job):
+    directory = os.path.join(encoded_job, JOB, KEPT)
+
+    record = save.load_sapt(KEPT, directory)
+
+    sources = save.load_prepared(KEPT, directory)["source"]
+    assert list(record["source"]) == list(sources)
+    for key in ("electrostatics", "exchanges", "cumulants", "int_energies"):
+        assert len(record[key]) == len(sources)
+    np.testing.assert_allclose(
+        record["int_energies"], record["electrostatics"] + record["exchanges"]
+    )
+    # The pose sits against the fragment, so their densities overlap and exchange repels.
+    assert all(record["exchanges"] > 0)
+
+
+def test_a_window_asked_for_scores_the_poses_again_against_it(encoded_job, tmp_path, monkeypatch):
+    shutil.copytree(encoded_job, str(tmp_path), dirs_exist_ok=True)
+    scored = []
+    monkeypatch.setattr(SAPT, "interaction", interaction_stub(scored))
+
+    run.run(JOB, str(tmp_path), complexes=[KEPT], window=PAPER)
+
+    assert len(scored) == 1
+    protein = scored[0].protein
+    assert protein.correlated()
+    assert (protein.active_electrons, protein.active_space_size) == WINDOWED
+    assert save.load_sapt(KEPT, os.path.join(str(tmp_path), JOB, KEPT)) is None
 
 
 def test_a_window_asked_for_encodes_a_complex_that_is_already_encoded(encoded_job, tmp_path):

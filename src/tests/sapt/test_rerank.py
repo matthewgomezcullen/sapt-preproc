@@ -6,13 +6,20 @@ The rows are confidence.csv's. Each is given its pose's energies, keyed by the c
     the pose came from, as confidence.py keys its scores, and each complex's poses are ranked on
     E_elst + E_exch, lowest first. The summary adds whether that ranking's first pose is near-native
     to what confidence.py already asks of its own.
+
+sapt.py's run reads confidence.csv out of a screen's directory and every complex's kept scores out of
+    the complex's own, and writes sapt.csv and sapt_summary.csv beside confidence.py's tables.
 """
 
+import os
+
+import numpy as np
 import pytest
 
 import confidence
 import filter
 import sapt
+from utils import save
 
 NAME, OTHER = "5S8I_2LY", "6ZCY_QF8"
 
@@ -22,6 +29,10 @@ THIRD = "rank12_confidence-3.21.sdf"
 
 # Either side of the near-native threshold. Angstrom.
 NEAR, FAR = 0.0, 2 * filter.NEAR_NATIVE
+
+SCREEN = "reranked"
+
+TABLE, SUMMARY = "sapt.csv", "sapt_summary.csv"
 
 
 def rows(*poses, name=NAME):
@@ -46,6 +57,47 @@ def energies(*poses, name=NAME):
 
 def by_source(rows):
     return {row["source"]: row for row in rows}
+
+
+def keep(job, *poses, name=NAME):
+    """
+    Each pose is given as (source, elst, exch, cumulant).
+    """
+    sources, elst, exch, cumulants = (list(column) for column in zip(*poses))
+    save.save_sapt(
+        {
+            "source": sources,
+            "electrostatics": elst,
+            "exchanges": exch,
+            "cumulants": cumulants,
+            "int_energies": np.add(elst, exch),
+        },
+        name,
+        confidence.complex_dir(name, job),
+    )
+
+
+@pytest.fixture
+def screen(tmp_path, monkeypatch):
+    """
+    A screen confidence.py has ranked, of NAME's three poses and OTHER's one. Only NAME was scored,
+        and its record holds the poses in another order than confidence.csv does.
+    """
+    monkeypatch.setattr(filter, "OUT", str(tmp_path))
+    job = filter.job_dir(SCREEN)
+    confidence.write_table(
+        rows((FIRST, 0.75, FAR), (SECOND, -1.0, FAR), (DEPOSITED, -2.0, NEAR))
+        + rows((THIRD, 0.5, FAR), name=OTHER),
+        os.path.join(job, confidence.TABLE_NAME),
+        confidence.FIELDS,
+    )
+    keep(
+        job,
+        (DEPOSITED, -0.030, 0.012, -0.001),
+        (SECOND, -0.010, 0.004, 0.0),
+        (FIRST, -0.020, 0.012, 0.0),
+    )
+    return SCREEN
 
 
 def test_join_gives_each_pose_its_energies_and_names_a_pose_that_has_none():
@@ -129,3 +181,44 @@ def test_the_tables_round_trip_through_confidence_pys_reader(tmp_path):
     assert summarised[0]["top1_sapt"] is None
     assert confidence.read_table(poses) == ranked
     assert confidence.read_table(summary) == summarised
+
+
+def test_run_writes_both_tables_into_the_screens_directory(screen):
+    ranked, summarised = sapt.run(screen)
+
+    job = filter.job_dir(screen)
+    assert confidence.read_table(os.path.join(job, TABLE)) == ranked
+    assert confidence.read_table(os.path.join(job, SUMMARY)) == summarised
+
+
+def test_run_ranks_each_pose_on_the_scores_its_complex_kept(screen):
+    ranked, summarised = sapt.run(screen)
+
+    assert [row["source"] for row in sorted(ranked, key=lambda row: row["rank_sapt"])] == [
+        DEPOSITED, FIRST, SECOND
+    ]
+    deposited = by_source(ranked)[DEPOSITED]
+    assert (deposited["elst"], deposited["exch"], deposited["cumulant"]) == (-0.030, 0.012, -0.001)
+    assert (summarised[0]["top1_sapt"], summarised[0]["top1_minimised"]) == (True, False)
+
+
+def test_a_complex_that_was_never_scored_is_left_out_of_both_tables_and_reported(screen, capsys):
+    ranked, summarised = sapt.run(screen)
+
+    assert {row["name"] for row in ranked} == {entry["name"] for entry in summarised} == {NAME}
+    assert OTHER in capsys.readouterr().out
+
+
+def test_run_refuses_a_screen_confidence_py_has_not_ranked(tmp_path, monkeypatch):
+    monkeypatch.setattr(filter, "OUT", str(tmp_path))
+    keep(filter.job_dir(SCREEN), (DEPOSITED, -0.030, 0.012, 0.0))
+
+    with pytest.raises(SystemExit):
+        sapt.run(SCREEN)
+
+
+def test_run_refuses_a_screen_none_of_whose_complexes_was_scored(screen):
+    os.remove(save.sapt_path(NAME, confidence.complex_dir(NAME, filter.job_dir(screen))))
+
+    with pytest.raises(SystemExit):
+        sapt.run(screen)

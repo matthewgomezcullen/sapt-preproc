@@ -82,6 +82,7 @@ echo "[$(date +%T)] Solving the environment"
 conda env create --yes --prefix "$PREFIX" --file "$WITHOUT_PYSCF"
 
 conda activate "$PREFIX"
+export PATH="$PREFIX/bin:$PATH"
 
 echo "[$(date +%T)] Installing pyscf $PYSCF"
 pip install --no-cache-dir "pyscf==$PYSCF"

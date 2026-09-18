@@ -51,6 +51,13 @@ module load "$MODULE"
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate "$PREFIX"
 
+export PATH="$PREFIX/bin:$PATH"
+if ! python -c "import gemmi, pyscf"; then
+    echo "$(command -v python) cannot import the pipeline's packages; $PREFIX should be the" \
+         "environment setup.sh built." >&2
+    exit 1
+fi
+
 cd "$REPO/src"
 
 # The complexes are the rows of chosen.csv, in order. Read them from there.

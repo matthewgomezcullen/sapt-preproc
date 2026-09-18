@@ -308,7 +308,7 @@ class EncodeProtein:
 
         solved, occupations = self.solved_space, self.solved_space["occupations"]
         if lo is None:
-            lo, hi = encode.thresholds(occupations, self.ncas_limit)
+            lo, hi = encode.generate_thresholds(occupations, self.ncas_limit)
         ncas, nelecas, orbitals, occupations = encode.select(
             solved["orbital_initial"], occupations, solved["active_electrons"], lo, hi
         )

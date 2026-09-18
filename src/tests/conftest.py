@@ -91,6 +91,13 @@ def pytest_addoption(parser):
         help="Also run the driver end to end over a subset cutout, which repeats AVAS, MP2 and "
              "Dice rather than sharing the cached ones.",
     )
+    parser.addoption(
+        "--sapt-long",
+        action="store_true",
+        help="Also run the SAPT terms over a correlated cutout and its poses, which reads a "
+             "1695-function orbital set back and builds Coulomb matrices over a dimer of two "
+             "thousand functions.",
+    )
 
 
 OPTIONAL = {
@@ -99,6 +106,7 @@ OPTIONAL = {
     "hpc_long_stab": "--hpc-long-stab",
     "hpc_long_dice": "--hpc-long-dice",
     "hpc_long_run": "--hpc-long-run",
+    "sapt_long": "--sapt-long",
 }
 
 

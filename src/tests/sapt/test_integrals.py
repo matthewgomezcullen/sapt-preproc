@@ -1,12 +1,13 @@
 """
 The integrals spanning both monomers.
 
-None is held as a four-index tensor. The Coulomb matrix is built through the direct path. Over the 
-    water dimer's 26 they do fit, so the tests build them outright and compare.
+None is held as a four-index tensor. The Coulomb and exchange matrices are built through the direct
+    path. Over the water dimer's 26 they do fit, so the tests build them outright and compare.
 
 The generalized integrals of Eq. (10) fold each monomer's electron-nucleus potential and their
     nuclear repulsion into the two-electron ones, so that one contraction returns a whole
-    interaction energy.
+    interaction energy. Exchange contracts them over pairs of one function from each monomer, which
+    needs the nuclei's attraction between the two monomers' functions too.
 """
 
 import numpy as np
@@ -14,6 +15,7 @@ import pytest
 from pyscf import gto
 
 import monomers
+import reference
 from utils import sapt
 
 EXACT = 1e-10
@@ -22,31 +24,12 @@ EXACT = 1e-10
 CONTACT = 1e-3
 
 
-def generalized_integrals(mol_a, mol_b):
+def cross_block(mol_a, mol_b):
     """
-    Eq. (10) written out as the four-index tensor it defines, over both AO bases.
+    Eq. (10) with A's functions on A's electron and B's on B's, which is all electrostatics reads.
     """
     nao = mol_a.nao
-    overlap_a, overlap_b = mol_a.intor("int1e_ovlp"), mol_b.intor("int1e_ovlp")
-    return (
-        sapt.dimer(mol_a, mol_b).intor("int2e")[:nao, :nao, nao:, nao:]
-        + np.einsum("kl,uv->uvkl", sapt.potential(mol_b, mol_a), overlap_a) / mol_a.nelectron
-        + np.einsum("uv,kl->uvkl", sapt.potential(mol_a, mol_b), overlap_b) / mol_b.nelectron
-        + sapt.repulsion(mol_a, mol_b)
-        * np.einsum("uv,kl->uvkl", overlap_a, overlap_b)
-        / (mol_a.nelectron * mol_b.nelectron)
-    )
-
-
-def refusing(name, intor):
-    """
-    `Mole.intor` with one integral taken away, so a test can say which one must not be built.
-    """
-    def guarded(self, intor_name, *args, **kwargs):
-        if intor_name.startswith(name):
-            raise AssertionError(f"{intor_name} was built over the dimer")
-        return intor(self, intor_name, *args, **kwargs)
-    return guarded
+    return reference.generalized_integrals(mol_a, mol_b)[:nao, :nao, nao:, nao:]
 
 
 def test_the_dimer_basis_is_the_first_monomers_functions_then_the_seconds():
@@ -101,6 +84,27 @@ def test_the_two_monomers_potentials_add_up_to_the_dimers():
     )
 
 
+def test_the_attraction_between_the_monomers_functions_splits_into_each_monomers_nuclei():
+    mol_a, mol_b = monomers.water_dimer()
+    nao = mol_a.nao
+
+    of_a = sapt.attraction(mol_a, mol_b, mol_a)
+    of_b = sapt.attraction(mol_a, mol_b, mol_b)
+
+    assert of_a.shape == of_b.shape == (mol_a.nao, mol_b.nao)
+    assert np.allclose(
+        of_a + of_b, sapt.dimer(mol_a, mol_b).intor("int1e_nuc")[:nao, nao:], atol=EXACT
+    )
+
+
+def test_a_monomers_potential_is_the_attraction_between_its_own_functions():
+    mol_a, mol_b = monomers.water_dimer()
+
+    assert np.allclose(
+        sapt.potential(mol_a, mol_b), sapt.attraction(mol_a, mol_a, mol_b), atol=EXACT
+    )
+
+
 def test_the_nuclear_repulsion_splits_into_each_monomers_and_the_cross_term():
     mol_a, mol_b = monomers.water_dimer()
 
@@ -126,9 +130,7 @@ def test_the_coulomb_matrix_is_the_cross_block_of_the_dimers_repulsion():
 
 def test_the_generalized_coulomb_is_the_generalized_integrals_contracted_with_the_other_monomer():
     """
-    Against Eq. (10) as written. The implementation never forms that tensor: its weights of 1/N_A
-        and 1/N_B cancel against the traces of the densities, which is what leaves the one-electron
-        terms standing on their own.
+    Against Eq. (10) as written. The implementation never forms that tensor.
     """
     mol_a, mol_b = monomers.water_dimer()
     density_b = monomers.correlated_water_density(monomers.COMPRESSED)
@@ -136,19 +138,64 @@ def test_the_generalized_coulomb_is_the_generalized_integrals_contracted_with_th
     built = sapt.generalized_coulomb(mol_a, mol_b, density_b)
 
     assert np.allclose(
-        built,
-        np.einsum("uvkl,kl->uv", generalized_integrals(mol_a, mol_b), density_b),
-        atol=EXACT,
+        built, np.einsum("uvkl,kl->uv", cross_block(mol_a, mol_b), density_b), atol=EXACT
     )
+
+
+def test_the_generalized_coulomb_keeps_its_weights_for_a_matrix_of_any_trace():
+    """
+    Exchange contracts Eq. (10) with matrices such as D_B S D_A S D_B, whose trace is not electron
+        count, so the 1/N_B weight cannot be cancelled against the trace of what it is given.
+    """
+    mol_a, mol_b = monomers.water_dimer()
+    halved = monomers.correlated_water_density(monomers.COMPRESSED) / 2
+
+    built = sapt.generalized_coulomb(mol_a, mol_b, halved)
+
+    assert np.allclose(
+        built, np.einsum("uvkl,kl->uv", cross_block(mol_a, mol_b), halved), atol=EXACT
+    )
+
+
+@pytest.mark.parametrize(
+    "blocks, script",
+    [
+        ("abba", "ijkl,jk->il"),  # K over A's functions, of a matrix over B's
+        ("abbb", "ijkl,lk->ij"),  # J between A's functions and B's, of a matrix on B's electron
+        ("abbb", "ijkl,kj->il"),  # K between them
+        ("aaab", "ijkl,ji->kl"),  # J between them, of a matrix on A's electron
+        ("aaab", "ijkl,ik->jl"),  # K between them
+        ("aabb", "ijkl,lk->ij"),  # J over A's functions, as electrostatics has it
+        ("aabb", "ijkl,jk->il"),  # K of a matrix spanning both
+    ],
+)
+def test_the_generalized_integrals_contract_over_any_block_of_the_dimers_functions(blocks, script):
+    """
+    Eq. (10) contracted as `jk.get_jk` contracts the plain integrals, over whichever monomer's
+        functions each index runs. Any matrix will do.
+    """
+    mol_a, mol_b = monomers.water_dimer()
+    integrals = reference.generalized_integrals(mol_a, mol_b)
+    functions = {"a": slice(0, mol_a.nao), "b": slice(mol_a.nao, integrals.shape[0])}
+    block = integrals[tuple(functions[monomer] for monomer in blocks)]
+    contracted = script.split(",")[1].split("->")[0]
+    matrix = np.random.default_rng(0).standard_normal(
+        [block.shape["ijkl".index(index)] for index in contracted]
+    )
+
+    built = sapt.generalized(mol_a, mol_b, blocks, matrix, script)
+
+    assert np.allclose(built, np.einsum(script, block, matrix), atol=EXACT)
 
 
 def test_the_coulomb_matrix_is_built_without_the_dimers_whole_tensor(monkeypatch):
     mol_a, mol_b = monomers.water_dimer()
     density_b = monomers.solve_water(monomers.COMPRESSED).make_rdm1()
-    monkeypatch.setattr(gto.Mole, "intor", refusing("int2e", gto.Mole.intor))
+    monkeypatch.setattr(gto.Mole, "intor", reference.refusing("int2e", gto.Mole.intor))
 
     sapt.coulomb(mol_a, mol_b, density_b)
     sapt.generalized_coulomb(mol_a, mol_b, density_b)
+    sapt.generalized(mol_a, mol_b, "abba", density_b, "ijkl,jk->il")
 
 
 @pytest.mark.sapt_long

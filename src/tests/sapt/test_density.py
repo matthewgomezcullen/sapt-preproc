@@ -42,6 +42,16 @@ def test_a_doubly_occupied_active_space_gives_back_the_restricted_density(ncas, 
     assert np.allclose(built, mean_field.make_rdm1(), atol=EXACT)
 
 
+@pytest.mark.parametrize("ncas, nelecas", [(10, 10), (6, 6), (4, 4), (8, 2)])
+def test_the_active_orbitals_start_where_the_core_ends(ncas, nelecas):
+    orbitals = monomers.solve_water(monomers.EQUILIBRIUM).mo_coeff
+    core = (monomers.WATER_ELECTRONS - nelecas) // 2
+
+    built = sapt.active(orbitals, ncas, nelecas, monomers.WATER_ELECTRONS)
+
+    assert np.array_equal(built, orbitals[:, core:core + ncas])
+
+
 def test_the_density_holds_every_electron_of_the_monomer():
     mol = monomers.build_water(monomers.COMPRESSED)
 

@@ -15,11 +15,19 @@ class SAPT:
         self,
         protein: EncodeProtein,
         ligand: SolveLigand,
+        out=None
     ):
         self.protein = protein
         self.ligand = ligand
         self.density = None # the protein's AO density, core plus active
         self.electrostatics = None # E^(1)_elst per pose
+        self.exchanges = None # E^(1)_exch per pose
+        self.int_energies = None # E_int per pose
+
+        # Load
+        self.out = out
+        if out:
+            self._load()
 
 
     def densities(self):
@@ -52,3 +60,11 @@ class SAPT:
             for mol, mean_field in zip(self.ligand.mols, self.ligand.mean_fields)
         ]
         return self.electrostatics
+    
+
+    def save(self):
+        pass
+
+
+    def _load(self):
+        pass

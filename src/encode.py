@@ -68,6 +68,7 @@ class EncodeProtein:
         self.occupations = None # natural occupations of the active window
         self.correlation = None # MP2 correlation energy of the AVAS space
         self.shci_energy = None # SHCI total energy of the space MP2 capped
+        self.solved_space = None # the space Dice solved
         self.cutoff = 4.5 # Cutoff for chemically relevant atoms.
         self.avas_threshold = 0.2 # AVAS threshold. PySCF's own default.
         
@@ -80,6 +81,9 @@ class EncodeProtein:
         self.mpi = os.environ.get("MPIPREFIX", "") # empty runs on one rank. A cluster wants "srun" 
         # under SLURM, or "mpirun -np <ranks>"
         self.scratch = None # where to write integrals, wavefunction and RDMs.
+
+        # Window
+        self.ncas_limit = 14 # the most active orbitals a window permits
 
         # Hamiltonian
         self.e_core = None # nuclear repulsion and the energy of the frozen electrons
@@ -285,24 +289,38 @@ class EncodeProtein:
 
         self.orbital_initial, self.occupations = orbitals, occupations
         self.active_space_size, self.active_electrons = ncas, nelecas
+        self.solved_space = {key: getattr(self, key) for key in SOLVED}
         return self.active_space_size, self.active_electrons, self.orbital_initial
 
-    def rewindow(self, lo: float = 0.02, hi: float = 1.97):
+    def rewindow(self, lo: float | None = None, hi: float | None = None):
         """
-        Choose another occupation window over a solved space. Defaults to the original paper.
-        """
-        if self.shci_energy is None:
-            raise EncodingError("Cannot rewindow before SHCI has solved the space")
+        Choose another occupation window over a solved space.
 
+        The original paper cut at fixed thresholds, 0.02 <= n <= 1.97. A window with no thresholds 
+        derives them instead: the `ncas_limit` orbitals a single determinant describes worst.
+        """
+        if self.solved_space is None:
+            raise EncodingError("Cannot rewindow before SHCI has solved the space")
+        if (lo is None) != (hi is None):
+            raise EncodingError(
+                "A window is both thresholds or neither; neither derives one from `ncas_limit`"
+            )
+
+        solved, occupations = self.solved_space, self.solved_space["occupations"]
+        if lo is None:
+            lo, hi = encode.thresholds(occupations, self.ncas_limit)
         ncas, nelecas, orbitals, occupations = encode.select(
-            self.orbital_initial, self.occupations, self.active_electrons, lo, hi
+            solved["orbital_initial"], occupations, solved["active_electrons"], lo, hi
         )
         if ncas == 0 or nelecas == 0 or nelecas == 2 * ncas:
             raise EncodingError(
                 f"The window {lo} <= n <= {hi} leaves ({nelecas}e, {ncas}o) of "
-                f"({self.active_electrons}e, {self.active_space_size}o), which has no excitation in it to correct"
+                f"({solved['active_electrons']}e, {solved['active_space_size']}o), which has no "
+                "excitation in it to correct"
             )
 
+        self.e_core = self.h1 = self.h2 = self.hamiltonian = None
+        self.casci_energy = self.rdm1 = self.rdm2 = None
         self.orbital_initial, self.occupations = orbitals, occupations
         self.active_space_size, self.active_electrons = ncas, nelecas
         return self.active_space_size, self.active_electrons, self.orbital_initial
@@ -422,6 +440,7 @@ class EncodeProtein:
             return
         for key in SOLVED:
             setattr(self, key, solved[key])
+        self.solved_space = solved
 
         encoded = save.load_encoded(name, self.out)
         if encoded is None:
@@ -452,7 +471,9 @@ class EncodeProtein:
             )
         elif self.shci_energy is not None:
             save.save_solved(
-                {key: getattr(self, key) for key in SOLVED}, self._name(), self.out
+                self.solved_space or {key: getattr(self, key) for key in SOLVED},
+                self._name(),
+                self.out,
             )
 
 

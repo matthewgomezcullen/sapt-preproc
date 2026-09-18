@@ -109,9 +109,11 @@ Solving RHF for large cutouts is computationally very expensive. Also, highly ch
 1. ~XXX Run Semistochastic Heat-Bath Configuration Interaction (SHCI) with Dice on AVAS active space, and restrict orbitals to $\text{lo} \le n_{i} \le \text{hi}$.~
     1. ~XXX (*) Matching the original occupation window does not guarantee $(8e, 8o)$, as in the original paper. _TBC_~
 1. Run Semistochastic Heat-Bath Configuration Interaction (SHCI) with Dice over the space MP2 capped, diagonalise its one-particle density, and keep the natural orbitals with $\text{lo} \le n_{i} \le \text{hi}$. An orbital above the window is doubly occupied and retires its pair to the core; one below it is empty and joins the virtuals.
-    1. (*) `run.py` solves at $0.0 \le n_{i} \le 2.0$ and keeps the whole space Dice returned, then applies the paper's $0.02 \le n_{i} \le 1.97$ at the next step. Narrowing is arithmetic on the occupations, so one solve answers for any window. `EncodeProtein.SHCI` keeps the whole space by default, and `EncodeProtein.rewindow` narrows to the paper's window by default.
+    1. (*) `run.py` solves at $0.0 \le n_{i} \le 2.0$ and keeps the whole space Dice returned, then cuts a narrower window at the next step. Cutting one is arithmetic on the occupations, so one solve answers for any window. `EncodeProtein.SHCI` keeps the whole space by default, and every window `EncodeProtein.rewindow` cuts is taken from that space rather than from the window before it, so a window can be widened again as well as narrowed.
     1. (*) A window fixes no size, so it can leave a space with no excitation in it, whose correction to SAPT is exactly zero. That is rejected.
-1. Narrow the solved space to the paper's window and map the active-space fermionic Hamiltonian to a qubit Hamiltonian following the Jordan-Wigner transformation. CASCI supplies the core energy $E_{\text{core}}$, which holds the nuclear repulsion and the frozen electrons; the one-electron integrals $h_{pq}$ with the core's Coulomb and exchange folded in; and the two-electron integrals $(pq|rs)$ over the active orbitals. `qiskit-nature` maps them, and the core energy is carried as the identity so the eigenvalues are total energies.
+1. Narrow the solved space to a window CASCI can solve and map the active-space fermionic Hamiltonian to a qubit Hamiltonian following the Jordan-Wigner transformation. CASCI supplies the core energy $E_{\text{core}}$, which holds the nuclear repulsion and the frozen electrons; the one-electron integrals $h_{pq}$ with the core's Coulomb and exchange folded in; and the two-electron integrals $(pq|rs)$ over the active orbitals. `qiskit-nature` maps them, and the core energy is carried as the identity so the eigenvalues are total energies.
+    1. (*) The paper cut at fixed thresholds, $0.02 \le n_{i} \le 1.97$. `EncodeProtein.rewindow` derives its thresholds by default, keeping the `ncas_limit` orbitals a single determinant describes worst, ranked by $\min(n_{i}, 2 - n_{i})$ as the MP2 cap ranks. The paper's window is still `rewindow(0.02, 1.97)`.
+    1. (*) Fourteen orbitals is the limit. Truncation's cost is measured afterwards from the energies the artefacts keep, as $\eta = (E_{\text{CASCI}} - E_{\text{RHF}}) / (E_{\text{SHCI}} - E_{\text{RHF}})$.
     1. (*) Jordan-Wigner instead of Bravyi-Kitaev.
     1. (*) The three integrals are what is stored, not the operator. They rebuild it under any mapping and are smaller than it by orders of magnitude.
 1. Finally, solve the narrowed space with Complete Active Space Configuration Interaction (CASCI), from the three integrals, and keep its energy and the ground state's spin-summed one- and two-particle density matrices over the active orbitals.
@@ -223,6 +225,8 @@ Among accepted complexes, many cutouts are highly charged, as counter-charges th
 
 A complex whose preparation is kept is read back without its inputs, so a job named after a screen's directory, such as `python run.py filter_v1_1_mm_unsize --complexes 7LOE_Y84`, carries on from that screen's preparations with no benchmark set on disk. `scripts/run.sh` runs the complexes of that screen's `chosen.csv` this way on the cluster. A complex that has to be prepared, or every one under `--force`, is found in the benchmark set by `filter.inventory`, from the same inputs `filter.py` screens.
 
+`--rewindow` cuts the window again over a complex already encoded, discarding the Hamiltonian and the state solved over the window before it. On its own it leaves the `--orbitals` orbitals a single determinant describes worst, fourteen by default; `--rewindow 0.02 1.97` cuts at the paper's thresholds instead. Every cut is taken from `<complex>_solved.npz`.
+
 | File | Written by | Holds |
 |---|---|---|
 | `<complex>_prepared.npz` | `PrepareComplex.prepare` | `cutout` (the capped cutout, as PDB), `poses` (as protonation, minimisation and busting left them, as mol blocks), `source` (the file name, carrying rank and confidence), `charge`, `electrons`, `heavy_atoms`, `excluded`, `failed` |
@@ -237,7 +241,7 @@ Each class reads back whatever its directory holds when it is constructed, and a
 
 Artefacts are matched on the job's name alone, so a job is assumed consistent: a change to preparation wants a new name or `--force`.
 
-The solved space is not rewritten once the Hamiltonian is built, so it stays at the window SHCI solved, which any narrower window can be taken from.
+The solved space is not rewritten once the Hamiltonian is built, so it stays at the window SHCI solved, which every other window is taken from.
 
 A complex whose narrowed space holds more than 16 orbitals, or whose ground state is not a singlet, fails at CASCI with its Hamiltonian already kept.
 

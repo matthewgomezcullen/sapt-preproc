@@ -7,6 +7,8 @@ A stage whose artefact is already kept is read back rather than run again. A com
     with no benchmark set on disk.
 
     python run.py filter_v1_1_mm_unsize --complexes 7LOE_Y84 7F5D_EUO
+
+    python run.py filter_v1_1_mm_unsize --rewindow --orbitals 14
 """
 
 import argparse
@@ -51,7 +53,15 @@ def _load(out, complexes=None, force=False) -> list[PrepareComplex]:
     return [loaded[name] for name in complexes]
 
 
-def run(name, out=OUT, complexes=None, force=False, prepare_only=False):
+def _window(given):
+    if given is None:
+        return None
+    if len(given) not in (0, 2):
+        raise SystemExit("--rewindow takes both thresholds, lo and hi, or neither")
+    return tuple(given)
+
+
+def run(name, out=OUT, complexes=None, force=False, prepare_only=False, window=None, orbitals=None):
     out = os.path.join(out, name)
     for complex in _load(out, complexes, force):
         if force or not complex.prepared():
@@ -63,12 +73,12 @@ def run(name, out=OUT, complexes=None, force=False, prepare_only=False):
         if force or not ligand.solved():
             ligand.RHF()
         protein = EncodeProtein(complex, complex.out)
+        if orbitals is not None:
+            protein.ncas_limit = orbitals
         if force or not protein.solved():
             protein.solve()
-        if force or not protein.encoded():
-            # Dice solved the whole window. The Hamiltonian is over the paper's, which `rewindow`
-            # takes by default, and the solved space is kept as Dice left it.
-            protein.rewindow()
+        if force or window is not None or not protein.encoded():
+            protein.rewindow(*(window or ()))
             protein.encode()
         if force or not protein.correlated():
             protein.CASCI()
@@ -90,11 +100,28 @@ if __name__ == "__main__":
         help="Run every stage again, even one already kept.",
     )
     parser.add_argument("--prepare-only", action="store_true", help="Prepare only. Don't encode.")
+    parser.add_argument(
+        "--rewindow",
+        nargs="*",
+        type=float,
+        default=None,
+        metavar=("LO", "HI"),
+        help="Cut the window again over a complex already encoded, at the thresholds LO and HI, or "
+             "at the one --orbitals leaves.",
+    )
+    parser.add_argument(
+        "--orbitals",
+        type=int,
+        default=None,
+        help="The most orbitals a window with no thresholds leaves. Fourteen by default.",
+    )
     arguments = parser.parse_args()
     run(
         arguments.name,
         arguments.out,
         arguments.complexes,
         arguments.force,
-        arguments.prepare_only
+        arguments.prepare_only,
+        _window(arguments.rewindow),
+        arguments.orbitals,
     )

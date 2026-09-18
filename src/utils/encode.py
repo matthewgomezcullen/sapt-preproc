@@ -212,6 +212,14 @@ def window(orbitals, density, ncas, nelecas, core, lo, hi):
         hi,
     )
 
+def generate_thresholds(occupations, ncas):
+    """
+    The window that keeps the `ncas` orbitals ranked by min(n, 2 - n).
+    """
+    fractional = np.minimum(occupations, 2 - occupations)
+    kept = np.sort(np.argsort(-fractional, kind="stable")[:ncas])
+    return occupations[kept[-1]], occupations[kept[0]]
+
 def select(orbitals, occupations, nelecas, lo, hi):
     """
     Selects orbitals from a window and returns the resulting space.

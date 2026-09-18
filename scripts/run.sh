@@ -85,10 +85,10 @@ export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 
 export PYSCF_MAX_MEMORY="$(( ${SLURM_MEM_PER_NODE:-32768} * 3 / 4 ))"
 
-# CASCI transforms the integrals of the space Dice solves through a swap file, every pair of its fifty
-# orbitals against every pair of basis functions: 58 GB on the largest cutout. It goes to the job's
-# $SCRATCH, on the shared filesystem, rather than a node-local disk of unknown size. Both are removed
-# when the job ends.
+# CASCI transforms the integrals through a swap file, every pair of the window's orbitals against
+# every pair of basis functions: 5 GB on the largest cutout at the fourteen orbitals a window leaves,
+# and 58 GB at the fifty Dice solves. It goes to the job's $SCRATCH, on the shared filesystem, rather
+# than a node-local disk of unknown size. Both are removed when the job ends.
 export PYSCF_TMPDIR="${SCRATCH:-${TMPDIR:-/tmp}}"
 
 # How Dice is launched. `setup.sh` put it on the PATH, and empty runs it on this task's one rank.
@@ -111,8 +111,11 @@ echo "[$(date +%T)] Dice      $(command -v Dice)  ${MPIPREFIX:+under $MPIPREFIX}
 echo "[$(date +%T)] Host      $(hostname)"
 kept
 
-echo "[$(date +%T)] Running the pipeline for $NAME"
-python run.py "$JOB" --complexes "$NAME"
+ASKED=("$@")
+
+echo "[$(date +%T)] Running the pipeline for $NAME ${ASKED[*]:+with ${ASKED[*]}}"
+# Expanded so that an empty ASKED passes nothing rather than an empty argument.
+python run.py "$JOB" --complexes "$NAME" ${ASKED[@]+"${ASKED[@]}"}
 
 kept
 echo "[$(date +%T)] Done"

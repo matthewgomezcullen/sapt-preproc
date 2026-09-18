@@ -262,8 +262,7 @@ def test_a_finished_complex_is_read_back_rather_than_run_again(encoded_job, tmp_
     monkeypatch.setattr(SolveLigand, "RHF", refuse)
     for stage in ("RHF", "AVAS", "MP2", "SHCI", "rewindow", "H", "CASCI"):
         monkeypatch.setattr(EncodeProtein, stage, refuse)
-    for stage in ("elst", "exch", "interaction"):
-        monkeypatch.setattr(SAPT, stage, refuse)
+    monkeypatch.setattr(SAPT, "interaction", refuse)
 
     run.run(JOB, str(tmp_path), complexes=[KEPT])
 

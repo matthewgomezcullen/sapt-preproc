@@ -3,9 +3,9 @@ The SAPT stage, sapt.py's SAPT, over the water dimer: the compressed monomer, co
     (6e, 6o), stands in for the protein, and the equilibrium monomer for a pose, beside a copy of it
     pulled 100 A away.
 
-Once every pose has all of its scores, the stage keeps them as <complex>_sapt.npz in the complex's
-    directory, each against the file its pose came from. A stage handed that directory again reads
-    them back rather than scoring the poses again.
+Each pose's scores are kept in <complex>_sapt.npz in the complex's directory as soon as the pose has
+    them, each against the file its pose came from. A stage handed that directory again scores
+    only the poses it lacks.
 """
 
 import shutil
@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from pyscf.scf import jk
 
 import monomers
 from sapt import SAPT
@@ -58,6 +59,10 @@ def ligand():
 
 def refuse(*args, **kwargs):
     raise AssertionError("a kept pose was scored again")
+
+
+def kill(*args, **kwargs):
+    raise RuntimeError("the job was killed")
 
 
 @pytest.fixture(scope="module")
@@ -107,15 +112,43 @@ def test_the_scores_are_kept_once_every_pose_has_them(scored_stage):
         np.testing.assert_array_equal(record[key], getattr(scored_stage, key))
 
 
-@pytest.mark.parametrize("term", ["elst", "exch"])
-def test_nothing_is_kept_before_every_score_is_in(tmp_path, term):
-    stage = SAPT(protein(), ligand(), str(tmp_path / NAME))
+def test_a_stage_stopped_part_way_resumes_after_the_last_pose_it_kept(scored_stage, tmp_path):
+    out = str(tmp_path / NAME)
+    stopped = ligand()
+    stopped.mean_fields[1] = SimpleNamespace(make_rdm1=kill)
+    with pytest.raises(RuntimeError):
+        SAPT(protein(), stopped, out).interaction()
 
-    getattr(stage, term)()
-    stage.save()
+    resumed = ligand()
+    resumed.mean_fields[0] = SimpleNamespace(make_rdm1=refuse)
+    stage = SAPT(protein(), resumed, out)
+    stage.interaction()
 
-    assert not stage.scored()
-    assert save.load_sapt(NAME, stage.out) is None
+    for key in SCORES:
+        np.testing.assert_allclose(
+            getattr(stage, key), getattr(scored_stage, key), rtol=0, atol=EXACT
+        )
+
+
+def test_each_pose_makes_one_pass_over_the_aaab_block(monkeypatch):
+    """
+    (AA|AB), the costliest block a pose needs. The cumulant's pair densities use the separable
+        exchange's pass over it.
+    """
+    passes = []
+    get_jk = jk.get_jk
+
+    def counted(mols, *args, **kwargs):
+        passes.append(mols)
+        return get_jk(mols, *args, **kwargs)
+
+    monkeypatch.setattr(jk, "get_jk", counted)
+    a = monomers.build_water(monomers.COMPRESSED)
+
+    SAPT(protein(), ligand()).interaction()
+
+    # Two poses
+    assert sum([mol is a for mol in mols] == [True, True, True, False] for mols in passes) == 2
 
 
 def test_a_kept_record_is_read_back_rather_than_scored_again(scored_stage, tmp_path, monkeypatch):

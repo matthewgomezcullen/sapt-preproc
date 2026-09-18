@@ -63,10 +63,13 @@ SCORE_FIELDS = ["name", "source", "confidence"]
 
 MANIFEST_FIELDS = ["name", "protein", "sdf"]
 
-# csv hands every column back as a string.
-INTEGERS = ["rank_docked", "rank_minimised", "poses", "near_native"]
-DECIMALS = ["confidence_docked", "confidence_minimised", "rmsd", "fraction", "confidence"]
-BOOLEANS = ["top1_minimised", "top1_docked"]
+# csv hands every column back as a string. sapt.py's tables are read back here too.
+INTEGERS = ["rank_docked", "rank_minimised", "poses", "near_native", "rank_sapt"]
+DECIMALS = [
+    "confidence_docked", "confidence_minimised", "rmsd", "fraction", "confidence",
+    "elst", "exch", "cumulant", "interaction",
+]
+BOOLEANS = ["top1_minimised", "top1_docked", "top1_sapt"]
 
 # DiffDock names a scored pose rank<N>_confidence<X>.sdf.
 SCORED = re.compile(r"^rank(\d+)_confidence(-?\d+\.\d+)\.sdf$")
@@ -176,17 +179,24 @@ def rank(rows):
     """
     A tie goes to the pose DiffDock ranked better.
     """
-    ordered = sorted(
-        rows, key=lambda row: (row["name"], -row["confidence_minimised"], row["rank_docked"])
+    return number(
+        rows, lambda row: (-row["confidence_minimised"], row["rank_docked"]), "rank_minimised"
     )
-    ranked = []
+
+
+def number(rows, order, field):
+    """
+    Each complex's rows numbered from 1 as `field`, in the order the key `order` gives.
+    """
+    ordered = sorted(rows, key=lambda row: (row["name"], order(row)))
+    numbered = []
     for _, group in itertools.groupby(ordered, key=lambda row: row["name"]):
         for position, row in enumerate(group, start=1):
-            ranked.append({**row, "rank_minimised": position})
-    return ranked
+            numbered.append({**row, field: position})
+    return numbered
 
 
-def _is_near_native(row, threshold):
+def is_near_native(row, threshold):
     return None if row["rmsd"] is None else row["rmsd"] <= threshold
 
 
@@ -202,14 +212,14 @@ def summarise(rows, threshold=filter.NEAR_NATIVE):
         sorted(rows, key=lambda row: row["name"]), key=lambda row: row["name"]
     ):
         theirs = list(group)
-        near = [row for row in theirs if _is_near_native(row, threshold)]
+        near = [row for row in theirs if is_near_native(row, threshold)]
         summary.append({
             "name": name,
             "poses": len(theirs),
             "near_native": len(near),
             "fraction": len(near) / len(theirs),
-            "top1_minimised": _is_near_native(min(theirs, key=lambda row: row["rank_minimised"]), threshold),
-            "top1_docked": _is_near_native(min(theirs, key=lambda row: row["rank_docked"]), threshold),
+            "top1_minimised": is_near_native(min(theirs, key=lambda row: row["rank_minimised"]), threshold),
+            "top1_docked": is_near_native(min(theirs, key=lambda row: row["rank_docked"]), threshold),
         })
     return summary
 

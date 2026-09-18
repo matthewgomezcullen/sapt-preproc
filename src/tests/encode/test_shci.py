@@ -372,18 +372,29 @@ def test_rewindowing_needs_no_second_solve():
 
 
 @pytest.mark.dice
-def test_rewindowing_twice_narrows_from_where_it_left_off():
-    """
-    Widening after narrowing cannot recover what the first window discarded.
-    """
+def test_rewindowing_twice_cuts_from_the_space_dice_solved():
     encoded = capped()
     encoded.SHCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
 
     encoded.rewindow(NARROW[0], NARROW[1])
-    narrowed = encoded.active_space_size
+    narrowed = (encoded.active_electrons, encoded.active_space_size)
     encoded.rewindow(WIDE[0], WIDE[1])
 
-    assert encoded.active_space_size == narrowed
+    assert narrowed == NARROWED
+    assert (encoded.active_electrons, encoded.active_space_size) == WIDENED
+
+
+@pytest.mark.dice
+def test_a_derived_window_leaves_the_orbitals_the_limit_allows():
+    encoded = capped()
+    encoded.SHCI(eps1=SELECTION, lo=EVERYTHING[0], hi=EVERYTHING[1])
+    encoded.ncas_limit = NARROWED[1]
+
+    encoded.rewindow()
+
+    assert encoded.active_space_size == encoded.ncas_limit
+    assert 0 < encoded.active_electrons < 2 * encoded.active_space_size
+    assert np.all(np.diff(encoded.occupations) <= 0)
 
 
 @pytest.mark.dice

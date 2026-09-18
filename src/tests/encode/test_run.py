@@ -1,9 +1,9 @@
 """
 The driver, run.py.
 
-Dice solves the space at the whole window, 0 <= n <= 2, and the Hamiltonian is encoded over the
-    paper's, 0.02 <= n <= 1.97. The solved space stays kept at the window Dice solved it at, which any
-    narrower one can be taken from.
+Dice solves the space at the whole window, 0 <= n <= 2, and the Hamiltonian is encoded over a
+    narrower one: the thresholds the job was given, or, given none, the orbitals its limit leaves.
+    The solved space stays kept at the window Dice solved it at.
 
     7BJJ_TVW       a preparation kept with none of its inputs in the test data
     6YT6_PKE       a complex whose inputs are in the test data
@@ -37,6 +37,9 @@ NMAX = 8
 OCCUPATIONS = [1.99, 1.95, 1.90, 1.60, 0.40, 0.10, 0.05, 0.01]
 PAPER = (0.02, 1.97)
 WINDOWED = (6, 6)  # (nelecas, ncas)
+
+NCAS_LIMIT = 4
+LIMITED = (4, 4)
 
 
 def keep(out, name, artefact=KEPT):
@@ -102,6 +105,15 @@ def handed_on(calls):
 
 def refuse(*args, **kwargs):
     raise AssertionError("a stage that was kept ran again")
+
+
+def encode(kept, out, **asked):
+    """
+    The kept job, carried through the driver again in a directory of its own under `asked`.
+    """
+    shutil.copytree(kept, out, dirs_exist_ok=True)
+    run.run(JOB, out, complexes=[KEPT], **asked)
+    return os.path.join(out, JOB, KEPT)
 
 
 @pytest.fixture(scope="module")
@@ -188,13 +200,29 @@ def test_a_complex_neither_kept_nor_in_the_benchmark_set_is_refused(tmp_path, mo
         run.run(JOB, str(tmp_path), complexes=[INPUTS], prepare_only=True)
 
 
-def test_the_hamiltonian_is_encoded_over_the_papers_window(encoded_job):
-    encoded = save.load_encoded(KEPT, os.path.join(encoded_job, JOB, KEPT))
+def test_the_hamiltonian_is_encoded_over_the_thresholds_asked_for(solved_job, tmp_path):
+    directory = encode(solved_job, str(tmp_path), window=PAPER)
+
+    encoded = save.load_encoded(KEPT, directory)
 
     lo, hi = PAPER
     nelecas, ncas = WINDOWED
     assert (encoded["active_electrons"], encoded["active_space_size"]) == WINDOWED
     np.testing.assert_allclose(encoded["occupations"], [n for n in OCCUPATIONS if lo <= n <= hi])
+    assert encoded["h1"].shape == (ncas, ncas)
+    assert encoded["h2"].shape == (ncas,) * 4
+
+
+def test_the_hamiltonian_is_encoded_over_the_orbitals_asked_for(solved_job, tmp_path):
+    """
+    Asked for no thresholds, the driver encodes over the window its limit leaves.
+    """
+    directory = encode(solved_job, str(tmp_path), orbitals=NCAS_LIMIT)
+
+    encoded = save.load_encoded(KEPT, directory)
+
+    nelecas, ncas = LIMITED
+    assert (encoded["active_electrons"], encoded["active_space_size"]) == LIMITED
     assert encoded["h1"].shape == (ncas, ncas)
     assert encoded["h2"].shape == (ncas,) * 4
 
@@ -213,7 +241,7 @@ def test_a_finished_complex_is_read_back_rather_than_run_again(encoded_job, tmp_
     monkeypatch.setattr(filter, "inventory", refuse)
     monkeypatch.setattr(PrepareComplex, "prepare", refuse)
     monkeypatch.setattr(SolveLigand, "RHF", refuse)
-    for stage in ("RHF", "AVAS", "MP2", "SHCI", "H"):
+    for stage in ("RHF", "AVAS", "MP2", "SHCI", "rewindow", "H"):
         monkeypatch.setattr(EncodeProtein, stage, refuse)
 
     run.run(JOB, str(tmp_path), complexes=[KEPT])
@@ -222,3 +250,46 @@ def test_a_finished_complex_is_read_back_rather_than_run_again(encoded_job, tmp_
     assert after.keys() == before.keys()
     for key, value in before.items():
         np.testing.assert_array_equal(after[key], value)
+
+
+def test_a_window_asked_for_encodes_a_complex_that_is_already_encoded(encoded_job, tmp_path):
+    directory = encode(encoded_job, str(tmp_path), window=PAPER)
+
+    encoded = save.load_encoded(KEPT, directory)
+
+    nelecas, ncas = WINDOWED
+    assert (encoded["active_electrons"], encoded["active_space_size"]) == WINDOWED
+    assert encoded["h1"].shape == (ncas, ncas)
+
+
+def test_the_state_solved_over_the_window_before_is_solved_again(encoded_job, tmp_path):
+    directory = encode(encoded_job, str(tmp_path), window=PAPER)
+
+    correlated = save.load_casci(KEPT, directory)
+
+    _, ncas = WINDOWED
+    assert correlated["rdm1"].shape == (ncas, ncas)
+    assert correlated["rdm2"].shape == (ncas,) * 4
+
+
+def test_a_second_window_is_cut_from_the_space_dice_solved(encoded_job, tmp_path):
+    directory = encode(encoded_job, str(tmp_path), window=PAPER)
+
+    solved = save.load_solved(KEPT, directory)
+
+    assert (solved["active_electrons"], solved["active_space_size"]) == (NMAX, NMAX)
+    np.testing.assert_allclose(solved["occupations"], OCCUPATIONS)
+
+
+@pytest.mark.parametrize(
+    "given, window",
+    [(None, None), ([], ()), (list(PAPER), PAPER)],
+    ids=["absent", "bare", "thresholds"],
+)
+def test_the_rewindow_argument_is_the_window_it_asks_for(given, window):
+    assert run._window(given) == window
+
+
+def test_one_threshold_without_the_other_is_refused():
+    with pytest.raises(SystemExit):
+        run._window([PAPER[0]])

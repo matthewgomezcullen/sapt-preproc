@@ -10,3 +10,4 @@ releases/
 *.npy
 af3_inference/
 inference/
+sapt*.out

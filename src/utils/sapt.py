@@ -7,6 +7,7 @@ Every integral spanning both is PySCF's, and none is held as a four-index tensor
 A two-particle density matrix is the part its one-particle one makes plus a cumulant. Exchange is
     linear in each, so it comes in two parts: `exchange` over the two AO densities, which is all of
     it for determinants, and `cumulant_exchange` for what the correlated monomer's cumulant adds.
+    `exchange_parts` gives both from one pass a block.
 """
 
 import numpy as np
@@ -174,23 +175,38 @@ def exchange(mol_a, density_a, mol_b, density_b):
 
         where J and K are Eq. (10)'s, each over the block its partner spans.
     """
+    return exchange_parts(mol_a, density_a, mol_b, density_b)[0]
+
+
+def exchange_parts(mol_a, density_a, mol_b, density_b, active=None, cumulant=None):
+    """
+    Both parts of the exchange: `exchange`, and what `cumulant_exchange` adds for A's `cumulant` over
+        its `active` orbitals, which is zero without one.
+
+    One J/K build a block serves both. The cumulant's pair densities ride along the separable part's
+        builds over AA|AB and AA|BB, and its J[D_B] over AA is theirs. The pass over AA|AB is the
+        costliest a pose makes, and a density more costs little beside its integrals.
+    """
     s = overlap(mol_a, mol_b)
     w = density_a @ s @ density_b
+    pairs, folded = ([], None) if cumulant is None else _pairs(active, cumulant)
     k_b = generalized(mol_a, mol_b, "abba", density_b, "ijkl,jk->il")
     # The exchange-type contractions are kj->il and ik->jl. D_B is symmetric, and so is the pair ij
     # over A's functions, so each is jk->il, which keeps the pair's symmetry.
     j_b, kb_mixed = generalized(
         mol_a, mol_b, "abbb", [density_b, density_b], ["ijkl,lk->ij", "ijkl,jk->il"]
     )
-    j_a, ka_mixed = generalized(
-        mol_a, mol_b, "aaab", [density_a, density_a], ["ijkl,ji->kl", "ijkl,jk->il"]
+    j_a, ka_mixed, *with_a = generalized(
+        mol_a, mol_b, "aaab",
+        [density_a, density_a, *pairs],
+        ["ijkl,ji->kl", "ijkl,jk->il"] + ["ijkl,ji->kl"] * len(pairs),
     )
-    j_r, j_d, k_w = generalized(
+    j_r, j_d, k_w, *with_b = generalized(
         mol_a, mol_b, "aabb",
-        [density_b @ s.T @ w, density_b, w],
-        ["ijkl,lk->ij", "ijkl,lk->ij", "ijkl,jk->il"],
+        [density_b @ s.T @ w, density_b, w, *pairs],
+        ["ijkl,lk->ij", "ijkl,lk->ij", "ijkl,jk->il"] + ["ijkl,ji->kl"] * len(pairs),
     )
-    return (
+    separable = (
         -np.vdot(density_a, k_b) / 2
         - np.vdot(w, j_b - kb_mixed / 2) / 2
         - np.vdot(w, j_a - ka_mixed / 2) / 2
@@ -198,6 +214,9 @@ def exchange(mol_a, density_a, mol_b, density_b):
         + np.vdot(w @ s.T @ density_a, j_d) / 4
         - np.vdot(w, k_w) / 8
     )
+    if cumulant is None:
+        return separable, 0.0
+    return separable, _cumulant_share(active, cumulant, folded, s, density_b, with_a, with_b, j_d)
 
 
 def cumulant(rdm1, rdm2):
@@ -225,22 +244,38 @@ def cumulant_exchange(mol_a, active, cumulant, mol_b, density_b):
     Both integrals come from J builds of the active pair densities over the AB and BB blocks. The
         pair vw is symmetric, so one density serves both orders.
     """
-    s = overlap(mol_a, mol_b)
-    x = density_b @ s.T @ active
+    pairs, folded = _pairs(active, cumulant)
+    return _cumulant_share(
+        active, cumulant, folded, overlap(mol_a, mol_b), density_b,
+        generalized(mol_a, mol_b, "aaab", pairs, "ijkl,ji->kl"),
+        generalized(mol_a, mol_b, "aabb", pairs, "ijkl,ji->kl"),
+        generalized_coulomb(mol_a, mol_b, density_b),
+    )
+
+
+def _pairs(active, cumulant):
+    """
+    The active pair densities, one an unordered pair, and the cumulant over each pair with both
+        orders summed.
+    """
     first, second = np.triu_indices(active.shape[1])
     pairs = [
         (np.outer(active[:, v], active[:, w]) + np.outer(active[:, w], active[:, v])) / 2
         for v, w in zip(first, second)
     ]
-    # The cumulant over each unordered pair, both orders summed.
     folded = cumulant[:, :, first, second] + cumulant[:, :, second, first]
     folded[:, :, first == second] /= 2
+    return pairs, folded
 
-    with_a = np.array(generalized(mol_a, mol_b, "aaab", pairs, "ijkl,ji->kl"))
-    with_b = np.array(generalized(mol_a, mol_b, "aabb", pairs, "ijkl,ji->kl"))
-    coulomb_active = active.T @ generalized_coulomb(mol_a, mol_b, density_b) @ active
+
+def _cumulant_share(active, cumulant, folded, s, density_b, with_a, with_b, coulomb):
+    """
+    `cumulant_exchange` from its builds: the pair densities' J builds over AA|AB and AA|BB, `with_a`
+        and `with_b`, and J[D_B] over AA, `coulomb`.
+    """
+    x = density_b @ s.T @ active
     return -(
-        np.einsum("tup,pkl,ku,lt->", folded, with_a, active, x, optimize=True)
-        + np.einsum("tuvw,tu,vw->", cumulant, active.T @ s @ x, coulomb_active)
-        - np.einsum("tup,pkl,kt,lu->", folded, with_b, x, x, optimize=True) / 2
+        np.einsum("tup,pkl,ku,lt->", folded, np.array(with_a), active, x, optimize=True)
+        + np.einsum("tuvw,tu,vw->", cumulant, active.T @ s @ x, active.T @ coulomb @ active)
+        - np.einsum("tup,pkl,kt,lu->", folded, np.array(with_b), x, x, optimize=True) / 2
     ) / 2

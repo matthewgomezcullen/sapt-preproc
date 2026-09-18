@@ -5,8 +5,9 @@
 # Each complex is read back from the preparation the screen kept in src/out/<job>/<complex>. run.py 
 # solves every pose at RHF, carries the protein through RHF, AVAS, MP2 and Dice, encodes the 
 # Hamiltonian and solves it by CASCI, then scores every pose against the protein by SAPT, keeping each
-# stage beside the preparation. Once every task has finished and confidence.py has ranked the screen,
-# `python sapt.py --name v1_1_mm_unsize` from src/ reranks it.
+# stage beside the preparation. A task that reaches the time limit keeps every pose SAPT scored, and
+# submitting it again resumes after them. Once every task has finished and confidence.py has ranked
+# the screen, `python sapt.py --name v1_1_mm_unsize` from src/ reranks it.
 #
 # Run setup.sh once first, then, from the repo root: sbatch scripts/run.sh
 # --array on the command line runs part of it, e.g. --array=11 for the last complex of chosen.csv.

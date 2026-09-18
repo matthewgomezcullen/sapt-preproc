@@ -237,7 +237,7 @@ A complex whose preparation is kept is read back without its inputs, so a job na
 | `<complex>.dice.out` | `EncodeProtein.SHCI` | Dice's own log, kept whether or not Dice succeeded |
 | `<complex>_encoded.npz` | `EncodeProtein.encode` | `e_core`, `h1`, `h2`, and the window they are over: `active_space_size`, `active_electrons`, `occupations` |
 | `<complex>_casci.npz` | `EncodeProtein.CASCI` | the ground state: `casci_energy`, and the spin-summed one- and two-particle density matrices `rdm1` and `rdm2` |
-| `<complex>_sapt.npz` | `SAPT.interaction`, once every pose is scored | `source`, each pose's file, and one entry a pose of `electrostatics`, `exchanges`, `cumulants` and `int_energies`, in Hartree |
+| `<complex>_sapt.npz` | `SAPT.interaction`, after each pose | `source`, each pose's file, and one entry a pose of `electrostatics`, `exchanges`, `cumulants` and `int_energies`, in Hartree |
 
 Each class reads back whatever its directory holds when it is constructed, and a stage already there is not run again. Writing an artefact discards every one written after it, since they were built on the one it replaces, so `--force` reruns everything and deleting `_prepared.npz`, `_solved.npz`, `_encoded.npz`, `_casci.npz` or `_sapt.npz` reruns from that stage on. The poses' SCFs are an exception; each is built on `_prepared.npz` alone, so a new preparation discards every one of them, nothing the protein's encoding writes touches them, and deleting one solves only that pose again, though every pose is scored again, since `_sapt.npz` is built on all of them. An artefact that cannot be read, such as one cut off mid-write, counts as absent and is written over. Nothing is kept for a rejected complex.
 
@@ -247,7 +247,7 @@ The solved space is not rewritten once the Hamiltonian is built, so it stays at 
 
 A complex whose narrowed space holds more than 16 orbitals, or whose ground state is not a singlet, fails at CASCI with its Hamiltonian already kept.
 
-Once every complex is scored and `confidence.py` has ranked the screen, `python sapt.py --name v1_1_mm_unsize` reranks its poses into `sapt.csv` and `sapt_summary.csv`, beside `confidence.py`'s tables.
+A task stopped part-way through the poses, as at the time limit, keeps every pose it scored and resumes after them when submitted again. Once every complex is scored and `confidence.py` has ranked the screen, `python sapt.py --name v1_1_mm_unsize` reranks its poses into `sapt.csv` and `sapt_summary.csv`, beside `confidence.py`'s tables. A complex scored part-way is ranked over the poses it has.
 
 The qubit operator is built and not stored. `utils.encode.qubits(e_core, h1, h2)` rebuilds it exactly, under any of the three mappings.
 

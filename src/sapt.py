@@ -2,7 +2,8 @@
 First order SAPT between each complex's protein and its poses, and the ranking it gives them.
 
 SAPT scores every pose of a complex against the correlated protein. run.py runs it after CASCI, and
-    the scores are kept in <complex>_sapt.npz beside the protein's artefacts once every pose has them.
+    each pose's scores are kept in <complex>_sapt.npz beside the protein's artefacts as soon as it has
+    them, so a stage stopped part-way resumes after the last pose it kept.
 
 Ran as a script, it reranks a screen run.py has scored: confidence.csv is read from the screen's
     directory, out/filter or out/filter_<name>, and each complex's scores from the complex's own.
@@ -15,6 +16,7 @@ Ran as a script, it reranks a screen run.py has scored: confidence.csv is read f
 import argparse
 import os
 import statistics
+from datetime import datetime
 
 import confidence
 import filter
@@ -79,26 +81,16 @@ class SAPT:
         return self.density
 
 
-    def elst(self):
+    def interaction(self):
         """
-        E^(1)_elst of every pose against the protein.
-        """
-        if not self.ligand.solved():
-            raise EncodingError("Cannot score the poses before RHF has solved every one")
-        if self.density is None:
-            self.densities()
-        self.electrostatics = [
-            sapt.electrostatics(self.protein.mol, self.density, mol, mean_field.make_rdm1())
-            for mol, mean_field in zip(self.ligand.mols, self.ligand.mean_fields)
-        ]
-        return self.electrostatics
+        E^(1)_int = E^(1)_elst + E^(1)_exch(S^2) of every pose against the protein. The exchange
+            carries what the protein's cumulant adds, which is kept apart too.
 
-
-    def exch(self):
+        Each pose is kept as soon as it is scored, so a stage stopped part-way resumes after the last
+            pose it kept.
         """
-        E^(1)_exch(S^2) of every pose against the protein: the exchange of the two densities, and
-            what the protein's cumulant adds, which is kept apart too.
-        """
+        if self.scored():
+            return self.int_energies
         if not self.ligand.solved():
             raise EncodingError("Cannot score the poses before RHF has solved every one")
         if self.density is None:
@@ -110,31 +102,25 @@ class SAPT:
             self.protein.mol.nelectron,
         )
         cumulant = sapt.cumulant(self.protein.rdm1, self.protein.rdm2)
-        self.exchanges, self.cumulants = [], []
-        for mol, mean_field in zip(self.ligand.mols, self.ligand.mean_fields):
-            density = mean_field.make_rdm1()
-            share = sapt.cumulant_exchange(self.protein.mol, active, cumulant, mol, density)
-            self.exchanges.append(
-                sapt.exchange(self.protein.mol, self.density, mol, density) + share
+        if self.int_energies is None:
+            self.electrostatics, self.exchanges, self.cumulants, self.int_energies = [], [], [], []
+        poses = len(self.ligand.mols)
+        for index in range(len(self.int_energies), poses):
+            mol, density = self.ligand.mols[index], self.ligand.mean_fields[index].make_rdm1()
+            electrostatic = sapt.electrostatics(self.protein.mol, self.density, mol, density)
+            separable, share = sapt.exchange_parts(
+                self.protein.mol, self.density, mol, density, active, cumulant
             )
+            self.electrostatics.append(electrostatic)
+            self.exchanges.append(separable + share)
             self.cumulants.append(share)
-        return self.exchanges
-
-
-    def interaction(self):
-        """
-        E^(1)_int = E^(1)_elst + E^(1)_exch(S^2) of every pose against the protein. Kept once every
-            pose has it.
-        """
-        if self.electrostatics is None:
-            self.elst()
-        if self.exchanges is None:
-            self.exch()
-        self.int_energies = [
-            electrostatic + exchange
-            for electrostatic, exchange in zip(self.electrostatics, self.exchanges)
-        ]
-        self.save()
+            self.int_energies.append(electrostatic + self.exchanges[-1])
+            self.save()
+            print(
+                f"[{datetime.now():%H:%M:%S}] Scored    pose {index + 1} of {poses}, "
+                f"{self.ligand.prepared.source[index]}: E_int {self.int_energies[-1]:.6f} Hartree",
+                flush=True,
+            )
         return self.int_energies
 
 
@@ -142,17 +128,22 @@ class SAPT:
         """
         Whether every pose has all of its scores.
         """
-        return self.int_energies is not None
+        return self.int_energies is not None and len(self.int_energies) == len(
+            self.ligand.prepared.source
+        )
 
 
     def save(self):
         """
-        Write the scores once every pose has all of them.
+        Write the scores of every pose scored so far, each against the file its pose came from.
         """
-        if not self.out or not self.scored():
+        if not self.out or not self.int_energies:
             return
         save.save_sapt(
-            {"source": self.ligand.prepared.source, **{key: getattr(self, key) for key in SCORED}},
+            {
+                "source": self.ligand.prepared.source[:len(self.int_energies)],
+                **{key: getattr(self, key) for key in SCORED},
+            },
             self._name(),
             self.out,
         )

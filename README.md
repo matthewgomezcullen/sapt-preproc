@@ -208,6 +208,7 @@ For `run_size.sh` and `test.sh`, you may alternatively download the data from th
 | `--hpc-long-stab` | the stability analysis of a cutout's converged SCF | six to ten hours each, an order of magnitude beyond the solve it checks |
 | `--hpc-long-dice` | Dice over the fifty orbitals MP2 leaves on a cutout | unmeasured; this is what the flag exists to find out |
 | `--hpc-long-run` | the driver, end to end over a cutout, as far as CASCI | repeats AVAS, MP2 and Dice rather than sharing the cached ones |
+| `--sapt-long` | the SAPT terms over a correlated cutout, 7LOE_Y84's, and its poses | the exchange over three poses is the longest |
 
 Every test carries exactly one of these marks: `pytest tests --encode --hpc --hpc-long-dice` solves a cutout and runs Dice over it, without also paying for the stability analysis or a second pass through the driver.
 
@@ -221,7 +222,7 @@ Among accepted complexes, many cutouts are highly charged, as counter-charges th
 
 ## `run.py`
 
-`python run.py <name>` carries every complex of the benchmark set, or those `--complexes` names, from preparation to the CASCI solution of its Hamiltonian. Each complex keeps its artefacts in `out/<name>/<complex>/`, and `filter.py` keeps its preparations the same way in `out/filter/<complex>/`, or `out/filter_<name>/<complex>/` under `--name`, with its `filter.csv` and `confidence.py`'s tables beside them.
+`python run.py <name>` carries every complex of the benchmark set, or those `--complexes` names, from preparation to the CASCI solution of its Hamiltonian, and scores every pose against it at first order SAPT, as `SAPT.md` describes. Each complex keeps its artefacts in `out/<name>/<complex>/`, and `filter.py` keeps its preparations the same way in `out/filter/<complex>/`, or `out/filter_<name>/<complex>/` under `--name`, with its `filter.csv` and `confidence.py`'s tables beside them.
 
 A complex whose preparation is kept is read back without its inputs, so a job named after a screen's directory, such as `python run.py filter_v1_1_mm_unsize --complexes 7LOE_Y84`, carries on from that screen's preparations with no benchmark set on disk. `scripts/run.sh` runs the complexes of that screen's `chosen.csv` this way on the cluster. A complex that has to be prepared, or every one under `--force`, is found in the benchmark set by `filter.inventory`, from the same inputs `filter.py` screens.
 
@@ -236,14 +237,17 @@ A complex whose preparation is kept is read back without its inputs, so a job na
 | `<complex>.dice.out` | `EncodeProtein.SHCI` | Dice's own log, kept whether or not Dice succeeded |
 | `<complex>_encoded.npz` | `EncodeProtein.encode` | `e_core`, `h1`, `h2`, and the window they are over: `active_space_size`, `active_electrons`, `occupations` |
 | `<complex>_casci.npz` | `EncodeProtein.CASCI` | the ground state: `casci_energy`, and the spin-summed one- and two-particle density matrices `rdm1` and `rdm2` |
+| `<complex>_sapt.npz` | `SAPT.interaction`, once every pose is scored | `source`, each pose's file, and one entry a pose of `electrostatics`, `exchanges`, `cumulants` and `int_energies`, in Hartree |
 
-Each class reads back whatever its directory holds when it is constructed, and a stage already there is not run again. Writing an artefact discards every one written after it, since they were built on the one it replaces, so `--force` reruns everything and deleting `_prepared.npz`, `_solved.npz`, `_encoded.npz` or `_casci.npz` reruns from that stage on. The poses' SCFs are an exception; each is built on `_prepared.npz` alone, so a new preparation discards every one of them, nothing the protein's encoding writes touches them, and deleting one solves only that pose again. An artefact that cannot be read, such as one cut off mid-write, counts as absent and is written over. Nothing is kept for a rejected complex.
+Each class reads back whatever its directory holds when it is constructed, and a stage already there is not run again. Writing an artefact discards every one written after it, since they were built on the one it replaces, so `--force` reruns everything and deleting `_prepared.npz`, `_solved.npz`, `_encoded.npz`, `_casci.npz` or `_sapt.npz` reruns from that stage on. The poses' SCFs are an exception; each is built on `_prepared.npz` alone, so a new preparation discards every one of them, nothing the protein's encoding writes touches them, and deleting one solves only that pose again, though every pose is scored again, since `_sapt.npz` is built on all of them. An artefact that cannot be read, such as one cut off mid-write, counts as absent and is written over. Nothing is kept for a rejected complex.
 
 Artefacts are matched on the job's name alone, so a job is assumed consistent: a change to preparation wants a new name or `--force`.
 
 The solved space is not rewritten once the Hamiltonian is built, so it stays at the window SHCI solved, which every other window is taken from.
 
 A complex whose narrowed space holds more than 16 orbitals, or whose ground state is not a singlet, fails at CASCI with its Hamiltonian already kept.
+
+Once every complex is scored and `confidence.py` has ranked the screen, `python sapt.py --name v1_1_mm_unsize` reranks its poses into `sapt.csv` and `sapt_summary.csv`, beside `confidence.py`'s tables.
 
 The qubit operator is built and not stored. `utils.encode.qubits(e_core, h1, h2)` rebuilds it exactly, under any of the three mappings.
 

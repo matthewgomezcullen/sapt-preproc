@@ -1,10 +1,12 @@
 """
-Carry complexes of the benchmark set through preparation, encoding and CASCI, keeping what each
-    stage produces in <out>/<name>/<complex>.
+Carry complexes of the benchmark set through preparation, encoding, CASCI and SAPT, keeping what
+    each stage produces in <out>/<name>/<complex>.
 
 A stage whose artefact is already kept is read back rather than run again. A complex whose
     preparation is kept needs none of its inputs, so a job can start from a screen's preparations
     with no benchmark set on disk.
+
+Once every complex is scored, sapt.py reranks the screen's poses on their scores.
 
     python run.py filter_v1_1_mm_unsize --complexes 7LOE_Y84 7F5D_EUO
 
@@ -17,6 +19,7 @@ import os
 import filter
 from prepare import PrepareComplex
 from encode import EncodeProtein, SolveLigand
+from sapt import SAPT
 
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -82,6 +85,9 @@ def run(name, out=OUT, complexes=None, force=False, prepare_only=False, window=N
             protein.encode()
         if force or not protein.correlated():
             protein.CASCI()
+        scorer = SAPT(protein, ligand, complex.out)
+        if force or not scorer.scored():
+            scorer.interaction()
 
 
 if __name__ == "__main__":

@@ -48,11 +48,12 @@ def load_pose_scf(name, dir, index):
 
 def save_pose_scf(record, name, dir, index):
     """
-    Nothing is built on a pose's SCF, so only discard the file replaced. 
+    Only SAPT's scores are built on a pose's SCF, so they are discarded with the file replaced.
     """
     path = pose_scf_path(name, dir, index)
     if os.path.exists(path):
         os.remove(path)
+    _supersede(sapt_path, name, dir)
     _save_chk(record, path)
 
 
@@ -99,6 +100,19 @@ def save_casci(record, name, dir):
     _save(record, casci_path(name, dir))
 
 
+def sapt_path(name, dir):
+    return os.path.join(dir, f"{name}_sapt.npz")
+
+
+def load_sapt(name, dir):
+    return _load(sapt_path(name, dir))
+
+
+def save_sapt(record, name, dir):
+    _supersede(sapt_path, name, dir)
+    _save(record, sapt_path(name, dir))
+
+
 def _load(path):
     try:
         with np.load(path, allow_pickle=False) as stored:
@@ -135,10 +149,12 @@ def _supersede(artefact, name, dir):
     """
     Discard `artefact`, and everything written after it.
 
-    The poses' SCFs are built on the preparation alone, so a new preparation is the only artefact
-        that discards them.
+    The poses' SCFs are built on the preparation alone, so a new preparation discards them. SAPT's 
+        scores are built on everything, the poses' SCFs included, so they come last.
     """
-    order = [prepared_path, scf_path, dice_log_path, solved_path, encoded_path, casci_path]
+    order = [
+        prepared_path, scf_path, dice_log_path, solved_path, encoded_path, casci_path, sapt_path
+    ]
     for later in order[order.index(artefact):]:
         path = later(name, dir)
         if os.path.exists(path):

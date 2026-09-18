@@ -3,8 +3,9 @@
 # The whole test suite, as one array job.
 #
 # Task 0 runs every test that does not solve a cutout of the subset: the quick ones, the preparation
-# pipelines, Dice over the fragment and DiffDock's scoring pass. Each task after it carries one complex
-# of the subset through RHF, AVAS, MP2, Dice and the stability analysis, all sharing the one SCF.
+# pipelines, Dice over the fragment, DiffDock's scoring pass, and the SAPT terms over 7LOE_Y84 once
+# run.sh has correlated it. Each task after it carries one complex of the subset through RHF, AVAS,
+# MP2, Dice and the stability analysis, all sharing the one SCF.
 #
 # Run setup.sh once first, then, from the repo root: sbatch scripts/test.sh
 # --array on the command line runs part of it, e.g. --array=0 for everything but the subset's solves.
@@ -93,6 +94,18 @@ if [ "$SLURM_ARRAY_TASK_ID" -eq 0 ]; then
     else
         unset DIFFDOCK_PYTHON
     fi
+
+    # The SAPT tests read 7LOE_Y84 (tests/sapt/monomers.py's COMPLEX) as run.sh left it in out,
+    # through the link tests/data/encoded/7LOE_Y84, and fail rather than skip without it. They run
+    # only once CASCI has correlated it there.
+    FLAGS=(--prepare-long)
+    CORRELATED="tests/data/encoded/7LOE_Y84/7LOE_Y84_casci.npz"
+    if [ -f "$CORRELATED" ]; then
+        FLAGS+=(--sapt-long)
+        SAPT="$CORRELATED, so its tests run"
+    else
+        SAPT="no $CORRELATED, so its tests are skipped"
+    fi
 else
     NAME="${SUBSET[$(( SLURM_ARRAY_TASK_ID - 1 ))]}"
     PART="$NAME"
@@ -107,10 +120,11 @@ echo "[$(date +%T)] Host      $(hostname)"
 
 if [ "$SLURM_ARRAY_TASK_ID" -eq 0 ]; then
     echo "[$(date +%T)] DiffDock  ${DIFFDOCK_PYTHON:-not found, so its tests are skipped}"
+    echo "[$(date +%T)] SAPT      $SAPT"
 
     # No -x: these tests are independent
     echo "[$(date +%T)] Running every test but the subset's solves"
-    pytest tests --prepare-long -m "not (hpc or hpc_long_stab or hpc_long_dice)" -v --durations=0
+    pytest tests "${FLAGS[@]}" -m "not (hpc or hpc_long_stab or hpc_long_dice)" -v --durations=0
 else
     # The contract tests run first and take seconds, so a broken environment or a cutout that has
     # moved out of the subset fails before the solve. AVAS solves the SCF everything after it shares,

@@ -34,6 +34,17 @@ NAME = filter.NAME
 TABLE_NAME = "sapt.csv"
 SUMMARY_NAME = "sapt_summary.csv"
 
+# TEMPORARY, a last-minute change for this experiment's deadline. The stage segfaulted inside PySCF's
+# (AA|AB) pass on these two, whose cutout and ligand are large enough that the cumulant's 105 pair
+# densities take that pass's thread buffers to 43 and 47 GB, where 33 GB ran: 2^32 doubles is the
+# line, and PySCF's C driver appears to overflow a 32-bit size beyond it. Chunking the pass would
+# cost about 150 hours a complex, which the deadline does not have, so these two are scored over
+# their correlated densities alone. That keeps the larger share of the correlation, which moved the
+# water dimer's exchange by +1.0e-4 Hartree against the cumulant's -2.2e-5, and none of the
+# cumulant's; their `cumulants` are kept as zero, so the tables say so. Remove once the pass is
+# chunked.
+WITHOUT_CUMULANT = ("7XFA_D9J", "7PRM_81I")
+
 
 class SAPT:
     """
@@ -101,7 +112,15 @@ class SAPT:
             self.protein.active_electrons,
             self.protein.mol.nelectron,
         )
-        cumulant = sapt.cumulant(self.protein.rdm1, self.protein.rdm2)
+        # TEMPORARY: see WITHOUT_CUMULANT.
+        without = bool(self.out) and self._name() in WITHOUT_CUMULANT
+        cumulant = None if without else sapt.cumulant(self.protein.rdm1, self.protein.rdm2)
+        if without:
+            print(
+                f"[{datetime.now():%H:%M:%S}] Skipping  the cumulant for {self._name()}, whose "
+                "exchange is over the correlated densities alone",
+                flush=True,
+            )
         if self.int_energies is None:
             self.electrostatics, self.exchanges, self.cumulants, self.int_energies = [], [], [], []
         poses = len(self.ligand.mols)

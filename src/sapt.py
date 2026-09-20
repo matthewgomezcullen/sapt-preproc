@@ -15,17 +15,18 @@ Ran as a script, it reranks a screen run.py has scored: confidence.csv is read f
 
 import argparse
 import os
-import statistics
 from datetime import datetime
 
 import confidence
 import filter
 from encode import EncodeProtein, EncodingError, SolveLigand
-from utils import sapt, save
+from utils import report, sapt, save
 
 # confidence.csv's columns, and what SAPT adds to each pose
 FIELDS = confidence.FIELDS + ["elst", "exch", "cumulant", "interaction", "rank_sapt"]
-SUMMARY_FIELDS = confidence.SUMMARY_FIELDS + ["top1_sapt"]
+SUMMARY_FIELDS = confidence.SUMMARY_FIELDS + ["top1_sapt", "discrimination_sapt"]
+
+RANKINGS = [("top1_sapt", "discrimination_sapt", "ranked on E_int")] + confidence.RANKINGS
 
 SCORED = ("electrostatics", "exchanges", "cumulants", "int_energies")
 
@@ -222,6 +223,10 @@ def summarise(rows, threshold=filter.NEAR_NATIVE):
         entry["top1_sapt"] = confidence.is_near_native(
             min(theirs, key=lambda row: row["rank_sapt"]), threshold
         )
+        entry["discrimination_sapt"] = report.pairwise_discriminate(
+            [-row["interaction"] for row in theirs],
+            [confidence.is_near_native(row, threshold) for row in theirs],
+        )
     return summary
 
 
@@ -248,7 +253,7 @@ def run(name=NAME):
     ranked = os.path.join(job, confidence.TABLE_NAME)
     if not os.path.isfile(ranked):
         raise SystemExit(f"{ranked} is missing; run confidence.py over the screen first")
-    rows, scores, skipped = confidence.read_table(ranked), {}, []
+    rows, scores, skipped = report.read_table(ranked), {}, []
     for complex in sorted({row["name"] for row in rows}):
         kept = save.load_sapt(complex, confidence.complex_dir(complex, job))
         if kept is None:
@@ -261,36 +266,22 @@ def run(name=NAME):
     rows, missing = join([row for row in rows if row["name"] not in skipped], scores)
     rows = rank(rows)
     summary = summarise(rows)
-    confidence.write_table(rows, os.path.join(job, TABLE_NAME), FIELDS)
-    confidence.write_table(summary, os.path.join(job, SUMMARY_NAME), SUMMARY_FIELDS)
+    report.write_table(rows, os.path.join(job, TABLE_NAME), FIELDS)
+    report.write_table(summary, os.path.join(job, SUMMARY_NAME), SUMMARY_FIELDS)
     _report(summary, skipped, missing)
     return rows, summary
 
 
 def _report(summary, skipped=(), missing=()):
     """
-    Each ranking's top-1 over the same complexes, against the rate a random pick off the ensemble
-        would manage.
+    Each ranking's top-1 and pairwise discrimination, against a random picker.
     """
     print("Complexes", len(summary))
     if skipped:
         print("  not scored", len(skipped), sorted(skipped))
     if missing:
         print("  poses left unscored", len(missing))
-
-    answered = [row for row in summary if row["top1_sapt"] is not None]
-    if not answered:
-        return
-    print(f"\nTop-1 over {len(answered)} complexes\n")
-    for field, ranking in [
-        ("top1_sapt", "ranked on E_int"),
-        ("top1_minimised", "re-scored by DiffDock's confidence model"),
-        ("top1_docked", "as DiffDock ranked them"),
-    ]:
-        right = sum(1 for row in answered if row[field])
-        print(f"  {right:4d}  {ranking}, {right / len(answered):.1%}")
-    chance = statistics.mean(row["fraction"] for row in answered)
-    print(f"        a random pick off the ensemble, {chance:.1%}")
+    report.rankings(summary, RANKINGS)
 
 
 if __name__ == "__main__":

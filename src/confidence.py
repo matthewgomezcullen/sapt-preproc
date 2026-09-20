@@ -16,18 +16,15 @@ The scoring runs as a subprocess in the interpreter DiffDock was installed into,
 """
 
 import argparse
-import csv
 import itertools
 import os
-import re
-import statistics
 import subprocess
 
 from rdkit import Chem
 
 import filter
 import motivation
-from utils import save
+from utils import report, save
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -57,22 +54,19 @@ FIELDS = [
     "confidence_minimised", "rmsd",
 ]
 
-SUMMARY_FIELDS = ["name", "poses", "near_native", "fraction", "top1_minimised", "top1_docked"]
+SUMMARY_FIELDS = [
+    "name", "poses", "near_native", "fraction", "top1_minimised", "top1_docked",
+    "discrimination_minimised", "discrimination_docked",
+]
+
+RANKINGS = [
+    ("top1_minimised", "discrimination_minimised", "re-scored by DiffDock's confidence model"),
+    ("top1_docked", "discrimination_docked", "as DiffDock ranked them"),
+]
 
 SCORE_FIELDS = ["name", "source", "confidence"]
 
 MANIFEST_FIELDS = ["name", "protein", "sdf"]
-
-# csv hands every column back as a string. sapt.py's tables are read back here too.
-INTEGERS = ["rank_docked", "rank_minimised", "poses", "near_native", "rank_sapt"]
-DECIMALS = [
-    "confidence_docked", "confidence_minimised", "rmsd", "fraction", "confidence",
-    "elst", "exch", "cumulant", "interaction",
-]
-BOOLEANS = ["top1_minimised", "top1_docked", "top1_sapt"]
-
-# DiffDock names a scored pose rank<N>_confidence<X>.sdf.
-SCORED = re.compile(r"^rank(\d+)_confidence(-?\d+\.\d+)\.sdf$")
 
 
 def complex_dir(name, job=None):
@@ -81,13 +75,6 @@ def complex_dir(name, job=None):
 
 def poses_path(name, job=None):
     return os.path.join(complex_dir(name, job), f"{name}{POSES}")
-
-
-def docked_rank_and_score(source):
-    scored = SCORED.match(source)
-    if scored is None:
-        raise ValueError(f"{source} is not a pose DiffDock scored")
-    return int(scored.group(1)), float(scored.group(2))
 
 
 def _prepared(name, job=None):
@@ -125,7 +112,7 @@ def export(name, job=None):
 def initial_rows(name, native, job=None):
     molecules, sources = _prepared(name, job)
     return [
-        dict(zip(FIELDS, (name, source, *docked_rank_and_score(source), None, None, rmsd)))
+        dict(zip(FIELDS, (name, source, *report.docked_rank_and_score(source), None, None, rmsd)))
         for source, rmsd in zip(sources, filter.calc_rmsds(molecules, native))
     ]
 
@@ -143,7 +130,7 @@ def score(work, manifest, scores, python=None, models=None, esm=None):
             "DIFFDOCK_PYTHON is not set. It is the interpreter DiffDock is installed into, which "
             "cannot be this one: DiffDock's `utils` package shadows ours."
         )
-    write_table([dict(zip(MANIFEST_FIELDS, one)) for one in work], manifest, MANIFEST_FIELDS)
+    report.write_table([dict(zip(MANIFEST_FIELDS, one)) for one in work], manifest, MANIFEST_FIELDS)
     subprocess.run(
         [
             python, SCRIPT,
@@ -158,7 +145,7 @@ def score(work, manifest, scores, python=None, models=None, esm=None):
 
 
 def read_scores(path):
-    return {(row["name"], row["source"]): row["confidence"] for row in read_table(path)}
+    return {(row["name"], row["source"]): row["confidence"] for row in report.read_table(path)}
 
 
 def join(rows, scores):
@@ -202,72 +189,48 @@ def is_near_native(row, threshold):
 
 def summarise(rows, threshold=filter.NEAR_NATIVE):
     """
-    A row a complex: how much of its ensemble is near-native, and top-ranked pose correctness.
+    A row a complex: how much of its ensemble is near-native, top-ranked pose correctness, and how
+        much of the ensemble each ranking successfully orders.
 
     `top1_docked` asks the same of the best-ranked pose DiffDock left in the ensemble, which is what
-        the re-scoring is measured against. Either is None where that pose's RMSD is missing.
+        the re-scoring is measured against. Either is None where that pose's RMSD is missing, as is
+        either rate where the complex holds no pair to order.
     """
     summary = []
     for name, group in itertools.groupby(
         sorted(rows, key=lambda row: row["name"]), key=lambda row: row["name"]
     ):
         theirs = list(group)
-        near = [row for row in theirs if is_near_native(row, threshold)]
+        near = [is_near_native(row, threshold) for row in theirs]
+        found = sum(1 for one in near if one)
         summary.append({
             "name": name,
             "poses": len(theirs),
-            "near_native": len(near),
-            "fraction": len(near) / len(theirs),
+            "near_native": found,
+            "fraction": found / len(theirs),
             "top1_minimised": is_near_native(min(theirs, key=lambda row: row["rank_minimised"]), threshold),
             "top1_docked": is_near_native(min(theirs, key=lambda row: row["rank_docked"]), threshold),
+            "discrimination_minimised": report.pairwise_discriminate(
+                [row["confidence_minimised"] for row in theirs], near
+            ),
+            "discrimination_docked": report.pairwise_discriminate(
+                [row["confidence_docked"] for row in theirs], near
+            ),
         })
     return summary
 
 
-def write_table(rows, path, fields):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=fields)
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def read_table(path):
-    with open(path, newline="") as file:
-        rows = list(csv.DictReader(file))
-    for row in rows:
-        for field, value in row.items():
-            if value == "":
-                row[field] = None
-            elif field in INTEGERS:
-                row[field] = int(value)
-            elif field in DECIMALS:
-                row[field] = float(value)
-            elif field in BOOLEANS:
-                row[field] = value == "True"
-    return rows
-
-
 def _report(summary, skipped=(), missing=()):
     """
-    Top-1 against the rate a random pick off the ensemble would manage.
+    Each ranking's top-1 and pairwise discrimination against the rate a random pick off the
+        ensemble would manage.
     """
     print('Complexes', len(summary))
     if skipped:
         print('  no preparation', len(skipped), sorted(skipped))
     if missing:
         print('  poses left unscored', len(missing))
-
-    answered = [row for row in summary if row["top1_minimised"] is not None]
-    if not answered:
-        return
-    rescored = sum(1 for row in answered if row["top1_minimised"])
-    published = sum(1 for row in answered if row["top1_docked"])
-    chance = statistics.mean(row["fraction"] for row in answered)
-    print(f'\nTop-1 over {len(answered)} complexes\n')
-    print(f'  {rescored:4d}  re-scored, {rescored / len(answered):.1%}')
-    print(f'  {published:4d}  as DiffDock ranked them, {published / len(answered):.1%}')
-    print(f'        a random pick off the ensemble, {chance:.1%}')
+    report.rankings(summary, RANKINGS)
 
 
 def run(complexes=None, python=None, models=None, esm=None, reuse=False, name=NAME, plot=True):
@@ -300,8 +263,8 @@ def run(complexes=None, python=None, models=None, esm=None, reuse=False, name=NA
     rows, missing = join(rows, scores)
     rows = rank(rows)
     summary = summarise(rows)
-    write_table(rows, os.path.join(job, TABLE_NAME), FIELDS)
-    write_table(summary, os.path.join(job, SUMMARY_NAME), SUMMARY_FIELDS)
+    report.write_table(rows, os.path.join(job, TABLE_NAME), FIELDS)
+    report.write_table(summary, os.path.join(job, SUMMARY_NAME), SUMMARY_FIELDS)
     _report(summary, skipped, missing)
     if plot:
         answered = [

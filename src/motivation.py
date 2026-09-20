@@ -8,29 +8,22 @@ out/motivation.csv is a row a complex; out/motivation.png is the figure.
 
 import argparse
 import bisect
-import csv
 import os
-import re
 import statistics
 from concurrent.futures import ProcessPoolExecutor
 
 from tqdm import tqdm
 
 import filter
+from utils import report
 
 ROOT = filter.ROOT
 
 NAME_PREFIX = "motivation"
 
-# DiffDock names a scored pose rank<N>_confidence<X>.sdf
-RANKED = re.compile(r"^rank(\d+)_confidence(-?\d+\.\d+)\.sdf$")
-
-FIELDS = ["name", "poses", "near_native", "fraction", "top1", "rank_top1", "rmsd_top1"]
-
-# csv columns
-INTEGERS = ["poses", "near_native", "rank_top1"]
-DECIMALS = ["fraction", "rmsd_top1"]
-BOOLEANS = ["top1"]
+FIELDS = [
+    "name", "poses", "near_native", "fraction", "top1", "rank_top1", "rmsd_top1", "discrimination",
+]
 
 # The five/six bands.
 # EDGES = [0.19, 0.39, 0.59, 0.79]
@@ -45,18 +38,20 @@ def motivation_path(name, job=False):
     return os.path.join(out, file_base)
 
 
+def _published(path):
+    return report.docked_rank_and_score(os.path.basename(path))
+
+
 def rank_of(path):
-    matched = RANKED.match(os.path.basename(path))
-    if matched is None:
-        raise ValueError(f"{path} is not a pose DiffDock scored")
-    return int(matched.group(1))
+    return _published(path)[0]
 
 
 def _row(one):
     name, _, paths, native = one
     paths = sorted(paths, key=rank_of)
     measured = filter.calc_rmsds(paths, native)
-    near = [rmsd is not None and rmsd <= filter.NEAR_NATIVE for rmsd in measured]
+    labelled = [None if rmsd is None else rmsd <= filter.NEAR_NATIVE for rmsd in measured]
+    near = [found is True for found in labelled]
     return {
         "name": name,
         "poses": len(paths),
@@ -65,6 +60,9 @@ def _row(one):
         "top1": near[0],
         "rank_top1": rank_of(paths[0]),
         "rmsd_top1": measured[0],
+        "discrimination": report.pairwise_discriminate(
+            [_published(path)[1] for path in paths], labelled
+        ),
     }
 
 
@@ -130,29 +128,11 @@ def plot(rows, name=None, job=False):
 
 
 def write(rows, name=None):
-    path = f"{motivation_path(name)}.csv"
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=FIELDS)
-        writer.writeheader()
-        writer.writerows(rows)
+    report.write_table(rows, f"{motivation_path(name)}.csv", FIELDS)
 
 
 def read(name=None):
-    path = f"{motivation_path(name)}.csv"
-    with open(path, newline="") as file:
-        rows = list(csv.DictReader(file))
-    for row in rows:
-        for field, value in row.items():
-            if value == "":
-                row[field] = None
-            elif field in INTEGERS:
-                row[field] = int(value)
-            elif field in DECIMALS:
-                row[field] = float(value)
-            elif field in BOOLEANS:
-                row[field] = value == "True"
-    return rows
+    return report.read_table(f"{motivation_path(name)}.csv")
 
 
 def _report(rows, incomplete=()):
@@ -164,14 +144,17 @@ def _report(rows, incomplete=()):
     near = sum(row["near_native"] for row in rows)
     print(f"Poses {poses}, {near} near-native ({near / poses:.1%})")
 
-    success, chance, counts = rates(bin(rows))
-    print("\nTop-1 by how much of the ensemble is near-native\n")
-    print(f'  {"band":>8s}{"n":>6s}{"top-1":>9s}{"chance":>9s}')
-    for label, count, hit, random_pick in zip(LABELS, counts, success, chance):
-        print(f"  {label:>8s}{count:6d}{hit:9.1%}{random_pick:9.1%}")
+    bins = bin(rows)
+    success, chance, counts = rates(bins)
+    print("\nTop-1 and pairwise discrimination by how much of the ensemble is near-native\n")
+    print(f'  {"band":>8s}{"n":>6s}{"top-1":>9s}{"chance":>9s}{"D":>9s}')
+    for label, count, hit, random_pick, group in zip(LABELS, counts, success, chance, bins):
+        print(f"  {label:>8s}{count:6d}{hit:9.1%}{random_pick:9.1%}"
+              f'{report.rate(report.average(group, "discrimination")):>9s}')
     print(f'  {"all":>8s}{len(rows):6d}'
           f'{statistics.mean(row["top1"] for row in rows):9.1%}'
-          f'{statistics.mean(row["fraction"] for row in rows):9.1%}')
+          f'{statistics.mean(row["fraction"] for row in rows):9.1%}'
+          f'{report.rate(report.average(rows, "discrimination")):>9s}')
 
 
 def run(complexes=None, reuse=False, name=None):

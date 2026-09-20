@@ -18,7 +18,7 @@ import confidence
 import filter
 import motivation
 from conftest import DATA, paths
-from utils import save
+from utils import report, save
 
 NAME = "5S8I_2LY"
 OTHER = "6ZCY_QF8"
@@ -48,7 +48,7 @@ def scored_complex(tmp_path, monkeypatch):
     protein, poses = paths(NAME)
     monkeypatch.setattr(filter, "inventory", lambda named=None: ([(NAME, protein, poses, NATIVE)], []))
     first, second, deposited = artefact(count=2, deposited=True)
-    confidence.write_table(
+    report.write_table(
         [
             {"name": NAME, "source": first, "confidence": 0.5},
             {"name": NAME, "source": second, "confidence": -0.5},
@@ -97,7 +97,7 @@ def rows(*poses, name=NAME):
         are FIELDS in order, which is what the table is written from.
     """
     return [
-        dict(zip(confidence.FIELDS, (name, source, *confidence.docked_rank_and_score(source), None, scored, rmsd)))
+        dict(zip(confidence.FIELDS, (name, source, *report.docked_rank_and_score(source), None, scored, rmsd)))
         for source, scored, rmsd in poses
     ]
 
@@ -112,7 +112,7 @@ def scoring(written):
 
     def run(command, **keywords):
         calls.append(command)
-        confidence.write_table(written, command[command.index("--scores") + 1], confidence.SCORE_FIELDS)
+        report.write_table(written, command[command.index("--scores") + 1], confidence.SCORE_FIELDS)
         return subprocess.CompletedProcess(command, 0)
 
     return calls, run
@@ -161,13 +161,13 @@ def test_export_rewrites_a_file_left_by_an_earlier_preparation(job):
      ("rank40_confidence-10.25.sdf", 40, -10.25)],
 )
 def test_docked_reads_the_rank_and_confidence_off_the_filename(source, rank, published):
-    assert confidence.docked_rank_and_score(source) == (rank, published)
+    assert report.docked_rank_and_score(source) == (rank, published)
 
 
 @pytest.mark.parametrize("source", ["rank1.sdf", "5S8I_2LY_relaxed.sdf", "rank1_confidence.sdf"])
 def test_docked_refuses_a_name_that_is_not_a_scored_pose(source):
     with pytest.raises(ValueError):
-        confidence.docked_rank_and_score(source)
+        report.docked_rank_and_score(source)
 
 
 def test_label_measures_every_pose_against_the_deposited_ligand(job):
@@ -185,7 +185,7 @@ def test_label_measures_every_pose_against_the_deposited_ligand(job):
     assert all(row["rmsd"] > AS_DOCKED for source, row in by_name.items() if source != DEPOSITED)
     for source in sources:
         assert (by_name[source]["rank_docked"],
-                by_name[source]["confidence_docked"]) == confidence.docked_rank_and_score(source)
+                by_name[source]["confidence_docked"]) == report.docked_rank_and_score(source)
     near = [row for row in labelled if row["rmsd"] <= filter.NEAR_NATIVE]
     assert len(near) == len(filter.get_near_natives(stored(), NATIVE))
 
@@ -208,7 +208,7 @@ def test_score_hands_every_complex_over_in_one_pass_and_reads_the_answer(job, mo
 
     assert len(calls) == 1
     assert calls[0][:2] == ["python", confidence.SCRIPT]
-    assert confidence.read_table(os.path.join(job, "manifest.csv")) == [
+    assert report.read_table(os.path.join(job, "manifest.csv")) == [
         {"name": name, "protein": protein, "sdf": sdf} for name, protein, sdf in work
     ]
     assert answer[(NAME, mine[0])] == -1.5
@@ -280,13 +280,13 @@ def test_the_tables_round_trip_a_missing_rmsd(tmp_path):
     summarised = confidence.summarise(ranked)
     poses, summary = str(tmp_path / "poses.csv"), str(tmp_path / "summary.csv")
 
-    confidence.write_table(ranked, poses, confidence.FIELDS)
-    confidence.write_table(summarised, summary, confidence.SUMMARY_FIELDS)
+    report.write_table(ranked, poses, confidence.FIELDS)
+    report.write_table(summarised, summary, confidence.SUMMARY_FIELDS)
 
     assert summarised[0]["top1_minimised"] is None
     assert summarised[0]["near_native"] == 0
-    assert confidence.read_table(poses) == ranked
-    assert confidence.read_table(summary) == summarised
+    assert report.read_table(poses) == ranked
+    assert report.read_table(summary) == summarised
 
 
 @pytest.mark.parametrize("plot", [True, False])

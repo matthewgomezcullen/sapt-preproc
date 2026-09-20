@@ -21,6 +21,7 @@ from rdkit import Chem
 
 import confidence
 from conftest import paths
+from utils import report
 
 pytestmark = pytest.mark.diffdock
 
@@ -34,7 +35,7 @@ TOP = 0.1
 
 
 def published(sources):
-    return {source: confidence.docked_rank_and_score(source)[1] for source in sources}
+    return {source: report.docked_rank_and_score(source)[1] for source in sources}
 
 
 def untouched(directory, shuffle=False):
@@ -75,7 +76,7 @@ def test_the_confidence_model_orders_the_poses_as_diffdock_ordered_them(tmp_path
         [scored[(NAME, source)] for source in sources], [diffdock[source] for source in sources]
     ).correlation
     assert ordering > ORDERING
-    best = min(sources, key=lambda source: confidence.docked_rank_and_score(source)[0])
+    best = min(sources, key=lambda source: report.docked_rank_and_score(source)[0])
     assert scored[(NAME, best)] == pytest.approx(diffdock[best], abs=TOP)
 
 
@@ -85,7 +86,7 @@ def test_the_most_confident_pose_is_the_one_diffdock_ranked_first(tmp_path):
     scored = run_scoring(str(tmp_path), poses)
 
     best = max(sources, key=lambda source: scored[(NAME, source)])
-    assert confidence.docked_rank_and_score(best)[0] == 1
+    assert report.docked_rank_and_score(best)[0] == 1
 
 
 def test_the_scores_do_not_depend_on_the_order_of_the_poses(tmp_path):

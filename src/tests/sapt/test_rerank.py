@@ -19,7 +19,7 @@ import pytest
 import confidence
 import filter
 import sapt
-from utils import save
+from utils import report, save
 
 NAME, OTHER = "5S8I_2LY", "6ZCY_QF8"
 
@@ -42,7 +42,7 @@ def rows(*poses, name=NAME):
     return confidence.rank([
         dict(zip(
             confidence.FIELDS,
-            (name, source, *confidence.docked_rank_and_score(source), None, scored, rmsd),
+            (name, source, *report.docked_rank_and_score(source), None, scored, rmsd),
         ))
         for source, scored, rmsd in poses
     ])
@@ -85,7 +85,7 @@ def screen(tmp_path, monkeypatch):
     """
     monkeypatch.setattr(filter, "OUT", str(tmp_path))
     job = filter.job_dir(SCREEN)
-    confidence.write_table(
+    report.write_table(
         rows((FIRST, 0.75, FAR), (SECOND, -1.0, FAR), (DEPOSITED, -2.0, NEAR))
         + rows((THIRD, 0.5, FAR), name=OTHER),
         os.path.join(job, confidence.TABLE_NAME),
@@ -193,20 +193,20 @@ def test_the_tables_round_trip_through_confidence_pys_reader(tmp_path):
     summarised = sapt.summarise(ranked)
     poses, summary = str(tmp_path / "sapt.csv"), str(tmp_path / "sapt_summary.csv")
 
-    confidence.write_table(ranked, poses, sapt.FIELDS)
-    confidence.write_table(summarised, summary, sapt.SUMMARY_FIELDS)
+    report.write_table(ranked, poses, sapt.FIELDS)
+    report.write_table(summarised, summary, sapt.SUMMARY_FIELDS)
 
     assert summarised[0]["top1_sapt"] is None
-    assert confidence.read_table(poses) == ranked
-    assert confidence.read_table(summary) == summarised
+    assert report.read_table(poses) == ranked
+    assert report.read_table(summary) == summarised
 
 
 def test_run_writes_both_tables_into_the_screens_directory(screen):
     ranked, summarised = sapt.run(screen)
 
     job = filter.job_dir(screen)
-    assert confidence.read_table(os.path.join(job, TABLE)) == ranked
-    assert confidence.read_table(os.path.join(job, SUMMARY)) == summarised
+    assert report.read_table(os.path.join(job, TABLE)) == ranked
+    assert report.read_table(os.path.join(job, SUMMARY)) == summarised
 
 
 def test_run_ranks_each_pose_on_the_scores_its_complex_kept(screen):

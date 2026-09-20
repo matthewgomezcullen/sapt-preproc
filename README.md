@@ -247,7 +247,7 @@ The solved space is not rewritten once the Hamiltonian is built, so it stays at 
 
 A complex whose narrowed space holds more than 16 orbitals, or whose ground state is not a singlet, fails at CASCI with its Hamiltonian already kept.
 
-A task stopped part-way through the poses, as at the time limit, keeps every pose it scored and resumes after them when submitted again. Once every complex is scored and `confidence.py` has ranked the screen, `python sapt.py --name v1_1_mm_unsize` reranks its poses into `sapt.csv` and `sapt_summary.csv`, beside `confidence.py`'s tables. A complex scored part-way is ranked over the poses it has.
+A task stopped part-way through the poses, as at the time limit, keeps every pose it scored and resumes after them when submitted again. Once every complex is scored and `confidence.py` has ranked the screen, `python sapt.py --name v1_1_mm_unsize` reranks its poses into `sapt.csv` and `sapt_summary.csv`, beside `confidence.py`'s tables. A complex scored part-way is ranked over the poses it has. The summary holds, a complex, whether each ranking's first pose is near-native and its pairwise discrimination rate, the share of the pairs a near-native pose makes with the others that the ranking orders the right way, and the report means both over complexes.
 
 The qubit operator is built and not stored. `utils.encode.qubits(e_core, h1, h2)` rebuilds it exactly, under any of the three mappings.
 

@@ -166,6 +166,24 @@ def test_summarise_records_a_ranking_that_puts_a_pose_far_from_the_deposited_lig
     assert summary[0]["top1_minimised"] is True
 
 
+def test_summarise_rates_each_ranking_over_the_pairs_the_near_native_pose_makes():
+    joined, _ = sapt.join(
+        rows((FIRST, 0.75, FAR), (SECOND, -1.0, FAR), (DEPOSITED, -2.0, NEAR)),
+        energies(
+            (FIRST, -0.010, 0.004, 0.0),
+            (SECOND, -0.005, 0.004, 0.0),
+            (DEPOSITED, -0.030, 0.012, 0.0),
+        ),
+    )
+
+    summary = sapt.summarise(sapt.rank(joined))
+
+    assert summary[0]["discrimination_sapt"] == 1.0
+    assert summary[0]["discrimination_minimised"] == 0.0
+    # DiffDock scored the other two the same, but they are both far, so they make no pair.
+    assert summary[0]["discrimination_docked"] == 1.0
+
+
 def test_the_tables_round_trip_through_confidence_pys_reader(tmp_path):
     joined, _ = sapt.join(
         rows((DEPOSITED, 0.75, None), (FIRST, -1.0, FAR)),

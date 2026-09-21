@@ -21,7 +21,7 @@ DECIMALS = [
     "confidence", "confidence_docked", "confidence_minimised", "rmsd", "rmsd_top1", "fraction",
     "elst", "exch", "cumulant", "interaction", "elst_rhf", "exch_rhf", "interaction_rhf",
     "discrimination", "discrimination_docked", "discrimination_minimised", "discrimination_sapt",
-    "discrimination_rhf",
+    "discrimination_rhf", "retention",
 ]
 BOOLEANS = ["top1", "top1_docked", "top1_minimised", "top1_sapt", "top1_rhf"]
 

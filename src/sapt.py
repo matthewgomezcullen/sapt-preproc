@@ -27,7 +27,7 @@ from utils import report, sapt, save
 
 # confidence.csv's columns, and what SAPT adds to each pose
 FIELDS = confidence.FIELDS + ["elst", "exch", "cumulant", "interaction", "rank_sapt"]
-SUMMARY_FIELDS = confidence.SUMMARY_FIELDS + ["top1_sapt", "discrimination_sapt"]
+SUMMARY_FIELDS = confidence.SUMMARY_FIELDS + ["top1_sapt", "discrimination_sapt", "retention"]
 
 RHF_FIELDS = ["elst_rhf", "exch_rhf", "interaction_rhf", "rank_rhf"]
 RHF_SUMMARY_FIELDS = ["top1_rhf", "discrimination_rhf"]
@@ -253,7 +253,7 @@ def rank(rows):
     return [numbered.get((row["name"], row["source"]), row) for row in ranked]
 
 
-def summarise(rows, threshold=filter.NEAR_NATIVE):
+def summarise(rows, threshold=filter.NEAR_NATIVE, retained=None):
     summary = confidence.summarise(rows, threshold)
     reference = any(row.get("interaction_rhf") is not None for row in rows)
     for entry in summary:
@@ -265,6 +265,7 @@ def summarise(rows, threshold=filter.NEAR_NATIVE):
         entry["discrimination_sapt"] = report.pairwise_discriminate(
             [-row["interaction"] for row in theirs], near
         )
+        entry["retention"] = (retained or {}).get(entry["name"])
         if not reference:
             continue
         entry["top1_rhf"], entry["discrimination_rhf"] = None, None
@@ -290,6 +291,18 @@ def energies(name, kept):
     }
 
 
+def retention(name, directory):
+    """
+    eta = (E_CASCI - E_RHF) / (E_SHCI - E_RHF): how much of the correlation energy SHCI found in
+        the space it solved survives the window CASCI solves exactly.
+    """
+    solved, correlated = save.load_solved(name, directory), save.load_casci(name, directory)
+    if solved is None or correlated is None:
+        return None
+    rhf = float(solved["energy"])
+    return (float(correlated["casci_energy"]) - rhf) / (float(solved["shci_energy"]) - rhf)
+
+
 def run(name=NAME):
     """
     Every complex confidence.py ranked, given its poses' kept scores, reranked on them and summarised
@@ -301,7 +314,7 @@ def run(name=NAME):
     ranked = os.path.join(job, confidence.TABLE_NAME)
     if not os.path.isfile(ranked):
         raise SystemExit(f"{ranked} is missing; run confidence.py over the screen first")
-    rows, scores, reference, skipped = report.read_table(ranked), {}, {}, []
+    rows, scores, reference, retained, skipped = report.read_table(ranked), {}, {}, {}, []
     for complex in sorted({row["name"] for row in rows}):
         directory = confidence.complex_dir(complex, job)
         kept = save.load_sapt(complex, directory)
@@ -309,6 +322,7 @@ def run(name=NAME):
             skipped.append(complex)
         else:
             scores.update(energies(complex, kept))
+            retained[complex] = retention(complex, directory)
         classical = save.load_sapt_rhf(complex, directory)
         if classical is not None:
             reference.update(energies(complex, classical))
@@ -317,7 +331,7 @@ def run(name=NAME):
 
     rows, missing = join([row for row in rows if row["name"] not in skipped], scores, reference)
     rows = rank(rows)
-    summary = summarise(rows)
+    summary = summarise(rows, retained=retained)
     report.write_table(
         rows, os.path.join(job, TABLE_NAME), FIELDS + RHF_FIELDS if reference else FIELDS
     )
@@ -332,7 +346,8 @@ def run(name=NAME):
 
 def _report(summary, skipped=(), missing=()):
     """
-    Each ranking's top-1 and pairwise discrimination, against a random picker.
+    Each ranking's top-1 and pairwise discrimination, against a random picker, and how much of the
+        correlation energy the windows kept.
 
     The SAPT(RHF) reference is reported over the complexes that hold it alone.
     """
@@ -346,6 +361,11 @@ def _report(summary, skipped=(), missing=()):
     if both:
         print(f"\nThe {len(both)} of {len(summary)} complexes scored at SAPT(RHF) too")
         report.rankings(both, RHF_RANKINGS)
+    retained = report.average(summary, "retention")
+    if retained is not None:
+        kept = sum(1 for entry in summary if entry.get("retention") is not None)
+        print(f"\nCorrelation energy kept by the window, mean {retained:.3f} over {kept} "
+              f"complex{'es' if kept > 1 else ''}")
 
 
 if __name__ == "__main__":

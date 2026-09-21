@@ -106,7 +106,7 @@ Reasons for exclusion are divided in four and recorded in `filter_{name}.csv`:
 
 The opening sweep screens at 3.5 Å by default, not 2 Å. Minimisation moves a pose a little, so nothing outside 3.5 Å can come back inside 2 Å, and the sweep can only turn away a complex that could never have been usable.
 
-`--strict` sweeps at 2 Å instead. The sweep is no longer conservative: an ensemble whose best pose is at 2.4 Å and relaxes to 1.8 Å is turned away as a generator failure and never prepared, so the eligible cohort can shrink.
+`--strict` sweeps at 2 Å instead. The sweep is no longer conservative: an ensemble whose best pose is at 2.4 Å and relaxes to 1.8 Å is turned away as a generator failure and never prepared, so the eligible cohort can shrink. Its screen is kept in `filter_strict.csv`, and `--reuse --strict` reads that one back. Both share the same preparations.
 
 ### Binning
 

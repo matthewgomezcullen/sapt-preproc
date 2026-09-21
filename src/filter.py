@@ -11,6 +11,8 @@ The per-complex numbers are written beside them, to out/filter/filter.csv. `--re
     poses differently -- `--no-mm` leaves them where DiffDock placed them -- does not read the
     last one's work back.
 
+A strict screen keeps its table apart, as filter_strict.csv`. --reuse --strict` reads that one back.
+
 A complex leaves the screen under one of four statuses. 
 
 - `generator` no near-native pose to begin with. See `--strict`.
@@ -84,8 +86,8 @@ COUNTS = [
 ]
 
 
-def table_file(name=NAME):
-    return os.path.join(job_dir(name), "filter.csv")
+def table_file(name=NAME, strict=False):
+    return os.path.join(job_dir(name), "filter_strict.csv" if strict else "filter.csv")
 
 
 def job_dir(name=NAME):
@@ -297,11 +299,11 @@ def screen_parallel(complexes, workers=None, force=False, mm=True, tether=None, 
     return rows, checks
 
 
-def write(rows, name=NAME):
+def write(rows, name=NAME, strict=False):
     """
     Store the screening results, creating the output directory if it is not there yet.
     """
-    path = table_file(name)
+    path = table_file(name, strict)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=FIELDS)
@@ -309,11 +311,11 @@ def write(rows, name=NAME):
         writer.writerows(rows)
 
 
-def read(name=NAME):
+def read(name=NAME, strict=False):
     """
     A stored screen, with the numeric columns back as ints and an absent value as None.
     """
-    with open(table_file(name), newline="") as file:
+    with open(table_file(name, strict), newline="") as file:
         rows = list(csv.DictReader(file))
     for row in rows:
         for field in COUNTS:
@@ -405,7 +407,7 @@ def report(rows):
 def run(complexes=None, name=NAME, mm=True, tether=None, reuse=False, force=False,
         workers=None, strict=False):
     if reuse:
-        rows = read(name)
+        rows = read(name, strict)
         _summarise(rows)
     else:
         complexes, incomplete = inventory(complexes)
@@ -430,7 +432,7 @@ def run(complexes=None, name=NAME, mm=True, tether=None, reuse=False, force=Fals
                 name=name,
             )
         rows = sorted(rows + ungenerated, key=lambda row: row["name"])
-        write(rows, name)
+        write(rows, name, strict)
         _summarise(rows, incomplete, checks)
     report(rows)
 
@@ -440,8 +442,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--reuse",
         action="store_true",
-        help=f"Bin a stored screen from {os.path.relpath(table_file(), ROOT)} instead of preparing "
-             "every complex again.",
+        help=f"Bin a stored screen from {os.path.relpath(table_file(), ROOT)}, or from "
+             f"{os.path.relpath(table_file(strict=True), ROOT)} under `--strict`, instead of "
+             "preparing every complex again.",
     )
     parser.add_argument(
         "--workers",
@@ -478,7 +481,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--strict",
         action="store_true",
-        help=f"Sweep the generated ensembles at {NEAR_NATIVE} A rather than {LOOSE} A."
+        help=f"Sweep the generated ensembles at {NEAR_NATIVE} A rather than {LOOSE} A, and keep "
+             "the screen in filter_strict.csv."
     )
     parser.add_argument(
         "--tether",

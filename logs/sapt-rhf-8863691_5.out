@@ -1,0 +1,44 @@
+[03:30:44] Complex   7XFA_D9J  (task 5 of 12)
+[03:30:44] Threads   48
+[03:30:44] Memory    98304 MB of 131072 MB
+[03:30:44] Scratch   /scratch
+[03:30:44] Dice      /data/coml-quantum-diffusion/exet6585/sapt-preproc/bin/Dice  
+[03:30:44] Host      htc-c069
+[03:30:45] Kept      7XFA_D9J_casci.npz 7XFA_D9J.dice.out 7XFA_D9J_encoded.npz 7XFA_D9J_poses.sdf 7XFA_D9J_prepared.npz 7XFA_D9J_rhf.chk 7XFA_D9J_sapt.npz 7XFA_D9J_solved.npz and 27 pose SCFs
+[03:30:45] Running the pipeline for 7XFA_D9J with --classical
+[03:30:55] Prepared   7XFA_D9J, read back
+[03:30:57] Solved     7XFA_D9J's space, read back
+[03:30:57] Encoded    7XFA_D9J's (14e, 14o) Hamiltonian, read back
+[03:30:57] Correlated 7XFA_D9J's active space, read back
+[03:30:59] Solved     7XFA_D9J's 27 poses at RHF, read back
+[03:30:59] Referring the poses to SAPT(RHF): the determinant the protein's active space would hold, which carries no cumulant
+[04:03:09] Scored    pose 1 of 27, rank11_confidence-2.18.sdf: E_int 0.013344 Hartree
+[04:35:49] Scored    pose 2 of 27, rank12_confidence-2.23.sdf: E_int 0.006878 Hartree
+[05:08:08] Scored    pose 3 of 27, rank14_confidence-2.24.sdf: E_int 0.000963 Hartree
+[05:40:47] Scored    pose 4 of 27, rank15_confidence-2.24.sdf: E_int 0.004827 Hartree
+[06:13:27] Scored    pose 5 of 27, rank17_confidence-2.28.sdf: E_int -0.007076 Hartree
+[06:47:45] Scored    pose 6 of 27, rank18_confidence-2.33.sdf: E_int -0.012156 Hartree
+[07:22:05] Scored    pose 7 of 27, rank19_confidence-2.35.sdf: E_int -0.012906 Hartree
+[07:56:32] Scored    pose 8 of 27, rank1_confidence-1.77.sdf: E_int -0.018645 Hartree
+[08:30:22] Scored    pose 9 of 27, rank24_confidence-2.53.sdf: E_int -0.013710 Hartree
+[09:04:00] Scored    pose 10 of 27, rank25_confidence-2.54.sdf: E_int -0.013498 Hartree
+[09:37:35] Scored    pose 11 of 27, rank26_confidence-2.56.sdf: E_int 0.015210 Hartree
+[10:11:18] Scored    pose 12 of 27, rank27_confidence-2.57.sdf: E_int -0.023429 Hartree
+[10:44:26] Scored    pose 13 of 27, rank29_confidence-2.65.sdf: E_int 0.008352 Hartree
+[11:17:00] Scored    pose 14 of 27, rank2_confidence-1.88.sdf: E_int 0.005732 Hartree
+[11:49:14] Scored    pose 15 of 27, rank30_confidence-2.74.sdf: E_int 0.001516 Hartree
+[12:19:28] Scored    pose 16 of 27, rank32_confidence-2.76.sdf: E_int 0.012441 Hartree
+[12:51:38] Scored    pose 17 of 27, rank33_confidence-2.81.sdf: E_int -0.006395 Hartree
+[13:22:33] Scored    pose 18 of 27, rank34_confidence-2.92.sdf: E_int -0.003176 Hartree
+[13:54:17] Scored    pose 19 of 27, rank35_confidence-2.95.sdf: E_int -0.000067 Hartree
+[14:25:12] Scored    pose 20 of 27, rank36_confidence-3.03.sdf: E_int 0.031043 Hartree
+[14:56:25] Scored    pose 21 of 27, rank37_confidence-3.19.sdf: E_int 0.016243 Hartree
+[15:27:24] Scored    pose 22 of 27, rank38_confidence-3.32.sdf: E_int -0.002961 Hartree
+[15:57:26] Scored    pose 23 of 27, rank39_confidence-3.77.sdf: E_int 0.006863 Hartree
+[16:30:22] Scored    pose 24 of 27, rank3_confidence-1.90.sdf: E_int 0.008659 Hartree
+[17:05:02] Scored    pose 25 of 27, rank4_confidence-1.91.sdf: E_int 0.001633 Hartree
+[17:37:25] Scored    pose 26 of 27, rank5_confidence-1.92.sdf: E_int 0.014185 Hartree
+[18:09:42] Scored    pose 27 of 27, rank9_confidence-2.15.sdf: E_int 0.014339 Hartree
+[18:09:42] Scored     7XFA_D9J's 27 poses
+[18:09:43] Kept      7XFA_D9J_casci.npz 7XFA_D9J.dice.out 7XFA_D9J_encoded.npz 7XFA_D9J_poses.sdf 7XFA_D9J_prepared.npz 7XFA_D9J_rhf.chk 7XFA_D9J_sapt.npz 7XFA_D9J_sapt_rhf.npz 7XFA_D9J_solved.npz and 27 pose SCFs
+[18:09:43] Done

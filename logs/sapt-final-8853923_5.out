@@ -1,0 +1,9 @@
+[07:18:09] Complex   7XFA_D9J  (task 5 of 12)
+[07:18:09] Threads   48
+[07:18:09] Memory    98304 MB of 131072 MB
+[07:18:09] Scratch   /scratch
+[07:18:09] Dice      /data/coml-quantum-diffusion/exet6585/sapt-preproc/bin/Dice  
+[07:18:09] Host      htc-c062
+[07:18:09] Kept      7XFA_D9J_casci.npz 7XFA_D9J.dice.out 7XFA_D9J_encoded.npz 7XFA_D9J_poses.sdf 7XFA_D9J_prepared.npz 7XFA_D9J_rhf.chk 7XFA_D9J_solved.npz and 27 pose SCFs
+[07:18:09] Running the pipeline for 7XFA_D9J 
+/var/spool/slurmd/job8854290/slurm_script: line 128: 3183865 Segmentation fault      (core dumped) python run.py "$JOB" --complexes "$NAME" ${ASKED[@]+"${ASKED[@]}"}

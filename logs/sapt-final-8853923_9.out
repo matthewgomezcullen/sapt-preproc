@@ -1,0 +1,40 @@
+[07:37:53] Complex   7NGW_UAW  (task 9 of 12)
+[07:37:53] Threads   48
+[07:37:53] Memory    98304 MB of 131072 MB
+[07:37:53] Scratch   /scratch
+[07:37:53] Dice      /data/coml-quantum-diffusion/exet6585/sapt-preproc/bin/Dice  
+[07:37:53] Host      htc-c048
+[07:37:53] Kept      7NGW_UAW_casci.npz 7NGW_UAW.dice.out 7NGW_UAW_encoded.npz 7NGW_UAW_poses.sdf 7NGW_UAW_prepared.npz 7NGW_UAW_rhf.chk 7NGW_UAW_solved.npz and 39 pose SCFs
+[07:37:54] Running the pipeline for 7NGW_UAW 
+[09:01:50] Scored    pose 1 of 39, rank10_confidence-0.65.sdf: E_int 0.163710 Hartree
+[10:38:15] Scored    pose 2 of 39, rank11_confidence-0.65.sdf: E_int 0.142701 Hartree
+[12:16:07] Scored    pose 3 of 39, rank12_confidence-0.66.sdf: E_int 0.180906 Hartree
+[13:54:13] Scored    pose 4 of 39, rank13_confidence-0.66.sdf: E_int 0.144528 Hartree
+[15:30:04] Scored    pose 5 of 39, rank14_confidence-0.66.sdf: E_int 0.157040 Hartree
+[17:06:38] Scored    pose 6 of 39, rank15_confidence-0.69.sdf: E_int 0.146179 Hartree
+[18:43:20] Scored    pose 7 of 39, rank16_confidence-0.69.sdf: E_int 0.174158 Hartree
+[20:21:14] Scored    pose 8 of 39, rank17_confidence-0.69.sdf: E_int 0.138137 Hartree
+[21:59:44] Scored    pose 9 of 39, rank18_confidence-0.69.sdf: E_int 0.138375 Hartree
+[23:37:45] Scored    pose 10 of 39, rank19_confidence-0.69.sdf: E_int 0.141474 Hartree
+[01:17:01] Scored    pose 11 of 39, rank1_confidence-0.59.sdf: E_int 0.150021 Hartree
+[02:55:05] Scored    pose 12 of 39, rank20_confidence-0.70.sdf: E_int 0.137632 Hartree
+[04:31:32] Scored    pose 13 of 39, rank21_confidence-0.70.sdf: E_int 0.138947 Hartree
+[06:08:27] Scored    pose 14 of 39, rank22_confidence-0.71.sdf: E_int 0.149419 Hartree
+[07:46:04] Scored    pose 15 of 39, rank23_confidence-0.71.sdf: E_int 0.145661 Hartree
+[09:22:19] Scored    pose 16 of 39, rank24_confidence-0.72.sdf: E_int 0.135176 Hartree
+[10:59:09] Scored    pose 17 of 39, rank25_confidence-0.72.sdf: E_int 0.140100 Hartree
+[12:29:43] Scored    pose 18 of 39, rank26_confidence-0.74.sdf: E_int 0.152049 Hartree
+[13:54:37] Scored    pose 19 of 39, rank27_confidence-0.75.sdf: E_int 0.141635 Hartree
+[15:23:47] Scored    pose 20 of 39, rank28_confidence-0.77.sdf: E_int 0.143329 Hartree
+[16:52:33] Scored    pose 21 of 39, rank29_confidence-0.78.sdf: E_int 0.163728 Hartree
+[18:21:21] Scored    pose 22 of 39, rank2_confidence-0.61.sdf: E_int 0.140186 Hartree
+[19:48:24] Scored    pose 23 of 39, rank30_confidence-0.78.sdf: E_int 0.184800 Hartree
+[21:16:12] Scored    pose 24 of 39, rank31_confidence-0.79.sdf: E_int 0.160630 Hartree
+[22:43:00] Scored    pose 25 of 39, rank32_confidence-0.80.sdf: E_int 0.162025 Hartree
+[00:00:50] Scored    pose 26 of 39, rank33_confidence-0.99.sdf: E_int 0.061022 Hartree
+[01:25:26] Scored    pose 27 of 39, rank34_confidence-1.22.sdf: E_int 0.148477 Hartree
+[02:40:52] Scored    pose 28 of 39, rank35_confidence-1.52.sdf: E_int 0.050847 Hartree
+[04:06:47] Scored    pose 29 of 39, rank36_confidence-1.56.sdf: E_int 0.089847 Hartree
+[05:34:29] Scored    pose 30 of 39, rank37_confidence-1.62.sdf: E_int 0.027488 Hartree
+[07:14:36] Scored    pose 31 of 39, rank38_confidence-1.65.sdf: E_int 0.095826 Hartree
+slurmstepd: error: *** JOB 8854340 ON htc-c048 CANCELLED AT 2026-09-21T07:37:25 DUE TO TIME LIMIT ***

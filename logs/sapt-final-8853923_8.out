@@ -1,0 +1,50 @@
+[07:37:53] Complex   8DSC_NCA  (task 8 of 12)
+[07:37:53] Threads   48
+[07:37:53] Memory    98304 MB of 131072 MB
+[07:37:53] Scratch   /scratch
+[07:37:53] Dice      /data/coml-quantum-diffusion/exet6585/sapt-preproc/bin/Dice  
+[07:37:53] Host      htc-c048
+[07:37:53] Kept      8DSC_NCA_casci.npz 8DSC_NCA.dice.out 8DSC_NCA_encoded.npz 8DSC_NCA_poses.sdf 8DSC_NCA_prepared.npz 8DSC_NCA_rhf.chk 8DSC_NCA_solved.npz and 40 pose SCFs
+[07:37:53] Running the pipeline for 8DSC_NCA 
+[07:53:59] Scored    pose 1 of 40, rank10_confidence-0.31.sdf: E_int -0.039391 Hartree
+[08:12:44] Scored    pose 2 of 40, rank11_confidence-0.31.sdf: E_int -0.036749 Hartree
+[08:31:28] Scored    pose 3 of 40, rank12_confidence-0.31.sdf: E_int -0.043199 Hartree
+[08:50:13] Scored    pose 4 of 40, rank13_confidence-0.31.sdf: E_int -0.034951 Hartree
+[09:08:51] Scored    pose 5 of 40, rank14_confidence-0.31.sdf: E_int -0.031797 Hartree
+[09:27:26] Scored    pose 6 of 40, rank15_confidence-0.31.sdf: E_int -0.043289 Hartree
+[09:46:03] Scored    pose 7 of 40, rank16_confidence-0.31.sdf: E_int -0.042320 Hartree
+[10:04:37] Scored    pose 8 of 40, rank17_confidence-0.31.sdf: E_int -0.041193 Hartree
+[10:23:28] Scored    pose 9 of 40, rank18_confidence-0.31.sdf: E_int -0.032082 Hartree
+[10:42:01] Scored    pose 10 of 40, rank19_confidence-0.31.sdf: E_int -0.039208 Hartree
+[11:00:33] Scored    pose 11 of 40, rank1_confidence-0.27.sdf: E_int -0.030920 Hartree
+[11:19:04] Scored    pose 12 of 40, rank20_confidence-0.31.sdf: E_int -0.038436 Hartree
+[11:37:35] Scored    pose 13 of 40, rank21_confidence-0.32.sdf: E_int -0.038289 Hartree
+[11:56:45] Scored    pose 14 of 40, rank22_confidence-0.32.sdf: E_int -0.039505 Hartree
+[12:16:33] Scored    pose 15 of 40, rank23_confidence-0.32.sdf: E_int -0.042402 Hartree
+[12:35:35] Scored    pose 16 of 40, rank24_confidence-0.32.sdf: E_int -0.043315 Hartree
+[12:54:11] Scored    pose 17 of 40, rank25_confidence-0.32.sdf: E_int -0.039438 Hartree
+[13:13:23] Scored    pose 18 of 40, rank26_confidence-0.32.sdf: E_int -0.039542 Hartree
+[13:32:31] Scored    pose 19 of 40, rank27_confidence-0.32.sdf: E_int -0.036086 Hartree
+[13:51:18] Scored    pose 20 of 40, rank28_confidence-0.32.sdf: E_int -0.038645 Hartree
+[14:09:52] Scored    pose 21 of 40, rank29_confidence-0.32.sdf: E_int -0.043844 Hartree
+[14:28:24] Scored    pose 22 of 40, rank2_confidence-0.30.sdf: E_int -0.037514 Hartree
+[14:47:40] Scored    pose 23 of 40, rank30_confidence-0.33.sdf: E_int -0.039617 Hartree
+[15:06:18] Scored    pose 24 of 40, rank31_confidence-0.33.sdf: E_int -0.044317 Hartree
+[15:25:07] Scored    pose 25 of 40, rank32_confidence-0.33.sdf: E_int -0.041430 Hartree
+[15:43:50] Scored    pose 26 of 40, rank33_confidence-0.33.sdf: E_int -0.042545 Hartree
+[16:02:27] Scored    pose 27 of 40, rank34_confidence-0.33.sdf: E_int -0.043324 Hartree
+[16:21:15] Scored    pose 28 of 40, rank35_confidence-0.33.sdf: E_int -0.037522 Hartree
+[16:39:56] Scored    pose 29 of 40, rank36_confidence-0.33.sdf: E_int -0.044027 Hartree
+[16:58:42] Scored    pose 30 of 40, rank37_confidence-0.34.sdf: E_int -0.040942 Hartree
+[17:17:16] Scored    pose 31 of 40, rank38_confidence-0.35.sdf: E_int -0.042174 Hartree
+[17:36:06] Scored    pose 32 of 40, rank39_confidence-0.37.sdf: E_int -0.042691 Hartree
+[17:55:03] Scored    pose 33 of 40, rank3_confidence-0.30.sdf: E_int -0.042026 Hartree
+[18:09:19] Scored    pose 34 of 40, rank40_confidence-1.95.sdf: E_int 0.005660 Hartree
+[18:28:09] Scored    pose 35 of 40, rank4_confidence-0.31.sdf: E_int -0.037873 Hartree
+[18:46:48] Scored    pose 36 of 40, rank5_confidence-0.31.sdf: E_int -0.037063 Hartree
+[19:05:40] Scored    pose 37 of 40, rank6_confidence-0.31.sdf: E_int -0.038358 Hartree
+[19:25:34] Scored    pose 38 of 40, rank7_confidence-0.31.sdf: E_int -0.036676 Hartree
+[19:45:07] Scored    pose 39 of 40, rank8_confidence-0.31.sdf: E_int -0.040364 Hartree
+[20:05:09] Scored    pose 40 of 40, rank9_confidence-0.31.sdf: E_int -0.039196 Hartree
+[20:05:09] Kept      8DSC_NCA_casci.npz 8DSC_NCA.dice.out 8DSC_NCA_encoded.npz 8DSC_NCA_poses.sdf 8DSC_NCA_prepared.npz 8DSC_NCA_rhf.chk 8DSC_NCA_sapt.npz 8DSC_NCA_solved.npz and 40 pose SCFs
+[20:05:09] Done

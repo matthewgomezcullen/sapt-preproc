@@ -1,0 +1,56 @@
+[03:30:44] Complex   7W05_GMP  (task 2 of 12)
+[03:30:44] Threads   48
+[03:30:44] Memory    98304 MB of 131072 MB
+[03:30:44] Scratch   /scratch
+[03:30:44] Dice      /data/coml-quantum-diffusion/exet6585/sapt-preproc/bin/Dice  
+[03:30:44] Host      htc-c062
+[03:30:45] Kept      7W05_GMP_casci.npz 7W05_GMP.dice.out 7W05_GMP_encoded.npz 7W05_GMP_poses.sdf 7W05_GMP_prepared.npz 7W05_GMP_rhf.chk 7W05_GMP_sapt.npz 7W05_GMP_solved.npz and 39 pose SCFs
+[03:30:45] Running the pipeline for 7W05_GMP with --classical
+[03:30:55] Prepared   7W05_GMP, read back
+[03:30:57] Solved     7W05_GMP's space, read back
+[03:30:57] Encoded    7W05_GMP's (12e, 14o) Hamiltonian, read back
+[03:30:57] Correlated 7W05_GMP's active space, read back
+[03:30:59] Solved     7W05_GMP's 39 poses at RHF, read back
+[03:30:59] Referring the poses to SAPT(RHF): the determinant the protein's active space would hold, which carries no cumulant
+[03:39:43] Scored    pose 1 of 39, rank10_confidence-0.99.sdf: E_int -0.079585 Hartree
+[03:48:02] Scored    pose 2 of 39, rank11_confidence-1.05.sdf: E_int -0.062308 Hartree
+[03:56:23] Scored    pose 3 of 39, rank12_confidence-1.08.sdf: E_int -0.059960 Hartree
+[04:05:05] Scored    pose 4 of 39, rank13_confidence-1.10.sdf: E_int -0.078168 Hartree
+[04:13:30] Scored    pose 5 of 39, rank14_confidence-1.15.sdf: E_int -0.059993 Hartree
+[04:21:57] Scored    pose 6 of 39, rank15_confidence-1.18.sdf: E_int -0.079683 Hartree
+[04:30:45] Scored    pose 7 of 39, rank16_confidence-1.20.sdf: E_int -0.071925 Hartree
+[04:39:08] Scored    pose 8 of 39, rank17_confidence-1.33.sdf: E_int -0.068027 Hartree
+[04:47:48] Scored    pose 9 of 39, rank18_confidence-1.40.sdf: E_int -0.070674 Hartree
+[04:56:14] Scored    pose 10 of 39, rank19_confidence-1.54.sdf: E_int -0.083419 Hartree
+[05:05:03] Scored    pose 11 of 39, rank1_confidence-0.61.sdf: E_int -0.080945 Hartree
+[05:13:31] Scored    pose 12 of 39, rank20_confidence-1.54.sdf: E_int -0.080968 Hartree
+[05:21:58] Scored    pose 13 of 39, rank21_confidence-1.57.sdf: E_int -0.082269 Hartree
+[05:30:27] Scored    pose 14 of 39, rank22_confidence-1.57.sdf: E_int -0.079230 Hartree
+[05:38:55] Scored    pose 15 of 39, rank23_confidence-1.61.sdf: E_int -0.081552 Hartree
+[05:47:20] Scored    pose 16 of 39, rank24_confidence-1.63.sdf: E_int -0.084880 Hartree
+[05:55:48] Scored    pose 17 of 39, rank25_confidence-1.68.sdf: E_int -0.081046 Hartree
+[06:04:14] Scored    pose 18 of 39, rank26_confidence-1.69.sdf: E_int -0.081601 Hartree
+[06:12:55] Scored    pose 19 of 39, rank27_confidence-1.71.sdf: E_int -0.080474 Hartree
+[06:20:50] Scored    pose 20 of 39, rank28_confidence-1.75.sdf: E_int -0.023297 Hartree
+[06:29:33] Scored    pose 21 of 39, rank29_confidence-1.76.sdf: E_int -0.079309 Hartree
+[06:38:37] Scored    pose 22 of 39, rank2_confidence-0.61.sdf: E_int -0.102132 Hartree
+[06:47:18] Scored    pose 23 of 39, rank30_confidence-1.78.sdf: E_int -0.075936 Hartree
+[06:55:56] Scored    pose 24 of 39, rank31_confidence-1.80.sdf: E_int -0.074013 Hartree
+[07:04:38] Scored    pose 25 of 39, rank32_confidence-1.81.sdf: E_int -0.082729 Hartree
+[07:12:49] Scored    pose 26 of 39, rank33_confidence-1.90.sdf: E_int -0.071406 Hartree
+[07:21:07] Scored    pose 27 of 39, rank34_confidence-1.91.sdf: E_int -0.074632 Hartree
+[07:29:33] Scored    pose 28 of 39, rank36_confidence-1.92.sdf: E_int -0.071844 Hartree
+[07:37:00] Scored    pose 29 of 39, rank37_confidence-2.31.sdf: E_int 0.031074 Hartree
+[07:45:12] Scored    pose 30 of 39, rank38_confidence-2.31.sdf: E_int -0.062899 Hartree
+[07:53:36] Scored    pose 31 of 39, rank39_confidence-2.40.sdf: E_int -0.061786 Hartree
+[08:02:42] Scored    pose 32 of 39, rank3_confidence-0.65.sdf: E_int -0.080418 Hartree
+[08:11:12] Scored    pose 33 of 39, rank40_confidence-2.54.sdf: E_int -0.064554 Hartree
+[08:20:18] Scored    pose 34 of 39, rank4_confidence-0.69.sdf: E_int -0.083114 Hartree
+[08:29:16] Scored    pose 35 of 39, rank5_confidence-0.80.sdf: E_int -0.076077 Hartree
+[08:38:20] Scored    pose 36 of 39, rank6_confidence-0.81.sdf: E_int -0.069867 Hartree
+[08:47:34] Scored    pose 37 of 39, rank7_confidence-0.88.sdf: E_int -0.077357 Hartree
+[08:56:38] Scored    pose 38 of 39, rank8_confidence-0.92.sdf: E_int -0.080574 Hartree
+[09:05:45] Scored    pose 39 of 39, rank9_confidence-0.93.sdf: E_int -0.086449 Hartree
+[09:05:45] Scored     7W05_GMP's 39 poses
+[09:05:45] Kept      7W05_GMP_casci.npz 7W05_GMP.dice.out 7W05_GMP_encoded.npz 7W05_GMP_poses.sdf 7W05_GMP_prepared.npz 7W05_GMP_rhf.chk 7W05_GMP_sapt.npz 7W05_GMP_sapt_rhf.npz 7W05_GMP_solved.npz and 39 pose SCFs
+[09:05:45] Done

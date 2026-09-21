@@ -1,0 +1,53 @@
+[03:30:44] Complex   5SAK_ZRY  (task 10 of 12)
+[03:30:44] Threads   48
+[03:30:44] Memory    98304 MB of 131072 MB
+[03:30:44] Scratch   /scratch
+[03:30:44] Dice      /data/coml-quantum-diffusion/exet6585/sapt-preproc/bin/Dice  
+[03:30:44] Host      htc-c048
+[03:30:44] Kept      5SAK_ZRY_casci.npz 5SAK_ZRY.dice.out 5SAK_ZRY_encoded.npz 5SAK_ZRY_poses.sdf 5SAK_ZRY_prepared.npz 5SAK_ZRY_rhf.chk 5SAK_ZRY_sapt.npz 5SAK_ZRY_solved.npz and 36 pose SCFs
+[03:30:44] Running the pipeline for 5SAK_ZRY with --classical
+[03:30:55] Prepared   5SAK_ZRY, read back
+[03:30:58] Solved     5SAK_ZRY's space, read back
+[03:30:58] Encoded    5SAK_ZRY's (12e, 14o) Hamiltonian, read back
+[03:30:58] Correlated 5SAK_ZRY's active space, read back
+[03:30:59] Solved     5SAK_ZRY's 36 poses at RHF, read back
+[03:30:59] Referring the poses to SAPT(RHF): the determinant the protein's active space would hold, which carries no cumulant
+[03:55:50] Scored    pose 1 of 36, rank10_confidence-0.42.sdf: E_int 0.001668 Hartree
+[04:20:20] Scored    pose 2 of 36, rank11_confidence-0.49.sdf: E_int -0.011889 Hartree
+[04:46:05] Scored    pose 3 of 36, rank12_confidence-0.51.sdf: E_int 0.067695 Hartree
+[05:10:44] Scored    pose 4 of 36, rank13_confidence-0.52.sdf: E_int -0.007313 Hartree
+[05:36:20] Scored    pose 5 of 36, rank14_confidence-0.53.sdf: E_int -0.001968 Hartree
+[06:01:57] Scored    pose 6 of 36, rank15_confidence-0.56.sdf: E_int 0.059690 Hartree
+[06:31:03] Scored    pose 7 of 36, rank16_confidence-0.64.sdf: E_int 0.018769 Hartree
+[07:01:03] Scored    pose 8 of 36, rank17_confidence-0.66.sdf: E_int 0.026476 Hartree
+[07:31:08] Scored    pose 9 of 36, rank18_confidence-0.67.sdf: E_int 0.019336 Hartree
+[07:59:19] Scored    pose 10 of 36, rank19_confidence-0.67.sdf: E_int 0.012798 Hartree
+[08:23:56] Scored    pose 11 of 36, rank1_confidence-0.26.sdf: E_int -0.027246 Hartree
+[08:48:38] Scored    pose 12 of 36, rank20_confidence-0.68.sdf: E_int 0.032313 Hartree
+[09:13:17] Scored    pose 13 of 36, rank21_confidence-0.69.sdf: E_int 0.017989 Hartree
+[09:37:55] Scored    pose 14 of 36, rank22_confidence-0.70.sdf: E_int 0.015750 Hartree
+[10:02:28] Scored    pose 15 of 36, rank23_confidence-0.71.sdf: E_int 0.016959 Hartree
+[10:27:07] Scored    pose 16 of 36, rank24_confidence-0.71.sdf: E_int 0.016551 Hartree
+[10:51:43] Scored    pose 17 of 36, rank25_confidence-0.71.sdf: E_int 0.015991 Hartree
+[11:16:23] Scored    pose 18 of 36, rank26_confidence-0.71.sdf: E_int 0.015866 Hartree
+[11:41:01] Scored    pose 19 of 36, rank27_confidence-0.73.sdf: E_int 0.015802 Hartree
+[12:05:26] Scored    pose 20 of 36, rank28_confidence-0.74.sdf: E_int 0.015162 Hartree
+[12:30:00] Scored    pose 21 of 36, rank29_confidence-0.77.sdf: E_int 0.014046 Hartree
+[12:53:58] Scored    pose 22 of 36, rank2_confidence-0.27.sdf: E_int -0.002808 Hartree
+[13:18:31] Scored    pose 23 of 36, rank30_confidence-0.78.sdf: E_int 0.003626 Hartree
+[13:43:04] Scored    pose 24 of 36, rank31_confidence-0.82.sdf: E_int 0.015186 Hartree
+[14:07:31] Scored    pose 25 of 36, rank32_confidence-0.84.sdf: E_int 0.016586 Hartree
+[14:32:17] Scored    pose 26 of 36, rank33_confidence-0.98.sdf: E_int 0.060342 Hartree
+[14:57:05] Scored    pose 27 of 36, rank34_confidence-0.99.sdf: E_int 0.061369 Hartree
+[15:20:18] Scored    pose 28 of 36, rank35_confidence-1.12.sdf: E_int -0.002411 Hartree
+[15:43:28] Scored    pose 29 of 36, rank36_confidence-1.73.sdf: E_int 0.008288 Hartree
+[16:07:26] Scored    pose 30 of 36, rank3_confidence-0.28.sdf: E_int -0.009867 Hartree
+[16:31:30] Scored    pose 31 of 36, rank4_confidence-0.28.sdf: E_int -0.026960 Hartree
+[16:55:24] Scored    pose 32 of 36, rank5_confidence-0.28.sdf: E_int -0.015232 Hartree
+[17:19:18] Scored    pose 33 of 36, rank6_confidence-0.34.sdf: E_int -0.009772 Hartree
+[17:43:28] Scored    pose 34 of 36, rank7_confidence-0.37.sdf: E_int 0.000695 Hartree
+[18:07:45] Scored    pose 35 of 36, rank8_confidence-0.41.sdf: E_int -0.003012 Hartree
+[18:31:14] Scored    pose 36 of 36, rank9_confidence-0.42.sdf: E_int 0.009268 Hartree
+[18:31:14] Scored     5SAK_ZRY's 36 poses
+[18:31:21] Kept      5SAK_ZRY_casci.npz 5SAK_ZRY.dice.out 5SAK_ZRY_encoded.npz 5SAK_ZRY_poses.sdf 5SAK_ZRY_prepared.npz 5SAK_ZRY_rhf.chk 5SAK_ZRY_sapt.npz 5SAK_ZRY_sapt_rhf.npz 5SAK_ZRY_solved.npz and 36 pose SCFs
+[18:31:21] Done

@@ -1,0 +1,32 @@
+=============================================================================
+This module includes execution of the conda shell function.
+There is no need to run conda init. For more details, see:
+https://arc-software-guide.readthedocs.io/en/latest/python/anaconda_venv.html
+=============================================================================
+[05:40:39] Complex   7XI7_4RI  (task 3 of 7)
+[05:40:39] Threads   48
+[05:40:39] Memory    98304 MB of 131072 MB
+[05:40:39] Scratch   /scratch
+[05:40:39] Dice      /data/coml-quantum-diffusion/exet6585/sapt-preproc/bin/Dice  
+[05:40:39] Host      htc-c019
+[05:40:39] Kept      7XI7_4RI_poses.sdf 7XI7_4RI_prepared.npz and 0 pose SCFs
+[05:40:39] Running the pipeline for 7XI7_4RI 
+[05:40:48] Prepared   7XI7_4RI, read back
+[06:54:58] Solved     7XI7_4RI's space
+[07:36:01] Encoded    7XI7_4RI's (12e, 14o) Hamiltonian
+[07:36:14] Correlated 7XI7_4RI's active space
+[07:37:22] Solved     7XI7_4RI's 40 poses at RHF
+[08:46:25] Scored    pose 1 of 40, rank10_confidence-0.31.sdf: E_int 0.009863 Hartree
+[09:55:05] Scored    pose 2 of 40, rank11_confidence-0.33.sdf: E_int 0.012981 Hartree
+[11:03:32] Scored    pose 3 of 40, rank12_confidence-0.33.sdf: E_int 0.010748 Hartree
+[12:11:59] Scored    pose 4 of 40, rank13_confidence-0.34.sdf: E_int 0.012761 Hartree
+[13:20:11] Scored    pose 5 of 40, rank14_confidence-0.34.sdf: E_int 0.009125 Hartree
+[14:28:43] Scored    pose 6 of 40, rank15_confidence-0.34.sdf: E_int 0.009952 Hartree
+[15:36:45] Scored    pose 7 of 40, rank16_confidence-0.35.sdf: E_int 0.007015 Hartree
+[16:44:40] Scored    pose 8 of 40, rank17_confidence-0.35.sdf: E_int 0.015141 Hartree
+[17:53:08] Scored    pose 9 of 40, rank18_confidence-0.36.sdf: E_int 0.019089 Hartree
+[19:01:54] Scored    pose 10 of 40, rank19_confidence-0.36.sdf: E_int 0.017451 Hartree
+[20:10:30] Scored    pose 11 of 40, rank1_confidence-0.21.sdf: E_int 0.012749 Hartree
+[21:18:22] Scored    pose 12 of 40, rank20_confidence-0.36.sdf: E_int 0.011363 Hartree
+[22:26:19] Scored    pose 13 of 40, rank21_confidence-0.37.sdf: E_int 0.011580 Hartree
+[23:34:19] Scored    pose 14 of 40, rank22_confidence-0.37.sdf: E_int 0.014726 Hartree

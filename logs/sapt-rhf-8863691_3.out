@@ -1,0 +1,51 @@
+=============================================================================
+This module includes execution of the conda shell function.
+There is no need to run conda init. For more details, see:
+https://arc-software-guide.readthedocs.io/en/latest/python/anaconda_venv.html
+=============================================================================
+[03:30:45] Complex   7OEO_V9Z  (task 3 of 12)
+[03:30:45] Threads   48
+[03:30:45] Memory    98304 MB of 131072 MB
+[03:30:45] Scratch   /scratch
+[03:30:45] Dice      /data/coml-quantum-diffusion/exet6585/sapt-preproc/bin/Dice  
+[03:30:45] Host      htc-c027
+[03:30:45] Kept      7OEO_V9Z_casci.npz 7OEO_V9Z.dice.out 7OEO_V9Z_encoded.npz 7OEO_V9Z_poses.sdf 7OEO_V9Z_prepared.npz 7OEO_V9Z_rhf.chk 7OEO_V9Z_sapt.npz 7OEO_V9Z_solved.npz and 40 pose SCFs
+[03:30:45] Running the pipeline for 7OEO_V9Z with --classical
+[03:30:55] Prepared   7OEO_V9Z, read back
+[03:30:57] Solved     7OEO_V9Z's space, read back
+[03:30:57] Encoded    7OEO_V9Z's (16e, 14o) Hamiltonian, read back
+[03:30:57] Correlated 7OEO_V9Z's active space, read back
+[03:31:00] Solved     7OEO_V9Z's 40 poses at RHF, read back
+[03:31:00] Referring the poses to SAPT(RHF): the determinant the protein's active space would hold, which carries no cumulant
+[04:09:22] Scored    pose 1 of 40, rank10_confidence-0.94.sdf: E_int 0.037263 Hartree
+[04:47:48] Scored    pose 2 of 40, rank11_confidence-0.94.sdf: E_int 0.051830 Hartree
+[05:26:14] Scored    pose 3 of 40, rank12_confidence-0.97.sdf: E_int 0.026965 Hartree
+[06:05:04] Scored    pose 4 of 40, rank13_confidence-0.98.sdf: E_int 0.038684 Hartree
+[06:43:46] Scored    pose 5 of 40, rank14_confidence-1.02.sdf: E_int 0.027966 Hartree
+[07:23:09] Scored    pose 6 of 40, rank15_confidence-1.02.sdf: E_int 0.044112 Hartree
+[08:02:12] Scored    pose 7 of 40, rank16_confidence-1.02.sdf: E_int 0.056895 Hartree
+[08:41:07] Scored    pose 8 of 40, rank17_confidence-1.04.sdf: E_int 0.044679 Hartree
+[09:19:41] Scored    pose 9 of 40, rank18_confidence-1.12.sdf: E_int 0.038622 Hartree
+[09:58:18] Scored    pose 10 of 40, rank19_confidence-1.12.sdf: E_int 0.016082 Hartree
+[10:37:29] Scored    pose 11 of 40, rank1_confidence-0.60.sdf: E_int 0.028678 Hartree
+[11:17:06] Scored    pose 12 of 40, rank20_confidence-1.14.sdf: E_int 0.051526 Hartree
+[11:55:38] Scored    pose 13 of 40, rank21_confidence-1.14.sdf: E_int 0.050082 Hartree
+[12:34:29] Scored    pose 14 of 40, rank22_confidence-1.15.sdf: E_int 0.046916 Hartree
+[13:13:08] Scored    pose 15 of 40, rank23_confidence-1.22.sdf: E_int 0.044808 Hartree
+[13:51:39] Scored    pose 16 of 40, rank24_confidence-1.23.sdf: E_int 0.048687 Hartree
+[14:29:15] Scored    pose 17 of 40, rank25_confidence-1.26.sdf: E_int 0.011778 Hartree
+[15:08:23] Scored    pose 18 of 40, rank26_confidence-1.28.sdf: E_int 0.046397 Hartree
+[15:47:40] Scored    pose 19 of 40, rank27_confidence-1.29.sdf: E_int 0.052448 Hartree
+[16:26:56] Scored    pose 20 of 40, rank28_confidence-1.33.sdf: E_int 0.047209 Hartree
+[17:06:05] Scored    pose 21 of 40, rank29_confidence-1.38.sdf: E_int 0.059052 Hartree
+[17:45:07] Scored    pose 22 of 40, rank2_confidence-0.65.sdf: E_int 0.008139 Hartree
+[18:23:25] Scored    pose 23 of 40, rank30_confidence-1.44.sdf: E_int 0.040991 Hartree
+[19:02:24] Scored    pose 24 of 40, rank31_confidence-1.46.sdf: E_int 0.040047 Hartree
+[19:41:41] Scored    pose 25 of 40, rank32_confidence-1.47.sdf: E_int 0.046874 Hartree
+[20:22:19] Scored    pose 26 of 40, rank33_confidence-1.51.sdf: E_int 0.071311 Hartree
+[21:01:24] Scored    pose 27 of 40, rank34_confidence-1.53.sdf: E_int 0.041562 Hartree
+[21:40:16] Scored    pose 28 of 40, rank35_confidence-1.62.sdf: E_int 0.045707 Hartree
+[22:18:22] Scored    pose 29 of 40, rank36_confidence-1.83.sdf: E_int 0.013666 Hartree
+[22:56:39] Scored    pose 30 of 40, rank37_confidence-1.91.sdf: E_int 0.020664 Hartree
+[23:35:19] Scored    pose 31 of 40, rank38_confidence-2.02.sdf: E_int 0.026203 Hartree
+[00:14:15] Scored    pose 32 of 40, rank39_confidence-2.04.sdf: E_int 0.036308 Hartree

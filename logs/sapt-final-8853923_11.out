@@ -1,0 +1,14 @@
+=============================================================================
+This module includes execution of the conda shell function.
+There is no need to run conda init. For more details, see:
+https://arc-software-guide.readthedocs.io/en/latest/python/anaconda_venv.html
+=============================================================================
+[08:36:26] Complex   7PRM_81I  (task 11 of 12)
+[08:36:26] Threads   48
+[08:36:26] Memory    98304 MB of 131072 MB
+[08:36:26] Scratch   /scratch
+[08:36:26] Dice      /data/coml-quantum-diffusion/exet6585/sapt-preproc/bin/Dice  
+[08:36:26] Host      htc-c008
+[08:36:26] Kept      7PRM_81I_casci.npz 7PRM_81I.dice.out 7PRM_81I_encoded.npz 7PRM_81I_poses.sdf 7PRM_81I_prepared.npz 7PRM_81I_rhf.chk 7PRM_81I_solved.npz and 15 pose SCFs
+[08:36:26] Running the pipeline for 7PRM_81I 
+/var/spool/slurmd/job8853923/slurm_script: line 128: 1324692 Segmentation fault      (core dumped) python run.py "$JOB" --complexes "$NAME" ${ASKED[@]+"${ASKED[@]}"}

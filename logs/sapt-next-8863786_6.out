@@ -1,0 +1,10 @@
+[10:31:28] Complex   7RKW_5TV  (task 6 of 7)
+[10:31:28] Threads   48
+[10:31:28] Memory    98304 MB of 131072 MB
+[10:31:28] Scratch   /scratch
+[10:31:28] Dice      /data/coml-quantum-diffusion/exet6585/sapt-preproc/bin/Dice  
+[10:31:28] Host      htc-c062
+[10:31:28] Kept      7RKW_5TV_poses.sdf 7RKW_5TV_prepared.npz and 0 pose SCFs
+[10:31:28] Running the pipeline for 7RKW_5TV 
+[10:31:35] Prepared   7RKW_5TV, read back
+[22:42:52] Solved     7RKW_5TV's space

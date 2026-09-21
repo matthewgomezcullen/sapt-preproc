@@ -1,0 +1,47 @@
+[07:37:53] Complex   7Q2B_M6H  (task 7 of 12)
+[07:37:53] Threads   48
+[07:37:53] Memory    98304 MB of 131072 MB
+[07:37:53] Scratch   /scratch
+[07:37:53] Dice      /data/coml-quantum-diffusion/exet6585/sapt-preproc/bin/Dice  
+[07:37:53] Host      htc-c048
+[07:37:53] Kept      7Q2B_M6H_casci.npz 7Q2B_M6H.dice.out 7Q2B_M6H_encoded.npz 7Q2B_M6H_poses.sdf 7Q2B_M6H_prepared.npz 7Q2B_M6H_rhf.chk 7Q2B_M6H_solved.npz and 37 pose SCFs
+[07:37:53] Running the pipeline for 7Q2B_M6H 
+[08:18:59] Scored    pose 1 of 37, rank10_confidence-0.97.sdf: E_int 0.017517 Hartree
+[09:05:18] Scored    pose 2 of 37, rank11_confidence-1.03.sdf: E_int 0.044443 Hartree
+[09:51:14] Scored    pose 3 of 37, rank12_confidence-1.05.sdf: E_int 0.042735 Hartree
+[10:37:29] Scored    pose 4 of 37, rank13_confidence-1.05.sdf: E_int 0.015164 Hartree
+[11:23:20] Scored    pose 5 of 37, rank14_confidence-1.07.sdf: E_int 0.018097 Hartree
+[12:08:59] Scored    pose 6 of 37, rank15_confidence-1.11.sdf: E_int 0.038876 Hartree
+[12:54:54] Scored    pose 7 of 37, rank16_confidence-1.12.sdf: E_int 0.038840 Hartree
+[13:41:15] Scored    pose 8 of 37, rank17_confidence-1.12.sdf: E_int 0.028330 Hartree
+[14:26:11] Scored    pose 9 of 37, rank18_confidence-1.12.sdf: E_int 0.023304 Hartree
+[15:12:08] Scored    pose 10 of 37, rank19_confidence-1.12.sdf: E_int 0.049695 Hartree
+[15:57:47] Scored    pose 11 of 37, rank1_confidence-0.36.sdf: E_int 0.027416 Hartree
+[16:43:57] Scored    pose 12 of 37, rank20_confidence-1.12.sdf: E_int 0.021898 Hartree
+[17:28:57] Scored    pose 13 of 37, rank21_confidence-1.18.sdf: E_int 0.024124 Hartree
+[18:15:06] Scored    pose 14 of 37, rank22_confidence-1.19.sdf: E_int 0.008718 Hartree
+[19:00:21] Scored    pose 15 of 37, rank23_confidence-1.26.sdf: E_int 0.009298 Hartree
+[19:46:06] Scored    pose 16 of 37, rank24_confidence-1.27.sdf: E_int 0.030218 Hartree
+[20:32:25] Scored    pose 17 of 37, rank25_confidence-1.29.sdf: E_int 0.018504 Hartree
+[21:19:39] Scored    pose 18 of 37, rank26_confidence-1.34.sdf: E_int 0.008895 Hartree
+[22:07:04] Scored    pose 19 of 37, rank27_confidence-1.38.sdf: E_int 0.019909 Hartree
+[22:54:24] Scored    pose 20 of 37, rank29_confidence-1.49.sdf: E_int 0.011417 Hartree
+[23:41:21] Scored    pose 21 of 37, rank2_confidence-0.51.sdf: E_int 0.029835 Hartree
+[00:28:53] Scored    pose 22 of 37, rank30_confidence-1.66.sdf: E_int 0.050647 Hartree
+[00:53:15] Scored    pose 23 of 37, rank31_confidence-1.87.sdf: E_int -0.001851 Hartree
+[01:38:47] Scored    pose 24 of 37, rank32_confidence-2.14.sdf: E_int 0.033832 Hartree
+[02:25:51] Scored    pose 25 of 37, rank33_confidence-2.26.sdf: E_int 0.039053 Hartree
+[03:12:00] Scored    pose 26 of 37, rank34_confidence-2.49.sdf: E_int 0.029171 Hartree
+[03:59:42] Scored    pose 27 of 37, rank36_confidence-2.66.sdf: E_int 0.027713 Hartree
+[04:46:20] Scored    pose 28 of 37, rank37_confidence-2.75.sdf: E_int 0.003418 Hartree
+[05:33:52] Scored    pose 29 of 37, rank38_confidence-2.96.sdf: E_int 0.019114 Hartree
+[06:20:47] Scored    pose 30 of 37, rank39_confidence-3.06.sdf: E_int 0.001695 Hartree
+[07:08:27] Scored    pose 31 of 37, rank3_confidence-0.61.sdf: E_int 0.018579 Hartree
+[07:55:33] Scored    pose 32 of 37, rank4_confidence-0.70.sdf: E_int 0.016248 Hartree
+[08:43:04] Scored    pose 33 of 37, rank5_confidence-0.71.sdf: E_int 0.036429 Hartree
+[09:29:55] Scored    pose 34 of 37, rank6_confidence-0.74.sdf: E_int 0.020785 Hartree
+[10:17:04] Scored    pose 35 of 37, rank7_confidence-0.95.sdf: E_int 0.023874 Hartree
+[11:03:48] Scored    pose 36 of 37, rank8_confidence-0.96.sdf: E_int 0.030288 Hartree
+[11:50:37] Scored    pose 37 of 37, rank9_confidence-0.97.sdf: E_int 0.031173 Hartree
+[11:50:46] Kept      7Q2B_M6H_casci.npz 7Q2B_M6H.dice.out 7Q2B_M6H_encoded.npz 7Q2B_M6H_poses.sdf 7Q2B_M6H_prepared.npz 7Q2B_M6H_rhf.chk 7Q2B_M6H_sapt.npz 7Q2B_M6H_solved.npz and 37 pose SCFs
+[11:50:46] Done

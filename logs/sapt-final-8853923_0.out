@@ -1,0 +1,50 @@
+[01:51:53] Complex   7LOE_Y84  (task 0 of 12)
+[01:51:53] Threads   48
+[01:51:53] Memory    98304 MB of 131072 MB
+[01:51:53] Scratch   /scratch
+[01:51:53] Dice      /data/coml-quantum-diffusion/exet6585/sapt-preproc/bin/Dice  
+[01:51:53] Host      htc-c069
+[01:51:53] Kept      7LOE_Y84_casci.npz 7LOE_Y84.dice.out 7LOE_Y84_encoded.npz 7LOE_Y84_poses.sdf 7LOE_Y84_prepared.npz 7LOE_Y84_rhf.chk 7LOE_Y84_solved.npz and 40 pose SCFs
+[01:51:53] Running the pipeline for 7LOE_Y84 
+[02:08:55] Scored    pose 1 of 40, rank10_confidence-0.38.sdf: E_int 0.104520 Hartree
+[02:29:49] Scored    pose 2 of 40, rank11_confidence-0.40.sdf: E_int 0.100591 Hartree
+[02:50:46] Scored    pose 3 of 40, rank12_confidence-0.48.sdf: E_int 0.105595 Hartree
+[03:11:45] Scored    pose 4 of 40, rank13_confidence-0.49.sdf: E_int 0.104356 Hartree
+[03:32:42] Scored    pose 5 of 40, rank14_confidence-0.49.sdf: E_int 0.101791 Hartree
+[03:53:18] Scored    pose 6 of 40, rank15_confidence-0.50.sdf: E_int 0.104200 Hartree
+[04:12:41] Scored    pose 7 of 40, rank16_confidence-0.51.sdf: E_int 0.104171 Hartree
+[04:32:03] Scored    pose 8 of 40, rank17_confidence-0.51.sdf: E_int 0.104900 Hartree
+[04:51:23] Scored    pose 9 of 40, rank18_confidence-0.51.sdf: E_int 0.103884 Hartree
+[05:10:58] Scored    pose 10 of 40, rank19_confidence-0.51.sdf: E_int 0.101082 Hartree
+[05:30:30] Scored    pose 11 of 40, rank1_confidence-0.33.sdf: E_int 0.105121 Hartree
+[05:49:47] Scored    pose 12 of 40, rank20_confidence-0.51.sdf: E_int 0.106714 Hartree
+[06:09:11] Scored    pose 13 of 40, rank21_confidence-0.52.sdf: E_int 0.103666 Hartree
+[06:28:26] Scored    pose 14 of 40, rank22_confidence-0.52.sdf: E_int 0.104250 Hartree
+[06:47:47] Scored    pose 15 of 40, rank23_confidence-0.52.sdf: E_int 0.104365 Hartree
+[07:07:10] Scored    pose 16 of 40, rank24_confidence-0.53.sdf: E_int 0.104203 Hartree
+[07:26:37] Scored    pose 17 of 40, rank25_confidence-0.53.sdf: E_int 0.104489 Hartree
+[07:46:01] Scored    pose 18 of 40, rank26_confidence-0.54.sdf: E_int 0.104278 Hartree
+[08:05:24] Scored    pose 19 of 40, rank27_confidence-0.54.sdf: E_int 0.102452 Hartree
+[08:24:46] Scored    pose 20 of 40, rank28_confidence-0.54.sdf: E_int 0.103675 Hartree
+[08:44:12] Scored    pose 21 of 40, rank29_confidence-0.54.sdf: E_int 0.104014 Hartree
+[09:03:35] Scored    pose 22 of 40, rank2_confidence-0.34.sdf: E_int 0.104766 Hartree
+[09:23:03] Scored    pose 23 of 40, rank30_confidence-0.55.sdf: E_int 0.104057 Hartree
+[09:42:25] Scored    pose 24 of 40, rank31_confidence-0.55.sdf: E_int 0.101889 Hartree
+[10:01:48] Scored    pose 25 of 40, rank32_confidence-0.56.sdf: E_int 0.104160 Hartree
+[10:21:34] Scored    pose 26 of 40, rank33_confidence-0.56.sdf: E_int 0.103933 Hartree
+[10:40:57] Scored    pose 27 of 40, rank34_confidence-0.57.sdf: E_int 0.103725 Hartree
+[11:00:23] Scored    pose 28 of 40, rank35_confidence-0.57.sdf: E_int 0.104645 Hartree
+[11:19:47] Scored    pose 29 of 40, rank36_confidence-0.58.sdf: E_int 0.104170 Hartree
+[11:39:08] Scored    pose 30 of 40, rank37_confidence-0.59.sdf: E_int 0.104527 Hartree
+[11:58:58] Scored    pose 31 of 40, rank38_confidence-0.60.sdf: E_int 0.105451 Hartree
+[12:19:06] Scored    pose 32 of 40, rank39_confidence-0.62.sdf: E_int 0.105165 Hartree
+[12:39:08] Scored    pose 33 of 40, rank3_confidence-0.35.sdf: E_int 0.105610 Hartree
+[12:58:44] Scored    pose 34 of 40, rank40_confidence-0.62.sdf: E_int 0.104988 Hartree
+[13:18:37] Scored    pose 35 of 40, rank4_confidence-0.36.sdf: E_int 0.104652 Hartree
+[13:38:33] Scored    pose 36 of 40, rank5_confidence-0.36.sdf: E_int 0.105014 Hartree
+[13:58:13] Scored    pose 37 of 40, rank6_confidence-0.36.sdf: E_int 0.105551 Hartree
+[14:17:34] Scored    pose 38 of 40, rank7_confidence-0.37.sdf: E_int 0.106025 Hartree
+[14:36:42] Scored    pose 39 of 40, rank8_confidence-0.38.sdf: E_int 0.106857 Hartree
+[14:55:58] Scored    pose 40 of 40, rank9_confidence-0.38.sdf: E_int 0.105270 Hartree
+[14:55:58] Kept      7LOE_Y84_casci.npz 7LOE_Y84.dice.out 7LOE_Y84_encoded.npz 7LOE_Y84_poses.sdf 7LOE_Y84_prepared.npz 7LOE_Y84_rhf.chk 7LOE_Y84_sapt.npz 7LOE_Y84_solved.npz and 40 pose SCFs
+[14:55:58] Done

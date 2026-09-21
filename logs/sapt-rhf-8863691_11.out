@@ -1,0 +1,32 @@
+[03:30:44] Complex   7PRM_81I  (task 11 of 12)
+[03:30:44] Threads   48
+[03:30:44] Memory    98304 MB of 131072 MB
+[03:30:44] Scratch   /scratch
+[03:30:44] Dice      /data/coml-quantum-diffusion/exet6585/sapt-preproc/bin/Dice  
+[03:30:44] Host      htc-c052
+[03:30:45] Kept      7PRM_81I_casci.npz 7PRM_81I.dice.out 7PRM_81I_encoded.npz 7PRM_81I_poses.sdf 7PRM_81I_prepared.npz 7PRM_81I_rhf.chk 7PRM_81I_sapt.npz 7PRM_81I_solved.npz and 15 pose SCFs
+[03:30:45] Running the pipeline for 7PRM_81I with --classical
+[03:30:55] Prepared   7PRM_81I, read back
+[03:30:58] Solved     7PRM_81I's space, read back
+[03:30:58] Encoded    7PRM_81I's (14e, 14o) Hamiltonian, read back
+[03:30:58] Correlated 7PRM_81I's active space, read back
+[03:30:59] Solved     7PRM_81I's 15 poses at RHF, read back
+[03:30:59] Referring the poses to SAPT(RHF): the determinant the protein's active space would hold, which carries no cumulant
+[04:25:08] Scored    pose 1 of 15, rank12_confidence-0.77.sdf: E_int 0.312789 Hartree
+[05:23:43] Scored    pose 2 of 15, rank13_confidence-0.77.sdf: E_int 0.305411 Hartree
+[06:26:12] Scored    pose 3 of 15, rank14_confidence-0.77.sdf: E_int 0.302817 Hartree
+[07:28:10] Scored    pose 4 of 15, rank17_confidence-0.91.sdf: E_int 0.243635 Hartree
+[08:30:18] Scored    pose 5 of 15, rank18_confidence-0.91.sdf: E_int 0.354215 Hartree
+[09:32:01] Scored    pose 6 of 15, rank19_confidence-0.95.sdf: E_int 0.319755 Hartree
+[10:33:24] Scored    pose 7 of 15, rank20_confidence-0.96.sdf: E_int 0.292963 Hartree
+[11:26:40] Scored    pose 8 of 15, rank22_confidence-0.97.sdf: E_int 0.247674 Hartree
+[12:19:07] Scored    pose 9 of 15, rank23_confidence-0.99.sdf: E_int 0.295252 Hartree
+[13:12:04] Scored    pose 10 of 15, rank24_confidence-1.00.sdf: E_int 0.338722 Hartree
+[14:04:36] Scored    pose 11 of 15, rank26_confidence-1.06.sdf: E_int 0.302171 Hartree
+[14:57:37] Scored    pose 12 of 15, rank27_confidence-1.08.sdf: E_int 0.326118 Hartree
+[15:50:48] Scored    pose 13 of 15, rank29_confidence-1.09.sdf: E_int 0.260929 Hartree
+[16:46:20] Scored    pose 14 of 15, rank4_confidence-0.72.sdf: E_int 0.278292 Hartree
+[17:43:44] Scored    pose 15 of 15, rank6_confidence-0.73.sdf: E_int 0.311760 Hartree
+[17:43:44] Scored     7PRM_81I's 15 poses
+[17:43:44] Kept      7PRM_81I_casci.npz 7PRM_81I.dice.out 7PRM_81I_encoded.npz 7PRM_81I_poses.sdf 7PRM_81I_prepared.npz 7PRM_81I_rhf.chk 7PRM_81I_sapt.npz 7PRM_81I_sapt_rhf.npz 7PRM_81I_solved.npz and 15 pose SCFs
+[17:43:44] Done

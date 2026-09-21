@@ -1,0 +1,19 @@
+The array stops at task 9, which leaves 5SAK_ZRY 7PRM_81I unrun.
+[17:20:56] Complex   7NGW_UAW  (task 9 of 12)
+[17:20:56] Threads   48
+[17:20:56] Memory    98304 MB of 131072 MB
+[17:20:56] Scratch   /scratch
+[17:20:56] Dice      /data/coml-quantum-diffusion/exet6585/sapt-preproc/bin/Dice  
+[17:20:56] Host      htc-c052
+[17:20:56] Kept      7NGW_UAW_casci.npz 7NGW_UAW.dice.out 7NGW_UAW_encoded.npz 7NGW_UAW_poses.sdf 7NGW_UAW_prepared.npz 7NGW_UAW_rhf.chk 7NGW_UAW_sapt.npz 7NGW_UAW_sapt_rhf.npz 7NGW_UAW_solved.npz and 39 pose SCFs
+[17:20:56] Running the pipeline for 7NGW_UAW 
+[17:21:01] Prepared   7NGW_UAW, read back
+[17:21:03] Solved     7NGW_UAW's space, read back
+[17:21:03] Encoded    7NGW_UAW's (14e, 14o) Hamiltonian, read back
+[17:21:03] Correlated 7NGW_UAW's active space, read back
+[17:21:04] Solved     7NGW_UAW's 39 poses at RHF, read back
+[18:25:40] Scored    pose 32 of 39, rank39_confidence-1.86.sdf: E_int 0.036309 Hartree
+[19:49:56] Scored    pose 33 of 39, rank3_confidence-0.61.sdf: E_int 0.170705 Hartree
+[21:14:28] Scored    pose 34 of 39, rank4_confidence-0.62.sdf: E_int 0.167782 Hartree
+[22:38:49] Scored    pose 35 of 39, rank5_confidence-0.62.sdf: E_int 0.170323 Hartree
+[00:02:41] Scored    pose 36 of 39, rank6_confidence-0.64.sdf: E_int 0.177246 Hartree

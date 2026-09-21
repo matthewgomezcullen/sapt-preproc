@@ -1,0 +1,14 @@
+[10:10:45] Complex   7N4W_P4V  (task 4 of 7)
+[10:10:45] Threads   48
+[10:10:45] Memory    98304 MB of 131072 MB
+[10:10:45] Scratch   /scratch
+[10:10:45] Dice      /data/coml-quantum-diffusion/exet6585/sapt-preproc/bin/Dice  
+[10:10:45] Host      htc-c068
+[10:10:45] Kept      7N4W_P4V_poses.sdf 7N4W_P4V_prepared.npz and 0 pose SCFs
+[10:10:45] Running the pipeline for 7N4W_P4V 
+[10:10:54] Prepared   7N4W_P4V, read back
+[16:44:32] Solved     7N4W_P4V's space
+[21:20:48] Encoded    7N4W_P4V's (14e, 14o) Hamiltonian
+[21:20:58] Correlated 7N4W_P4V's active space
+[21:21:31] Solved     7N4W_P4V's 15 poses at RHF
+/var/spool/slurmd/job8864815/slurm_script: line 134: 2221363 Segmentation fault      (core dumped) python run.py "$JOB" --complexes "$NAME" ${ASKED[@]+"${ASKED[@]}"}

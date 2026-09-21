@@ -1,0 +1,21 @@
+[10:28:21] Complex   7WJB_BGC  (task 5 of 7)
+[10:28:21] Threads   48
+[10:28:21] Memory    98304 MB of 131072 MB
+[10:28:21] Scratch   /scratch
+[10:28:21] Dice      /data/coml-quantum-diffusion/exet6585/sapt-preproc/bin/Dice  
+[10:28:21] Host      htc-c073
+[10:28:21] Kept      7WJB_BGC_poses.sdf 7WJB_BGC_prepared.npz and 0 pose SCFs
+[10:28:21] Running the pipeline for 7WJB_BGC 
+[10:28:40] Prepared   7WJB_BGC, read back
+[14:53:05] Solved     7WJB_BGC's space
+[17:40:34] Encoded    7WJB_BGC's (14e, 14o) Hamiltonian
+[17:40:43] Correlated 7WJB_BGC's active space
+[17:40:50] Solved     7WJB_BGC's 30 poses at RHF
+[18:31:07] Scored    pose 1 of 30, rank10_confidence-0.76.sdf: E_int 0.006166 Hartree
+[19:19:33] Scored    pose 2 of 30, rank11_confidence-0.77.sdf: E_int 0.011755 Hartree
+[20:07:53] Scored    pose 3 of 30, rank12_confidence-0.77.sdf: E_int 0.013459 Hartree
+[20:56:31] Scored    pose 4 of 30, rank14_confidence-0.80.sdf: E_int 0.003989 Hartree
+[21:44:43] Scored    pose 5 of 30, rank15_confidence-0.80.sdf: E_int 0.005604 Hartree
+[22:32:46] Scored    pose 6 of 30, rank16_confidence-0.85.sdf: E_int 0.032232 Hartree
+[23:21:12] Scored    pose 7 of 30, rank17_confidence-0.85.sdf: E_int 0.039008 Hartree
+[00:09:19] Scored    pose 8 of 30, rank19_confidence-0.87.sdf: E_int 0.032642 Hartree

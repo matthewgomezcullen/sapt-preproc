@@ -301,7 +301,7 @@ def test_run_plots_the_top1_of_the_rescored_ranking_a_row_a_complex(scored_compl
 
     def record(rows, *arguments, **keywords):
         plotted.append(rows)
-        return f"{motivation.motivation_path(scored_complex, job=True)}.png"
+        return f"{motivation.motivation_path(scored_complex, job=True)}.png", None
 
     monkeypatch.setattr(motivation, "plot", record)
 

@@ -162,6 +162,17 @@ class SAPT:
         return self.int_energies
 
 
+    def retention(self):
+        """
+        The share of the correlation energy the protein's window kept.
+        """
+        return _eta(
+            float(self.protein.energy),
+            float(self.protein.shci_energy),
+            float(self.protein.casci_energy),
+        )
+
+
     def scored(self):
         """
         Whether every pose has all of its scores.
@@ -181,6 +192,7 @@ class SAPT:
             {
                 "source": self.ligand.prepared.source[:len(self.int_energies)],
                 **{key: getattr(self, key) for key in SCORED},
+                "retention": self.retention(),
             },
             self._name(),
             self.out,
@@ -291,16 +303,23 @@ def energies(name, kept):
     }
 
 
-def retention(name, directory):
+def _eta(rhf, shci, casci):
+    return (casci - rhf) / (shci - rhf)
+
+
+def retention(name, directory, *kept):
     """
-    eta = (E_CASCI - E_RHF) / (E_SHCI - E_RHF): how much of the correlation energy SHCI found in
-        the space it solved survives the window CASCI solves exactly.
+    A complex's eta, out of the first of the `kept` records carrying one, correlated or classical.
     """
+    for record in kept:
+        if record is not None and "retention" in record:
+            return float(record["retention"])
     solved, correlated = save.load_solved(name, directory), save.load_casci(name, directory)
     if solved is None or correlated is None:
         return None
-    rhf = float(solved["energy"])
-    return (float(correlated["casci_energy"]) - rhf) / (float(solved["shci_energy"]) - rhf)
+    return _eta(
+        float(solved["energy"]), float(solved["shci_energy"]), float(correlated["casci_energy"])
+    )
 
 
 def run(name=NAME):
@@ -318,14 +337,14 @@ def run(name=NAME):
     for complex in sorted({row["name"] for row in rows}):
         directory = confidence.complex_dir(complex, job)
         kept = save.load_sapt(complex, directory)
+        classical = save.load_sapt_rhf(complex, directory)
+        if classical is not None:
+            reference.update(energies(complex, classical))
         if kept is None:
             skipped.append(complex)
         else:
             scores.update(energies(complex, kept))
-            retained[complex] = retention(complex, directory)
-        classical = save.load_sapt_rhf(complex, directory)
-        if classical is not None:
-            reference.update(energies(complex, classical))
+            retained[complex] = retention(complex, directory, kept, classical)
     if not scores:
         raise SystemExit(f"No complex under {job} has been scored; run run.py first")
 

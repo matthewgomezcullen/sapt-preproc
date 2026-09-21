@@ -33,6 +33,9 @@ EXACT = 1e-12
 # The far pose barely interacts. Hartree.
 APART = 1e-5
 
+RHF, SHCI, CASCI = -76.0, -76.2, -76.15
+RETAINED = 0.75
+
 
 def protein():
     rdm1, rdm2 = monomers.correlate_water(monomers.COMPRESSED)
@@ -43,6 +46,9 @@ def protein():
         rdm2=rdm2,
         active_space_size=monomers.WATER_NCAS,
         active_electrons=monomers.WATER_NELECAS,
+        energy=RHF,
+        shci_energy=SHCI,
+        casci_energy=CASCI,
         correlated=lambda: True,
     )
 
@@ -110,6 +116,10 @@ def test_the_scores_are_kept_once_every_pose_has_them(scored_stage):
     assert list(record["source"]) == [NEAR, FAR]
     for key in SCORES:
         np.testing.assert_array_equal(record[key], getattr(scored_stage, key))
+
+
+def test_the_kept_scores_carry_the_correlation_the_window_retained(scored_stage):
+    assert save.load_sapt(NAME, scored_stage.out)["retention"] == pytest.approx(RETAINED)
 
 
 def test_a_stage_stopped_part_way_resumes_after_the_last_pose_it_kept(scored_stage, tmp_path):

@@ -64,10 +64,10 @@ def by_source(rows):
     return {row["source"]: row for row in rows}
 
 
-def keep(job, *poses, name=NAME, classical=False):
+def keep(job, *poses, name=NAME, classical=False, retention=None):
     """
     Each pose is given as (source, elst, exch, cumulant). `classical` keeps it as the SAPT(RHF)
-        reference instead.
+        reference instead, and `retention` as a record the stage kept eta with.
     """
     sources, elst, exch, cumulants = (list(column) for column in zip(*poses))
     store = save.save_sapt_rhf if classical else save.save_sapt
@@ -78,6 +78,7 @@ def keep(job, *poses, name=NAME, classical=False):
             "exchanges": exch,
             "cumulants": cumulants,
             "int_energies": np.add(elst, exch),
+            **({} if retention is None else {"retention": retention}),
         },
         name,
         confidence.complex_dir(name, job),
@@ -243,6 +244,22 @@ def test_run_gives_each_complex_the_correlation_energy_its_window_retained(scree
     _, summarised = sapt.run(screen)
 
     assert summarised[0]["retention"] == pytest.approx(RETAINED)
+
+
+def test_run_reads_the_retention_its_scores_carry_rather_than_the_solved_space(screen):
+    job = filter.job_dir(screen)
+    os.remove(save.solved_path(NAME, confidence.complex_dir(NAME, job)))
+    keep(
+        job,
+        (DEPOSITED, -0.030, 0.012, -0.001),
+        (SECOND, -0.010, 0.004, 0.0),
+        (FIRST, -0.020, 0.012, 0.0),
+        retention=0.6,
+    )
+
+    _, summarised = sapt.run(screen)
+
+    assert summarised[0]["retention"] == pytest.approx(0.6)
 
 
 def test_a_complex_whose_solved_space_is_not_kept_beside_its_scores_has_no_retention(screen):

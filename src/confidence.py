@@ -272,7 +272,8 @@ def run(complexes=None, python=None, models=None, esm=None, reuse=False, name=NA
             for row in summary
             if row["top1_minimised"] is not None
         ]
-        print("\nWrote", os.path.relpath(motivation.plot(answered, name, job=True), ROOT))
+        path, _ = motivation.plot(answered, name, job=True)
+        print("\nWrote", os.path.relpath(path, ROOT))
     return rows, summary
 
 

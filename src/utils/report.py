@@ -9,21 +9,27 @@ import os
 import re
 import statistics
 
-from scipy.stats import mannwhitneyu
+from scipy.stats import mannwhitneyu, spearmanr
+
+NUM_POSES_FOR_SPEARMAN = 3
 
 # DiffDock names a scored pose rank<N>_confidence<X>.sdf.
 POSE = re.compile(r"^rank(\d+)_confidence(-?\d+\.\d+)\.sdf$")
 
 INTEGERS = [
-    "poses", "near_native", "rank_docked", "rank_minimised", "rank_sapt", "rank_rhf", "rank_top1",
+    "poses", "near_native", "rank_docked", "rank_minimised", "rank_sapt", "rank_rhf",
+    "rank_separable", "moved", "rank_top1",
 ]
 DECIMALS = [
     "confidence", "confidence_docked", "confidence_minimised", "rmsd", "rmsd_top1", "fraction",
     "elst", "exch", "cumulant", "interaction", "elst_rhf", "exch_rhf", "interaction_rhf",
+    "interaction_separable",
     "discrimination", "discrimination_docked", "discrimination_minimised", "discrimination_sapt",
-    "discrimination_rhf", "retention",
+    "discrimination_rhf", "discrimination_separable", "spearman_separable", "retention",
 ]
-BOOLEANS = ["top1", "top1_docked", "top1_minimised", "top1_sapt", "top1_rhf"]
+BOOLEANS = [
+    "top1", "top1_docked", "top1_minimised", "top1_sapt", "top1_rhf", "top1_separable",
+]
 
 
 def docked_rank_and_score(source):
@@ -72,6 +78,15 @@ def pairwise_discriminate(scores, near):
     if not first or not second:
         return None
     return float(mannwhitneyu(first, second).statistic) / (len(first) * len(second))
+
+
+def spearman_correlate(first, second):
+    """
+    None where there are too few of them to rank.
+    """
+    if len(first) < NUM_POSES_FOR_SPEARMAN:
+        return None
+    return float(spearmanr(first, second).statistic)
 
 
 def average(rows, field):

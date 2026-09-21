@@ -5,6 +5,9 @@ SAPT scores every pose of a complex against the correlated protein. run.py runs 
     each pose's scores are kept in <complex>_sapt.npz beside the protein's artefacts as soon as it has
     them, so a stage stopped part-way resumes after the last pose it kept.
 
+Each pose carries a second interaction energy with the protein's cumulant subtracted. This is to 
+    compare and to distinguish complexes that could not evaluate the cumulant.
+
 `--classical` scores the poses against the determinant the protein's active space would hold instead,
     into <complex>_sapt_rhf.npz. That is SAPT(RHF). A complex scored both ways is ranked both ways.
 
@@ -26,13 +29,22 @@ from encode import EncodeProtein, EncodingError, SolveLigand
 from utils import report, sapt, save
 
 # confidence.csv's columns, and what SAPT adds to each pose
-FIELDS = confidence.FIELDS + ["elst", "exch", "cumulant", "interaction", "rank_sapt"]
-SUMMARY_FIELDS = confidence.SUMMARY_FIELDS + ["top1_sapt", "discrimination_sapt", "retention"]
+FIELDS = confidence.FIELDS + [
+    "elst", "exch", "cumulant", "interaction", "rank_sapt", "interaction_separable",
+    "rank_separable",
+]
+SUMMARY_FIELDS = confidence.SUMMARY_FIELDS + [
+    "top1_sapt", "discrimination_sapt", "top1_separable", "discrimination_separable",
+    "spearman_separable", "moved", "retention",
+]
 
 RHF_FIELDS = ["elst_rhf", "exch_rhf", "interaction_rhf", "rank_rhf"]
 RHF_SUMMARY_FIELDS = ["top1_rhf", "discrimination_rhf"]
 
-RANKINGS = [("top1_sapt", "discrimination_sapt", "ranked on E_int")] + confidence.RANKINGS
+RANKINGS = [
+    ("top1_sapt", "discrimination_sapt", "ranked on E_int"),
+    ("top1_separable", "discrimination_separable", "ranked on E_int, no cumulant"),
+] + confidence.RANKINGS
 RHF_RANKINGS = [("top1_rhf", "discrimination_rhf", "ranked on E_int, SAPT(RHF)")] + RANKINGS
 
 SCORED = ("electrostatics", "exchanges", "cumulants", "int_energies")
@@ -221,6 +233,8 @@ def join(rows, energies, reference=None):
     """
     Each of confidence.csv's rows given its pose's energies, keyed by (complex, source) 
     
+    `interaction_separable` is the same energy with the protein's cumulant subracted.
+
     `reference` gives a pose its SAPT(RHF) energies as well, where it has them.
     """
     joined, missing = [], []
@@ -237,6 +251,7 @@ def join(rows, energies, reference=None):
             "exch": scored["exch"],
             "cumulant": scored["cumulant"],
             "interaction": scored["elst"] + scored["exch"],
+            "interaction_separable": scored["elst"] + scored["exch"] - scored["cumulant"],
             **({} if classical is None else {
                 "elst_rhf": classical["elst"],
                 "exch_rhf": classical["exch"],
@@ -248,10 +263,14 @@ def join(rows, energies, reference=None):
 
 def rank(rows):
     """
-    Each complex's poses numbered on E_int, lowest first, and on the SAPT(RHF) reference beside it.
+    Each complex's poses numbered on E_int, lowest first, on the same energy without the cumulant,
+        and on the SAPT(RHF) reference beside it.
     """
     ranked = confidence.number(
         rows, lambda row: (row["interaction"], row["rank_docked"]), "rank_sapt"
+    )
+    ranked = confidence.number(
+        ranked, lambda row: (row["interaction_separable"], row["rank_docked"]), "rank_separable"
     )
     reference = [row for row in ranked if row.get("interaction_rhf") is not None]
     if not reference:
@@ -277,6 +296,16 @@ def summarise(rows, threshold=filter.NEAR_NATIVE, retained=None):
         entry["discrimination_sapt"] = report.pairwise_discriminate(
             [-row["interaction"] for row in theirs], near
         )
+        entry["top1_separable"] = confidence.is_near_native(
+            min(theirs, key=lambda row: row["rank_separable"]), threshold
+        )
+        entry["discrimination_separable"] = report.pairwise_discriminate(
+            [-row["interaction_separable"] for row in theirs], near
+        )
+        entry["spearman_separable"] = report.spearman_correlate(
+            [row["rank_sapt"] for row in theirs], [row["rank_separable"] for row in theirs]
+        )
+        entry["moved"] = sum(1 for row in theirs if row["rank_separable"] != row["rank_sapt"])
         entry["retention"] = (retained or {}).get(entry["name"])
         if not reference:
             continue
@@ -380,6 +409,16 @@ def _report(summary, skipped=(), missing=()):
     if both:
         print(f"\nThe {len(both)} of {len(summary)} complexes scored at SAPT(RHF) too")
         report.rankings(both, RHF_RANKINGS)
+    correlated = [entry for entry in summary if entry.get("spearman_separable") is not None]
+    if correlated:
+        moved = sum(entry["moved"] for entry in summary)
+        poses = sum(entry["poses"] for entry in summary)
+        print(
+            f"\nThe cumulant moves {moved} of {poses} poses. Spearman's rho between the two "
+            f"rankings is {report.average(correlated, 'spearman_separable'):.4f} on average and "
+            f"{min(entry['spearman_separable'] for entry in correlated):.4f} at its lowest, over "
+            f"the {len(correlated)} of {len(summary)} complexes with poses enough to correlate"
+        )
     retained = report.average(summary, "retention")
     if retained is not None:
         kept = sum(1 for entry in summary if entry.get("retention") is not None)

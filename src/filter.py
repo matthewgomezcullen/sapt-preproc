@@ -10,6 +10,15 @@ The per-complex numbers are written beside them, to out/filter/filter.csv. `--re
 `--name` moves the directory to out/filter_<name>, and both with it, so a run that screens the
     poses differently -- `--no-mm` leaves them where DiffDock placed them -- does not read the
     last one's work back.
+
+A complex leaves the screen under one of four statuses. 
+
+- `generator` no near-native pose to begin with. See `--strict`.
+- `rejected`: by the scope.
+- `failed`: could not be read or prepared
+- `unusable`: passed the scope but no near-native pose once prepared.
+
+Each is mapped to a row of filter.csv
 """
 
 import argparse
@@ -21,6 +30,7 @@ import statistics
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
+from types import SimpleNamespace
 
 from posebusters import check_rmsd
 from rdkit import Chem
@@ -51,9 +61,16 @@ NAME = None
 NEAR_NATIVE = 2.0
 
 # Minimisation moves a pose a little, so nothing outside this can come back inside NEAR_NATIVE.
+# `--strict` sweeps at NEAR_NATIVE instead, which holds the generator to the poses it actually
 LOOSE = 3.5
 
 GENERATOR = "no near-native pose generated"
+
+PREPARATION = "no near-native pose after preparation"
+
+UNPREPARED = SimpleNamespace(
+    poses=[], heavy_atoms=None, charge=None, electrons=None, excluded=None
+)
 
 FIELDS = [
     "name", "status", "heavy_atoms", "charge", "electrons", "ligand_heavy_atoms",
@@ -167,15 +184,16 @@ def get_near_natives(poses, native, threshold=NEAR_NATIVE):
     ]
 
 
-def sweep_for_near_native(complexes):
-    kept, incorrect = [], []
-    for one in tqdm(complexes, desc="Near-Native", unit="complex"):
+def sweep_for_near_native(complexes, strict=False):
+    threshold = NEAR_NATIVE if strict else LOOSE
+    kept, rows = [], []
+    for one in tqdm(complexes, desc="Generated", unit="complex"):
         name, _, poses, native = one
-        if get_near_natives(poses, native, LOOSE):
+        if get_near_natives(poses, native, threshold):
             kept.append(one)
         else:
-            incorrect.append((name, GENERATOR))
-    return kept, incorrect
+            rows.append(_row(name, "generator", UNPREPARED, 0, GENERATOR))
+    return kept, rows
 
 
 def ligand_size(poses):
@@ -228,7 +246,7 @@ def _prepare(one, force=False, mm=True, tether=None, out=None):
 
     near = len(get_near_natives(prepared.poses, native))
     if not near:
-        return _row(name, "unusable", prepared, near, GENERATOR), prepared.failed
+        return _row(name, "unusable", prepared, near, PREPARATION), prepared.failed
     return _row(name, "eligible", prepared, near), prepared.failed
 
 
@@ -236,8 +254,9 @@ def screen(complexes, force=False, mm=True, tether=None, name=NAME):
     """
     Prepare every complex.
 
-    An OutOfScopeError means the complex is outside the method; a PrepareError means it could not
-        be read or prepared; `unusable` means the ensemble holds no near-native pose.
+    OutOfScopeError: the complex is outside the method.
+    PrepareError: could not be read or prepared
+    `unusable`: no near-native pose once prepared.
     """
     rows, checks = [], Counter()
     out = job_dir(name)
@@ -302,7 +321,7 @@ def read(name=NAME):
     return rows
 
 
-def _summarise(rows, incomplete=(), incorrect=(), checks=()):
+def _summarise(rows, incomplete=(), checks=()):
     counted = Counter(row["status"] for row in rows)
     print('Screened', len(rows))
     print('Eligible', counted["eligible"])
@@ -314,9 +333,8 @@ def _summarise(rows, incomplete=(), incorrect=(), checks=()):
     for row in rows:
         if row["status"] == "failed":
             print(f'  {row["name"]}: {row["rejection"]}')
-    unusable = counted["unusable"] + len(incorrect)
-    if unusable:
-        print('Unusable', unusable, f'({GENERATOR})')
+    print('Generator', counted["generator"], f'({GENERATOR})')
+    print('Unusable', counted["unusable"], f'({PREPARATION})')
     if incomplete:
         print('Incomplete', len(incomplete), sorted(incomplete))
 
@@ -384,13 +402,14 @@ def report(rows):
         print(f'  {label:5s}{banded[0]:8d}{banded[1]:10d}{banded[2]:9d}')
 
 
-def run(complexes=None, name=NAME, mm=True, tether=None, reuse=False, force=False, workers=None):
+def run(complexes=None, name=NAME, mm=True, tether=None, reuse=False, force=False,
+        workers=None, strict=False):
     if reuse:
         rows = read(name)
         _summarise(rows)
     else:
         complexes, incomplete = inventory(complexes)
-        complexes, incorrect = sweep_for_near_native(complexes)
+        complexes, ungenerated = sweep_for_near_native(complexes, strict=strict)
         if workers is None:
             rows, checks = screen(
                 complexes,
@@ -410,8 +429,9 @@ def run(complexes=None, name=NAME, mm=True, tether=None, reuse=False, force=Fals
                 tether=tether,
                 name=name,
             )
+        rows = sorted(rows + ungenerated, key=lambda row: row["name"])
         write(rows, name)
-        _summarise(rows, incomplete, incorrect, checks)
+        _summarise(rows, incomplete, checks)
     report(rows)
 
 
@@ -456,6 +476,11 @@ if __name__ == "__main__":
              "every pose where DiffDock placed it; its hydrogens are added either way.",
     )
     parser.add_argument(
+        "--strict",
+        action="store_true",
+        help=f"Sweep the generated ensembles at {NEAR_NATIVE} A rather than {LOOSE} A."
+    )
+    parser.add_argument(
         "--tether",
         type=float,
         default=None,
@@ -472,5 +497,6 @@ if __name__ == "__main__":
         tether=arguments.tether,
         reuse=arguments.reuse,
         force=arguments.force,
-        workers=arguments.workers
+        workers=arguments.workers,
+        strict=arguments.strict,
     )

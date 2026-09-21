@@ -1,5 +1,5 @@
 """
-filter.py's --name and --no-mm.
+filter.py's --name and --no-mm, and how a screen bins a complex it cannot carry.
 
 Nothing here prepares a complex. PrepareComplex is stood in for.
 
@@ -32,6 +32,8 @@ ROWS = [
         "excluded": None, "near_native": 0, "rejection": "metal in the retained region",
     },
 ]
+
+NEAR, BETWEEN, FAR = 1.2, 2.8, 9.0
 
 # Methanol: two heavy atoms and 6 + 8 + 4 electrons.
 LIGAND = "CO"
@@ -201,3 +203,69 @@ def test_a_complex_rejected_before_its_poses_were_read_leaves_the_ligand_columns
 
     assert row["ligand_heavy_atoms"] == ""
     assert row["ligand_electrons"] == ""
+
+
+def calc_rmsd_stub(*rmsds):
+    return lambda poses, native: list(rmsds)
+
+
+def test_the_opening_sweep_keeps_anything_minimisation_could_still_bring_inside(monkeypatch):
+    one = inventory_entry()
+
+    for best in (NEAR, BETWEEN):
+        monkeypatch.setattr(filter, "calc_rmsds", calc_rmsd_stub(best, FAR))
+
+        kept, rows = filter.sweep_for_near_native([one])
+
+        assert kept == [one]
+        assert rows == []
+
+
+def test_a_strict_sweep_turns_away_an_ensemble_whose_best_pose_is_outside_two_angstrom(
+    monkeypatch,
+):
+    monkeypatch.setattr(filter, "calc_rmsds", calc_rmsd_stub(BETWEEN, FAR))
+
+    kept, rows = filter.sweep_for_near_native([inventory_entry()], strict=True)
+
+    assert kept == []
+    assert [(row["name"], row["status"], row["rejection"]) for row in rows] == [
+        (NAME, "generator", filter.GENERATOR)
+    ]
+    assert rows[0]["heavy_atoms"] == "" and rows[0]["poses"] == ""
+
+
+def test_an_ensemble_holding_nothing_near_native_is_a_generator_row_at_either_threshold(
+    monkeypatch,
+):
+    monkeypatch.setattr(filter, "calc_rmsds", calc_rmsd_stub(FAR, FAR))
+
+    for strict in (False, True):
+        kept, rows = filter.sweep_for_near_native([inventory_entry()], strict=strict)
+
+        assert kept == []
+        assert [(row["name"], row["status"]) for row in rows] == [(NAME, "generator")]
+
+
+def test_an_ensemble_that_prepares_but_loses_its_near_native_pose_blames_the_preparation(
+    monkeypatch,
+):
+    stubbed(monkeypatch)
+    monkeypatch.setattr(filter, "get_near_natives", lambda poses, native: [])
+
+    row, _ = filter._prepare(inventory_entry())
+
+    assert row["status"] == "unusable"
+    assert row["rejection"] == filter.PREPARATION
+    assert row["near_native"] == 0
+
+
+def test_the_summary_counts_a_generator_failure_apart_from_an_unusable_ensemble(capsys):
+    generator = filter._row("6ZCY_QF8", "generator", filter.UNPREPARED, 0, filter.GENERATOR)
+    unusable = filter._row("5SAK_ZRY", "unusable", filter.UNPREPARED, 0, filter.PREPARATION)
+
+    filter._summarise(ROWS + [generator, unusable])
+
+    printed = capsys.readouterr().out
+    assert f"Generator 1 ({filter.GENERATOR})" in printed
+    assert f"Unusable 1 ({filter.PREPARATION})" in printed

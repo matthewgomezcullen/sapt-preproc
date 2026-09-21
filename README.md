@@ -95,6 +95,19 @@ Failed 0
 
 `filter.py` carries every complex through the whole of `prepare()`, so this counts the rejections `_reduce` raises as well as those `_verify` raises. Stopping at `_verify` leaves 110 eligible; the post-cap size check takes 22 more and a residue repaired into the cutout takes one.
 
+### Statuses
+
+Reasons for exclusion are divided in four and recorded in `filter_{name}.csv`:
+
+- `generator` no near-native pose to begin with. See `--strict`.
+- `rejected`: by the scope.
+- `failed`: could not be read or prepared
+- `unusable`: passed the scope but no near-native pose once prepared.
+
+The opening sweep screens at 3.5 Å by default, not 2 Å. Minimisation moves a pose a little, so nothing outside 3.5 Å can come back inside 2 Å, and the sweep can only turn away a complex that could never have been usable.
+
+`--strict` sweeps at 2 Å instead. The sweep is no longer conservative: an ensemble whose best pose is at 2.4 Å and relaxes to 1.8 Å is turned away as a generator failure and never prepared, so the eligible cohort can shrink.
+
 ### Binning
 
 Solving RHF for large cutouts is computationally very expensive. Also, highly charged cutouts form difficult SCF cases. Instead of encoding all 110 complexes, we bin complexes by size (quartiles) and charge ($|q_{A}| > 1 := \text{charged}$)

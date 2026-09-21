@@ -291,7 +291,7 @@ def test_the_tables_round_trip_a_missing_rmsd(tmp_path):
 
 @pytest.mark.parametrize("plot", [True, False])
 def test_run_draws_the_figure_into_the_screens_directory_only_when_asked(scored_complex, plot):
-    confidence.run(complexes=[NAME], reuse=True, name=scored_complex, plot=plot)
+    confidence.run(complexes=[NAME], reuse=True, name=scored_complex, plot=plot)[0]
 
     assert os.path.isfile(f"{motivation.motivation_path(scored_complex, job=True)}.png") is plot
 

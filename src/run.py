@@ -19,6 +19,7 @@ Once every complex is scored, sapt.py reranks the screen's poses on their scores
 
 import argparse
 import os
+from datetime import datetime
 
 import filter
 from prepare import PrepareComplex
@@ -68,8 +69,14 @@ def _window(given):
     return tuple(given)
 
 
+def _done(stage, what, ran=True):
+    print(
+        f"[{datetime.now():%H:%M:%S}] {stage:11s}{what}{'' if ran else ', read back'}", flush=True
+    )
+
+
 def run(
-    name,
+    job,
     out=OUT,
     complexes=None,
     force=False,
@@ -78,29 +85,46 @@ def run(
     orbitals=None,
     classical=False,
 ):
-    out = os.path.join(out, name)
+    out = os.path.join(out, job)
     for complex in _load(out, complexes, force):
-        if force or not complex.prepared():
+        name = os.path.basename(os.path.normpath(complex.out))
+        ran = force or not complex.prepared()
+        if ran:
             complex.prepare()
+        _done("Prepared", name, ran)
         if prepare_only:
             continue
-        # Before the protein, so a pose that cannot be solved shows first.
-        ligand = SolveLigand(complex, complex.out)
-        if force or not ligand.solved():
-            ligand.RHF()
+        poses = len(complex.poses)
         protein = EncodeProtein(complex, complex.out)
         if orbitals is not None:
             protein.ncas_limit = orbitals
-        if force or not protein.solved():
+        ran = force or not protein.solved()
+        if ran:
             protein.solve()
-        if force or window is not None or not protein.encoded():
+        _done("Solved", f"{name}'s space", ran)
+        ran = force or window is not None or not protein.encoded()
+        if ran:
             protein.rewindow(*(window or ()))
             protein.encode()
-        if force or not protein.correlated():
+        _done(
+            "Encoded",
+            f"{name}'s ({protein.active_electrons}e, {protein.active_space_size}o) Hamiltonian",
+            ran,
+        )
+        ran = force or not protein.correlated()
+        if ran:
             protein.CASCI()
+        _done("Correlated", f"{name}'s active space", ran)
+        ligand = SolveLigand(complex, complex.out)
+        ran = force or not ligand.solved()
+        if ran:
+            ligand.RHF()
+        _done("Solved", f"{name}'s {poses} pose{'' if poses == 1 else 's'} at RHF", ran)
         scorer = SAPT(protein, ligand, complex.out, classical=classical)
-        if force or not scorer.scored():
+        ran = force or not scorer.scored()
+        if ran:
             scorer.interaction()
+        _done("Scored", f"{name}'s {poses} pose{'' if poses == 1 else 's'}", ran)
 
 
 if __name__ == "__main__":

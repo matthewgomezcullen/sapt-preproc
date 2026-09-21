@@ -21,7 +21,7 @@
 #SBATCH --clusters=htc
 #SBATCH --partition=medium
 #SBATCH --job-name=sapt-run
-#SBATCH --time=48:00:00
+#SBATCH --time=30:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=48
 #SBATCH --mem=128G

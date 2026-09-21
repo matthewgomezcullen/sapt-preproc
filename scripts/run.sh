@@ -46,7 +46,7 @@ if [ ! -d "$REPO/src" ]; then
     exit 1
 fi
 
-CHOSEN="$REPO/src/out/$JOB/chosen.csv"
+CHOSEN="${CHOSEN:-$REPO/src/out/$JOB/chosen.csv}"
 if [ ! -f "$CHOSEN" ]; then
     echo "$CHOSEN is missing. Pull the screen's artefacts into src/out/$JOB first." >&2
     exit 1

@@ -7,6 +7,9 @@ The rows are confidence.csv's. Each is given its pose's energies, keyed by the c
     E_elst + E_exch, lowest first. The summary adds whether that ranking's first pose is near-native
     to what confidence.py already asks of its own.
 
+Each pose carries a second interaction energy with the protein's cumulant subtracted. This is to 
+    compare and to distinguish complexes that could not evaluate the cumulant.
+
 sapt.py's run reads confidence.csv out of a screen's directory and every complex's kept scores out of
     the complex's own, and writes sapt.csv and sapt_summary.csv beside confidence.py's tables.
 """
@@ -312,3 +315,98 @@ def test_run_ranks_the_classical_reference_beside_it_where_a_complex_holds_both(
     assert {row["name"]: (row["top1_sapt"], row["top1_rhf"]) for row in summary} == {
         NAME: (True, False), OTHER: (False, None)
     }
+
+
+def test_join_takes_the_cumulant_out_of_a_second_interaction_energy():
+    joined, _ = sapt.join(
+        rows((FIRST, 0.75, FAR), (DEPOSITED, -1.0, NEAR)),
+        energies((DEPOSITED, -0.030, 0.012, -0.001), (FIRST, -0.010, 0.004, 0.0)),
+    )
+
+    scored = by_source(joined)
+    assert scored[DEPOSITED]["interaction"] == pytest.approx(-0.030 + 0.012)
+    assert scored[DEPOSITED]["interaction_separable"] == pytest.approx(-0.030 + 0.012 + 0.001)
+    assert scored[FIRST]["interaction_separable"] == pytest.approx(scored[FIRST]["interaction"])
+
+
+def test_the_cumulant_can_order_two_poses_the_other_way_round():
+    joined, _ = sapt.join(
+        rows((FIRST, 0.75, FAR), (SECOND, -1.0, FAR), (DEPOSITED, -2.0, NEAR)),
+        energies(
+            (DEPOSITED, -0.020, 0.007, -0.003),
+            (FIRST, -0.020, 0.009, 0.0),
+            (SECOND, -0.010, 0.004, 0.0),
+        ),
+    )
+
+    ranked = sapt.rank(joined)
+    summary = sapt.summarise(ranked)
+
+    scored = by_source(ranked)
+    assert [scored[source]["rank_sapt"] for source in (DEPOSITED, FIRST, SECOND)] == [1, 2, 3]
+    assert [scored[source]["rank_separable"] for source in (DEPOSITED, FIRST, SECOND)] == [2, 1, 3]
+    assert (summary[0]["top1_sapt"], summary[0]["top1_separable"]) == (True, False)
+    assert (summary[0]["discrimination_sapt"], summary[0]["discrimination_separable"]) == (1.0, 0.5)
+    assert summary[0]["spearman_separable"] == pytest.approx(0.5)
+    assert summary[0]["moved"] == 2
+
+
+def test_a_complex_scored_without_a_cumulant_ranks_the_same_either_way():
+    joined, _ = sapt.join(
+        rows((FIRST, 0.75, FAR), (SECOND, -1.0, FAR), (DEPOSITED, -2.0, NEAR)),
+        energies(
+            (DEPOSITED, -0.030, 0.012, 0.0),
+            (FIRST, -0.020, 0.012, 0.0),
+            (SECOND, -0.010, 0.004, 0.0),
+        ),
+    )
+
+    ranked = sapt.rank(joined)
+    summary = sapt.summarise(ranked)
+
+    for row in ranked:
+        assert row["interaction_separable"] == pytest.approx(row["interaction"])
+        assert row["rank_separable"] == row["rank_sapt"]
+    assert (summary[0]["top1_separable"], summary[0]["top1_sapt"]) == (True, True)
+    assert (summary[0]["discrimination_separable"], summary[0]["discrimination_sapt"]) == (1.0, 1.0)
+    assert summary[0]["spearman_separable"] == pytest.approx(1.0)
+    assert summary[0]["moved"] == 0
+
+
+def test_the_two_rankings_are_correlated_over_each_complexs_own_poses():
+    joined, _ = sapt.join(
+        rows((FIRST, 0.75, FAR), (SECOND, -1.0, FAR), (DEPOSITED, -2.0, NEAR))
+        + rows((FIRST, 0.75, FAR), (SECOND, -1.0, FAR), (DEPOSITED, -2.0, NEAR), name=OTHER),
+        {
+            **energies(
+                (DEPOSITED, -0.020, 0.007, -0.003),
+                (FIRST, -0.020, 0.009, 0.0),
+                (SECOND, -0.010, 0.004, 0.0),
+            ),
+            **energies(
+                (DEPOSITED, -0.030, 0.012, 0.0),
+                (FIRST, -0.020, 0.012, 0.0),
+                (SECOND, -0.010, 0.004, 0.0),
+                name=OTHER,
+            ),
+        },
+    )
+
+    summary = sapt.summarise(sapt.rank(joined))
+
+    assert {entry["name"]: entry["spearman_separable"] for entry in summary} == pytest.approx(
+        {NAME: 0.5, OTHER: 1.0}
+    )
+    assert {entry["name"]: entry["moved"] for entry in summary} == {NAME: 2, OTHER: 0}
+
+
+def test_a_complex_with_too_few_poses_to_correlate_is_left_without_a_coefficient():
+    joined, _ = sapt.join(
+        rows((DEPOSITED, -1.0, NEAR), (FIRST, 0.75, FAR)),
+        energies((DEPOSITED, -0.030, 0.012, -0.001), (FIRST, -0.010, 0.004, 0.0)),
+    )
+
+    summary = sapt.summarise(sapt.rank(joined))
+
+    assert summary[0]["spearman_separable"] is None
+    assert summary[0]["moved"] == 0

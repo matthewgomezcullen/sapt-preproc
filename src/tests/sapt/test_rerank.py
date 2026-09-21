@@ -32,6 +32,11 @@ NEAR, FAR = 0.0, 2 * filter.NEAR_NATIVE
 
 SCREEN = "reranked"
 
+# The energies eta is taken from, in Hartree: the window keeps a quarter of the correlation the
+# space SHCI solved found.
+RHF, SHCI, CASCI = -100.0, -100.4, -100.1
+RETAINED = 0.25
+
 TABLE, SUMMARY = "sapt.csv", "sapt_summary.csv"
 
 
@@ -79,6 +84,16 @@ def keep(job, *poses, name=NAME, classical=False):
     )
 
 
+def correlate(job, rhf=RHF, shci=SHCI, casci=CASCI, name=NAME):
+    """
+    The energies the encoding stages keep: RHF and SHCI of the space SHCI solved, and CASCI of the
+        window cut out of it.
+    """
+    directory = confidence.complex_dir(name, job)
+    save.save_solved({"energy": rhf, "shci_energy": shci}, name, directory)
+    save.save_casci({"casci_energy": casci}, name, directory)
+
+
 @pytest.fixture
 def screen(tmp_path, monkeypatch):
     """
@@ -93,6 +108,8 @@ def screen(tmp_path, monkeypatch):
         os.path.join(job, confidence.TABLE_NAME),
         confidence.FIELDS,
     )
+    # Before the scores, which a newly kept solved space or CASCI state discards.
+    correlate(job)
     keep(
         job,
         (DEPOSITED, -0.030, 0.012, -0.001),
@@ -220,6 +237,20 @@ def test_run_ranks_each_pose_on_the_scores_its_complex_kept(screen):
     deposited = by_source(ranked)[DEPOSITED]
     assert (deposited["elst"], deposited["exch"], deposited["cumulant"]) == (-0.030, 0.012, -0.001)
     assert (summarised[0]["top1_sapt"], summarised[0]["top1_minimised"]) == (True, False)
+
+
+def test_run_gives_each_complex_the_correlation_energy_its_window_retained(screen):
+    _, summarised = sapt.run(screen)
+
+    assert summarised[0]["retention"] == pytest.approx(RETAINED)
+
+
+def test_a_complex_whose_solved_space_is_not_kept_beside_its_scores_has_no_retention(screen):
+    os.remove(save.solved_path(NAME, confidence.complex_dir(NAME, filter.job_dir(screen))))
+
+    _, summarised = sapt.run(screen)
+
+    assert summarised[0]["retention"] is None
 
 
 def test_a_complex_that_was_never_scored_is_left_out_of_both_tables_and_reported(screen, capsys):

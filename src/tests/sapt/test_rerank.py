@@ -59,12 +59,14 @@ def by_source(rows):
     return {row["source"]: row for row in rows}
 
 
-def keep(job, *poses, name=NAME):
+def keep(job, *poses, name=NAME, classical=False):
     """
-    Each pose is given as (source, elst, exch, cumulant).
+    Each pose is given as (source, elst, exch, cumulant). `classical` keeps it as the SAPT(RHF)
+        reference instead.
     """
     sources, elst, exch, cumulants = (list(column) for column in zip(*poses))
-    save.save_sapt(
+    store = save.save_sapt_rhf if classical else save.save_sapt
+    store(
         {
             "source": sources,
             "electrostatics": elst,
@@ -240,3 +242,25 @@ def test_run_refuses_a_screen_none_of_whose_complexes_was_scored(screen):
 
     with pytest.raises(SystemExit):
         sapt.run(screen)
+
+
+def test_run_ranks_the_classical_reference_beside_it_where_a_complex_holds_both(screen):
+    job = filter.job_dir(screen)
+    keep(
+        job,
+        (DEPOSITED, -0.020, 0.012, 0.0),
+        (SECOND, -0.010, 0.004, 0.0),
+        (FIRST, -0.030, 0.012, 0.0),
+        classical=True,
+    )
+    keep(job, (THIRD, -0.010, 0.004, 0.0), name=OTHER)
+
+    rows, summary = sapt.run(screen)
+
+    scored = by_source([row for row in rows if row["name"] == NAME])
+    assert scored[DEPOSITED]["rank_sapt"] == 1
+    assert scored[FIRST]["rank_rhf"] == 1
+    assert scored[DEPOSITED]["interaction_rhf"] == pytest.approx(-0.020 + 0.012)
+    assert {row["name"]: (row["top1_sapt"], row["top1_rhf"]) for row in summary} == {
+        NAME: (True, False), OTHER: (False, None)
+    }

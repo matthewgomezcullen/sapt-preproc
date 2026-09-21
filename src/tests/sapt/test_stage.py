@@ -163,3 +163,21 @@ def test_a_kept_record_is_read_back_rather_than_scored_again(scored_stage, tmp_p
     assert stage.interaction() == pytest.approx(scored_stage.int_energies, abs=EXACT)
     for key in SCORES:
         np.testing.assert_array_equal(getattr(stage, key), getattr(scored_stage, key))
+
+
+def test_a_classical_stage_scores_the_determinant_and_keeps_it_beside_the_correlated_scores(
+    scored_stage,
+):
+    stage = SAPT(protein(), ligand(), scored_stage.out, classical=True)
+
+    stage.interaction()
+
+    assert stage.electrostatics[0] == pytest.approx(monomers.ELST_RESTRICTED, abs=PUBLISHED)
+    assert stage.exchanges[0] == pytest.approx(monomers.EXCH_RESTRICTED, abs=PUBLISHED)
+    assert stage.cumulants == [0.0, 0.0]
+    np.testing.assert_array_equal(
+        save.load_sapt_rhf(NAME, scored_stage.out)["int_energies"], stage.int_energies
+    )
+    np.testing.assert_array_equal(
+        save.load_sapt(NAME, scored_stage.out)["int_energies"], scored_stage.int_energies
+    )

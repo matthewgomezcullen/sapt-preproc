@@ -9,6 +9,8 @@ Nothing here prepares a complex. PrepareComplex is stood in for.
 import os
 from collections import Counter
 
+from rdkit import Chem
+
 import filter
 from conftest import POSEBUSTERS, paths
 
@@ -21,14 +23,30 @@ TETHER = 10.0
 ROWS = [
     {
         "name": "5S8I_2LY", "status": "eligible", "heavy_atoms": 157, "charge": -1,
-        "electrons": 1188, "poses": 3, "excluded": 1, "near_native": 2, "rejection": "",
+        "electrons": 1188, "ligand_heavy_atoms": 24, "ligand_electrons": 188, "poses": 3,
+        "excluded": 1, "near_native": 2, "rejection": "",
     },
     {
         "name": "6ZCY_QF8", "status": "rejected", "heavy_atoms": None, "charge": None,
-        "electrons": None, "poses": None, "excluded": None, "near_native": 0,
-        "rejection": "metal in the retained region",
+        "electrons": None, "ligand_heavy_atoms": None, "ligand_electrons": None, "poses": None,
+        "excluded": None, "near_native": 0, "rejection": "metal in the retained region",
     },
 ]
+
+# Methanol: two heavy atoms and 6 + 8 + 4 electrons.
+LIGAND = "CO"
+
+LIGAND_HEAVY_ATOMS, LIGAND_ELECTRONS = 2, 18
+
+
+def prepared(poses):
+    class Prepared:
+        pass
+
+    one = Prepared()
+    one.poses = poses
+    one.heavy_atoms = one.charge = one.electrons = one.excluded = None
+    return one
 
 
 def inventory_entry(name=NAME, count=2):
@@ -166,3 +184,20 @@ def test_a_named_table_reads_back_as_it_was_written(tmp_path, monkeypatch):
     filter.write(ROWS, name=RUN)
 
     assert filter.read(name=RUN) == ROWS
+
+
+def test_a_row_counts_the_ligands_heavy_atoms_and_electrons():
+    explicit = Chem.AddHs(Chem.MolFromSmiles(LIGAND))
+
+    for poses in ([explicit, explicit], [Chem.MolFromSmiles(LIGAND)]):
+        row = filter._row("5S8I_2LY", "eligible", prepared(poses), 2)
+
+        assert row["ligand_heavy_atoms"] == LIGAND_HEAVY_ATOMS
+        assert row["ligand_electrons"] == LIGAND_ELECTRONS
+
+
+def test_a_complex_rejected_before_its_poses_were_read_leaves_the_ligand_columns_empty():
+    row = filter._row("6ZCY_QF8", "rejected", prepared([]), 0, "metal in the retained region")
+
+    assert row["ligand_heavy_atoms"] == ""
+    assert row["ligand_electrons"] == ""

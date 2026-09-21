@@ -344,3 +344,19 @@ def test_the_rewindow_argument_is_the_window_it_asks_for(given, window):
 def test_one_threshold_without_the_other_is_refused():
     with pytest.raises(SystemExit):
         run._window([PAPER[0]])
+
+
+def test_a_classical_run_keeps_the_reference_beside_the_correlated_scores(encoded_job, tmp_path):
+    out = str(tmp_path)
+    shutil.copytree(encoded_job, out, dirs_exist_ok=True)
+    directory = os.path.join(out, JOB, KEPT)
+
+    run.run(JOB, out, complexes=[KEPT], classical=True)
+
+    reference, correlated = save.load_sapt_rhf(KEPT, directory), save.load_sapt(KEPT, directory)
+    assert list(reference["source"]) == list(correlated["source"])
+    assert not any(reference["cumulants"])
+    assert reference["int_energies"] != pytest.approx(correlated["int_energies"])
+    np.testing.assert_array_equal(
+        correlated["int_energies"], save.load_sapt(KEPT, os.path.join(encoded_job, JOB, KEPT))["int_energies"]
+    )

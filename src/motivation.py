@@ -124,7 +124,7 @@ def plot(rows, name=None, job=False):
     figure.tight_layout()
     os.makedirs(os.path.dirname(path), exist_ok=True)
     figure.savefig(path, dpi=200)
-    return path
+    return path, figure
 
 
 def write(rows, name=None):
@@ -167,8 +167,9 @@ def run(complexes=None, reuse=False, name=None):
         rows = [_row(_found) for _found in found]
         write(rows, name=name)
     _report(rows, incomplete)
-    print("\nWrote", os.path.relpath(plot(rows, name), ROOT))
-    return rows
+    path, figure = plot(rows, name)
+    print("\nWrote", os.path.relpath(path, ROOT))
+    return rows, figure
 
 
 if __name__ == "__main__":

@@ -11,6 +11,12 @@
 #
 # Run setup.sh once first, then, from the repo root: sbatch scripts/run.sh
 # --array on the command line runs part of it, e.g. --array=11 for the last complex of chosen.csv.
+#
+#     sbatch --job-name=sapt-rhf --output=sapt-rhf-%A_%a.out scripts/run.sh --classical
+#
+# scores every pose against the determinant the protein's active space would hold, into
+# <complex>_sapt_rhf.npz, and leaves the correlated scores beside it alone. It carries no cumulant, 
+# so it is much faster
 
 #SBATCH --clusters=htc
 #SBATCH --partition=medium

@@ -109,7 +109,7 @@ def active_orbitals(geometry):
 
 
 def restricted_rdm1(ncas, nelecas):
-    return np.diag(np.where(np.arange(ncas) < nelecas // 2, 2.0, 0.0))
+    return sapt.restricted(ncas, nelecas)
 
 
 def restricted_rdm12(ncas, nelecas):

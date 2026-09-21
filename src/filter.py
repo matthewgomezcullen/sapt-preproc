@@ -56,12 +56,15 @@ LOOSE = 3.5
 GENERATOR = "no near-native pose generated"
 
 FIELDS = [
-    "name", "status", "heavy_atoms", "charge", "electrons", "poses", "excluded", "near_native",
-    "rejection",
+    "name", "status", "heavy_atoms", "charge", "electrons", "ligand_heavy_atoms",
+    "ligand_electrons", "poses", "excluded", "near_native", "rejection",
 ]
 
 # The numeric columns, which csv hands back as strings.
-COUNTS = ["heavy_atoms", "charge", "electrons", "poses", "excluded", "near_native"]
+COUNTS = [
+    "heavy_atoms", "charge", "electrons", "ligand_heavy_atoms", "ligand_electrons", "poses",
+    "excluded", "near_native",
+]
 
 
 def table_file(name=NAME):
@@ -175,13 +178,26 @@ def sweep_for_near_native(complexes):
     return kept, incorrect
 
 
+def ligand_size(poses):
+    if not poses:
+        return None, None
+    ligand = poses[0]
+    electrons = sum(
+        atom.GetAtomicNum() + atom.GetTotalNumHs() for atom in ligand.GetAtoms()
+    ) - Chem.GetFormalCharge(ligand)
+    return ligand.GetNumHeavyAtoms(), electrons
+
+
 def _row(name, status, prepared, near, rejection=""):
+    ligand_heavy_atoms, ligand_electrons = ligand_size(prepared.poses)
     return {
         "name": name,
         "status": status,
         "heavy_atoms": "" if prepared.heavy_atoms is None else prepared.heavy_atoms,
         "charge": "" if prepared.charge is None else prepared.charge,
         "electrons": "" if prepared.electrons is None else prepared.electrons,
+        "ligand_heavy_atoms": "" if ligand_heavy_atoms is None else ligand_heavy_atoms,
+        "ligand_electrons": "" if ligand_electrons is None else ligand_electrons,
         "poses": len(prepared.poses) if prepared.poses else "",
         "excluded": "" if prepared.excluded is None else prepared.excluded,
         "near_native": near,
@@ -282,7 +298,7 @@ def read(name=NAME):
         rows = list(csv.DictReader(file))
     for row in rows:
         for field in COUNTS:
-            row[field] = int(row[field]) if row[field] else None
+            row[field] = int(row[field]) if row.get(field) else None
     return rows
 
 

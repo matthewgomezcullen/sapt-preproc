@@ -109,8 +109,19 @@ def load_sapt(name, dir):
 
 
 def save_sapt(record, name, dir):
-    _supersede(sapt_path, name, dir)
     _save(record, sapt_path(name, dir))
+
+
+def sapt_rhf_path(name, dir):
+    return os.path.join(dir, f"{name}_sapt_rhf.npz")
+
+
+def load_sapt_rhf(name, dir):
+    return _load(sapt_rhf_path(name, dir))
+
+
+def save_sapt_rhf(record, name, dir):
+    _save(record, sapt_rhf_path(name, dir))
 
 
 def _load(path):
@@ -151,9 +162,14 @@ def _supersede(artefact, name, dir):
 
     The poses' SCFs are built on the preparation alone, so a new preparation discards them. SAPT's 
         scores are built on everything, the poses' SCFs included, so they come last.
+
+    Neither set of scores is built on the other, so they come last together: superseding the
+        correlated ones discards the SAPT(RHF) reference beside them, and writing either leaves the
+        other where it is.
     """
     order = [
-        prepared_path, scf_path, dice_log_path, solved_path, encoded_path, casci_path, sapt_path
+        prepared_path, scf_path, dice_log_path, solved_path, encoded_path, casci_path, sapt_path,
+        sapt_rhf_path,
     ]
     for later in order[order.index(artefact):]:
         path = later(name, dir)

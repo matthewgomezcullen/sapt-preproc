@@ -5,6 +5,9 @@ SAPT scores every pose of a complex against the correlated protein. run.py runs 
     each pose's scores are kept in <complex>_sapt.npz beside the protein's artefacts as soon as it has
     them, so a stage stopped part-way resumes after the last pose it kept.
 
+`--classical` scores the poses against the determinant the protein's active space would hold instead,
+    into <complex>_sapt_rhf.npz. That is SAPT(RHF). A complex scored both ways is ranked both ways.
+
 Ran as a script, it reranks a screen run.py has scored: confidence.csv is read from the screen's
     directory, out/filter or out/filter_<name>, and each complex's scores from the complex's own.
     Each complex's poses are ranked on E_elst + E_exch, lowest first, into sapt.csv, a row a pose,
@@ -26,7 +29,11 @@ from utils import report, sapt, save
 FIELDS = confidence.FIELDS + ["elst", "exch", "cumulant", "interaction", "rank_sapt"]
 SUMMARY_FIELDS = confidence.SUMMARY_FIELDS + ["top1_sapt", "discrimination_sapt"]
 
+RHF_FIELDS = ["elst_rhf", "exch_rhf", "interaction_rhf", "rank_rhf"]
+RHF_SUMMARY_FIELDS = ["top1_rhf", "discrimination_rhf"]
+
 RANKINGS = [("top1_sapt", "discrimination_sapt", "ranked on E_int")] + confidence.RANKINGS
+RHF_RANKINGS = [("top1_rhf", "discrimination_rhf", "ranked on E_int, SAPT(RHF)")] + RANKINGS
 
 SCORED = ("electrostatics", "exchanges", "cumulants", "int_energies")
 
@@ -60,8 +67,10 @@ class SAPT:
         self,
         protein: EncodeProtein,
         ligand: SolveLigand,
-        out=None
+        out=None,
+        classical=False,
     ):
+        self.classical = classical
         self.protein = protein
         self.ligand = ligand
         self.density = None # the protein's AO density, core plus active
@@ -79,13 +88,15 @@ class SAPT:
     def densities(self):
         """
         The protein's AO density, from the orbitals the window was cut over and CASCI's rdm1 over
-            its active block.
+            its active block, or classically the determinant's own over the same orbitals.
         """
         if not self.protein.correlated():
             raise EncodingError("Cannot build the protein's density before CASCI has solved it")
         self.density = sapt.density(
             self.protein.orbital_initial,
-            self.protein.rdm1,
+            sapt.restricted(self.protein.active_space_size, self.protein.active_electrons)
+            if self.classical
+            else self.protein.rdm1,
             self.protein.active_space_size,
             self.protein.active_electrons,
             self.protein.mol.nelectron,
@@ -113,10 +124,17 @@ class SAPT:
             self.protein.active_electrons,
             self.protein.mol.nelectron,
         )
-        # TEMPORARY: see WITHOUT_CUMULANT.
-        without = bool(self.out) and self._name() in WITHOUT_CUMULANT
+        # A determinant has no cumulant. TEMPORARY: see WITHOUT_CUMULANT for the other two.
+        temporary = bool(self.out) and self._name() in WITHOUT_CUMULANT
+        without = self.classical or temporary
         cumulant = None if without else sapt.cumulant(self.protein.rdm1, self.protein.rdm2)
-        if without:
+        if self.classical:
+            print(
+                f"[{datetime.now():%H:%M:%S}] Referring the poses to SAPT(RHF): the determinant "
+                "the protein's active space would hold, which carries no cumulant",
+                flush=True,
+            )
+        elif temporary:
             print(
                 f"[{datetime.now():%H:%M:%S}] Skipping  the cumulant for {self._name()}, whose "
                 "exchange is over the correlated densities alone",
@@ -159,7 +177,7 @@ class SAPT:
         """
         if not self.out or not self.int_energies:
             return
-        save.save_sapt(
+        (save.save_sapt_rhf if self.classical else save.save_sapt)(
             {
                 "source": self.ligand.prepared.source[:len(self.int_energies)],
                 **{key: getattr(self, key) for key in SCORED},
@@ -171,9 +189,9 @@ class SAPT:
 
     def _load(self):
         """
-        Read back the scores `out` holds.
+        Read back the scores `out` holds, of the kind this stage is scoring.
         """
-        kept = save.load_sapt(self._name(), self.out)
+        kept = (save.load_sapt_rhf if self.classical else save.load_sapt)(self._name(), self.out)
         if kept is None:
             return
         for key in SCORED:
@@ -187,11 +205,11 @@ class SAPT:
         return os.path.basename(os.path.normpath(self.out))
 
 
-def join(rows, energies):
+def join(rows, energies, reference=None):
     """
     Each of confidence.csv's rows given its pose's energies, keyed by (complex, source) 
     
-    A pose without energies is dropped and reported.
+    `reference` gives a pose its SAPT(RHF) energies as well, where it has them.
     """
     joined, missing = [], []
     for row in rows:
@@ -200,33 +218,63 @@ def join(rows, energies):
             missing.append(pose)
             continue
         scored = energies[pose]
+        classical = (reference or {}).get(pose)
         joined.append({
             **row,
             "elst": scored["elst"],
             "exch": scored["exch"],
             "cumulant": scored["cumulant"],
             "interaction": scored["elst"] + scored["exch"],
+            **({} if classical is None else {
+                "elst_rhf": classical["elst"],
+                "exch_rhf": classical["exch"],
+                "interaction_rhf": classical["elst"] + classical["exch"],
+            }),
         })
     return joined, missing
 
 
 def rank(rows):
-    return confidence.number(
+    """
+    Each complex's poses numbered on E_int, lowest first, and on the SAPT(RHF) reference beside it.
+    """
+    ranked = confidence.number(
         rows, lambda row: (row["interaction"], row["rank_docked"]), "rank_sapt"
     )
+    reference = [row for row in ranked if row.get("interaction_rhf") is not None]
+    if not reference:
+        return ranked
+    numbered = {
+        (row["name"], row["source"]): row
+        for row in confidence.number(
+            reference, lambda row: (row["interaction_rhf"], row["rank_docked"]), "rank_rhf"
+        )
+    }
+    return [numbered.get((row["name"], row["source"]), row) for row in ranked]
 
 
 def summarise(rows, threshold=filter.NEAR_NATIVE):
     summary = confidence.summarise(rows, threshold)
+    reference = any(row.get("interaction_rhf") is not None for row in rows)
     for entry in summary:
         theirs = [row for row in rows if row["name"] == entry["name"]]
+        near = [confidence.is_near_native(row, threshold) for row in theirs]
         entry["top1_sapt"] = confidence.is_near_native(
             min(theirs, key=lambda row: row["rank_sapt"]), threshold
         )
         entry["discrimination_sapt"] = report.pairwise_discriminate(
-            [-row["interaction"] for row in theirs],
-            [confidence.is_near_native(row, threshold) for row in theirs],
+            [-row["interaction"] for row in theirs], near
         )
+        if not reference:
+            continue
+        entry["top1_rhf"], entry["discrimination_rhf"] = None, None
+        if all(row.get("interaction_rhf") is not None for row in theirs):
+            entry["top1_rhf"] = confidence.is_near_native(
+                min(theirs, key=lambda row: row["rank_rhf"]), threshold
+            )
+            entry["discrimination_rhf"] = report.pairwise_discriminate(
+                [-row["interaction_rhf"] for row in theirs], near
+            )
     return summary
 
 
@@ -253,21 +301,31 @@ def run(name=NAME):
     ranked = os.path.join(job, confidence.TABLE_NAME)
     if not os.path.isfile(ranked):
         raise SystemExit(f"{ranked} is missing; run confidence.py over the screen first")
-    rows, scores, skipped = report.read_table(ranked), {}, []
+    rows, scores, reference, skipped = report.read_table(ranked), {}, {}, []
     for complex in sorted({row["name"] for row in rows}):
-        kept = save.load_sapt(complex, confidence.complex_dir(complex, job))
+        directory = confidence.complex_dir(complex, job)
+        kept = save.load_sapt(complex, directory)
         if kept is None:
             skipped.append(complex)
         else:
             scores.update(energies(complex, kept))
+        classical = save.load_sapt_rhf(complex, directory)
+        if classical is not None:
+            reference.update(energies(complex, classical))
     if not scores:
         raise SystemExit(f"No complex under {job} has been scored; run run.py first")
 
-    rows, missing = join([row for row in rows if row["name"] not in skipped], scores)
+    rows, missing = join([row for row in rows if row["name"] not in skipped], scores, reference)
     rows = rank(rows)
     summary = summarise(rows)
-    report.write_table(rows, os.path.join(job, TABLE_NAME), FIELDS)
-    report.write_table(summary, os.path.join(job, SUMMARY_NAME), SUMMARY_FIELDS)
+    report.write_table(
+        rows, os.path.join(job, TABLE_NAME), FIELDS + RHF_FIELDS if reference else FIELDS
+    )
+    report.write_table(
+        summary,
+        os.path.join(job, SUMMARY_NAME),
+        SUMMARY_FIELDS + RHF_SUMMARY_FIELDS if reference else SUMMARY_FIELDS,
+    )
     _report(summary, skipped, missing)
     return rows, summary
 
@@ -275,6 +333,8 @@ def run(name=NAME):
 def _report(summary, skipped=(), missing=()):
     """
     Each ranking's top-1 and pairwise discrimination, against a random picker.
+
+    The SAPT(RHF) reference is reported over the complexes that hold it alone.
     """
     print("Complexes", len(summary))
     if skipped:
@@ -282,6 +342,10 @@ def _report(summary, skipped=(), missing=()):
     if missing:
         print("  poses left unscored", len(missing))
     report.rankings(summary, RANKINGS)
+    both = [entry for entry in summary if entry.get("top1_rhf") is not None]
+    if both:
+        print(f"\nThe {len(both)} of {len(summary)} complexes scored at SAPT(RHF) too")
+        report.rankings(both, RHF_RANKINGS)
 
 
 if __name__ == "__main__":

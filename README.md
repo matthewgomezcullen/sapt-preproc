@@ -99,6 +99,8 @@ Failed 0
 
 Solving RHF for large cutouts is computationally very expensive. Also, highly charged cutouts form difficult SCF cases. Instead of encoding all 110 complexes, we bin complexes by size (quartiles) and charge ($|q_{A}| > 1 := \text{charged}$)
 
+`filter.csv` records the ligand's own size beside the cutout's, as `ligand_heavy_atoms` and `ligand_electrons`, counted off the first pose. Every pose is solved at RHF in its own basis, so the ligand size greatly impacts the computational requirements. 
+
 ### Encoding
 
 1. Solve the Restricted Hartree-Fock (RHF) equations, given $A^{\cup}$, $q_{A}$, $S$, and a `basis` (default: "6-31G"). The geometry is handed to PySCF in memory, in the order `PrepareComplex.atoms` fixes, since that is the order AVAS addresses its targets by. PySCF returns the molecular orbital (MO) coefficients, occupations, orbital energies, etc.
@@ -238,8 +240,9 @@ A complex whose preparation is kept is read back without its inputs, so a job na
 | `<complex>_encoded.npz` | `EncodeProtein.encode` | `e_core`, `h1`, `h2`, and the window they are over: `active_space_size`, `active_electrons`, `occupations` |
 | `<complex>_casci.npz` | `EncodeProtein.CASCI` | the ground state: `casci_energy`, and the spin-summed one- and two-particle density matrices `rdm1` and `rdm2` |
 | `<complex>_sapt.npz` | `SAPT.interaction`, after each pose | `source`, each pose's file, and one entry a pose of `electrostatics`, `exchanges`, `cumulants` and `int_energies`, in Hartree |
+| `<complex>_sapt_rhf.npz` | `SAPT.interaction` under `--classical`, after each pose | the same, against the determinant the protein's active space would hold |
 
-Each class reads back whatever its directory holds when it is constructed, and a stage already there is not run again. Writing an artefact discards every one written after it, since they were built on the one it replaces, so `--force` reruns everything and deleting `_prepared.npz`, `_solved.npz`, `_encoded.npz`, `_casci.npz` or `_sapt.npz` reruns from that stage on. The poses' SCFs are an exception; each is built on `_prepared.npz` alone, so a new preparation discards every one of them, nothing the protein's encoding writes touches them, and deleting one solves only that pose again, though every pose is scored again, since `_sapt.npz` is built on all of them. An artefact that cannot be read, such as one cut off mid-write, counts as absent and is written over. Nothing is kept for a rejected complex.
+Each class reads back whatever its directory holds when it is constructed, and a stage already there is not run again. Writing an artefact discards every one written after it, since they were built on the one it replaces, so `--force` reruns everything and deleting `_prepared.npz`, `_solved.npz`, `_encoded.npz`, `_casci.npz` or `_sapt.npz` reruns from that stage on. The two sets of scores come last together: neither is built on the other, so writing one leaves the other where it is and anything that discards `_sapt.npz` discards `_sapt_rhf.npz` with it. The poses' SCFs are an exception; each is built on `_prepared.npz` alone, so a new preparation discards every one of them, nothing the protein's encoding writes touches them, and deleting one solves only that pose again, though every pose is scored again, since `_sapt.npz` is built on all of them. An artefact that cannot be read, such as one cut off mid-write, counts as absent and is written over. Nothing is kept for a rejected complex.
 
 Artefacts are matched on the job's name alone, so a job is assumed consistent: a change to preparation wants a new name or `--force`.
 
@@ -247,7 +250,7 @@ The solved space is not rewritten once the Hamiltonian is built, so it stays at 
 
 A complex whose narrowed space holds more than 16 orbitals, or whose ground state is not a singlet, fails at CASCI with its Hamiltonian already kept.
 
-A task stopped part-way through the poses, as at the time limit, keeps every pose it scored and resumes after them when submitted again. Once every complex is scored and `confidence.py` has ranked the screen, `python sapt.py --name v1_1_mm_unsize` reranks its poses into `sapt.csv` and `sapt_summary.csv`, beside `confidence.py`'s tables. A complex scored part-way is ranked over the poses it has. The summary holds, a complex, whether each ranking's first pose is near-native and its pairwise discrimination rate, the share of the pairs a near-native pose makes with the others that the ranking orders the right way, and the report means both over complexes.
+A task stopped part-way through the poses, as at the time limit, keeps every pose it scored and resumes after them when submitted again. Once every complex is scored and `confidence.py` has ranked the screen, `python sapt.py --name v1_1_mm_unsize` reranks its poses into `sapt.csv` and `sapt_summary.csv`, beside `confidence.py`'s tables. A complex scored part-way is ranked over the poses it has. `python run.py <name> --classical` scores the poses against the determinant the protein's active space would hold, which is SAPT(RHF), and `sapt.run` ranks on that beside the correlated ranking for every complex whose poses all carry both, so the active space's effect on the ranking can be read off. The summary holds, a complex, whether each ranking's first pose is near-native and its pairwise discrimination rate, the share of the pairs a near-native pose makes with the others that the ranking orders the right way, and the report means both over complexes.
 
 The qubit operator is built and not stored. `utils.encode.qubits(e_core, h1, h2)` rebuilds it exactly, under any of the three mappings.
 

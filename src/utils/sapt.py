@@ -27,6 +27,14 @@ def active(orbitals, ncas, nelecas, nelectron):
     return orbitals[:, ncore:ncore + ncas]
 
 
+def restricted(ncas, nelecas):
+    """
+    The one-particle density matrix over `ncas` active orbitals of the determinant that fills the
+        lowest of them, which is what the space holds before it is correlated.
+    """
+    return np.diag(np.where(np.arange(ncas) < nelecas // 2, 2.0, 0.0))
+
+
 def density(orbitals, rdm1, ncas, nelecas, nelectron):
     """
     A monomer's AO density: its core doubly occupied, and its active orbitals weighted by the

@@ -72,8 +72,6 @@ def test_without_mm_the_prepared_poses_are_the_docked_ones(monkeypatch):
     for source, pose in zip(prepared.source, prepared.poses):
         assert np.allclose(original[source], get_heavy_atoms(pose))
 
-TETHER = 7.5
-
 SHIFT = 0.25
 
 
@@ -99,19 +97,9 @@ def fetch(name=SMALL, count=3):
     return prepared
 
 
-def test_a_complex_is_minimised_free_by_default(monkeypatch):
-    prepared = fetch()
-    seen = []
-    monkeypatch.setattr(mm, "minimise", lambda whole, poses, tether: seen.append(tether) or poses)
-
-    prepared._minimise()
-
-    assert seen == [None]
-
-
 def test_minimise_records_how_far_each_pose_moved(monkeypatch):
     prepared = fetch()
-    monkeypatch.setattr(mm, "minimise", lambda whole, poses, tether: shift(poses))
+    monkeypatch.setattr(mm, "minimise", lambda whole, poses: shift(poses))
 
     prepared._minimise()
 

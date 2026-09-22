@@ -18,8 +18,6 @@ NAME = "6YT6_PKE"
 
 RUN = "no_mm"
 
-TETHER = 10.0
-
 ROWS = [
     {
         "name": "5S8I_2LY", "status": "eligible", "heavy_atoms": 157, "charge": -1,
@@ -63,10 +61,8 @@ def recording(calls):
     """
 
     class Recorded:
-        def __init__(self, protein, poses, out=None, *, mm, tether):
-            calls.append({
-                "protein": protein, "poses": poses, "out": out, "mm": mm, "tether": tether,
-            })
+        def __init__(self, protein, poses, out=None, *, mm):
+            calls.append({"protein": protein, "poses": poses, "out": out, "mm": mm})
             self.poses = []
             self.heavy_atoms = self.charge = self.electrons = self.excluded = None
             self.failed = Counter()
@@ -122,29 +118,13 @@ def test_a_run_without_mm_says_so_for_every_complex(monkeypatch):
     assert [call["mm"] for call in calls] == [False, False]
 
 
-def test_a_parallel_run_carries_the_minimisation_settings_too(monkeypatch):
+def test_a_parallel_run_carries_the_minimisation_setting_too(monkeypatch):
     calls = stubbed(monkeypatch)
     monkeypatch.setattr(filter, "ProcessPoolExecutor", Serial)
 
-    filter.screen_parallel([inventory_entry()], mm=False, tether=TETHER)
+    filter.screen_parallel([inventory_entry()], mm=False)
 
-    assert [(call["mm"], call["tether"]) for call in calls] == [(False, TETHER)]
-
-
-def test_a_run_is_minimised_free_by_default(monkeypatch):
-    calls = stubbed(monkeypatch)
-
-    filter.screen([inventory_entry()])
-
-    assert [call["tether"] for call in calls] == [None]
-
-
-def test_a_run_tethers_every_complex_to_what_it_was_given(monkeypatch):
-    calls = stubbed(monkeypatch)
-
-    filter.screen([inventory_entry(), inventory_entry()], tether=TETHER)
-
-    assert [call["tether"] for call in calls] == [TETHER, TETHER]
+    assert [call["mm"] for call in calls] == [False]
 
 
 def test_a_named_run_keeps_its_preparations_apart(tmp_path, monkeypatch):

@@ -108,7 +108,6 @@ class PrepareComplex:
         poses_paths: list[str],
         out=None,
         mm=True,
-        tether=None,
     ):
         self.protein_path = protein_path
         self.poses_paths = poses_paths
@@ -151,9 +150,6 @@ class PrepareComplex:
         # confidence model produced. The hydrogens _protonate gives a pose are RDKit's rather than
         # any mechanics, so a pose carries them either way.
         self.mm = mm
-
-        # None minimises free,
-        self.tether_strength = tether
 
         # Load
         self.out = out
@@ -358,10 +354,10 @@ class PrepareComplex:
     def _minimise(self):
         """
         Relaxes every pose in the field of the protonated protein, the protein fixed and the pose
-            free, or tethered to where it was docked.
+            free.
         """
         before = [_heavy_coordinates(pose) for pose in self.poses]
-        self.poses = mm.minimise(self.whole, self.poses, self.tether_strength)
+        self.poses = mm.minimise(self.whole, self.poses)
         self.displacement = [
             float(np.linalg.norm(was - _heavy_coordinates(pose), axis=-1).max())
             for was, pose in zip(before, self.poses)

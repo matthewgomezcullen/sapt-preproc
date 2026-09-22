@@ -225,7 +225,7 @@ def _row(name, status, prepared, near, rejection=""):
     }
 
 
-def _prepare(one, force=False, mm=True, tether=None, out=None):
+def _prepare(one, force=False, mm=True, out=None):
     """
     One complex prepared, or read back, and then checked for near-native existence.
 
@@ -235,9 +235,7 @@ def _prepare(one, force=False, mm=True, tether=None, out=None):
     Can run in its own process.
     """
     name, protein, poses, native = one
-    prepared = PrepareComplex(
-        protein, poses, os.path.join(out or job_dir(), name), mm=mm, tether=tether
-    )
+    prepared = PrepareComplex(protein, poses, os.path.join(out or job_dir(), name), mm=mm)
     try:
         if force or not prepared.prepared():
             prepared.prepare()
@@ -252,7 +250,7 @@ def _prepare(one, force=False, mm=True, tether=None, out=None):
     return _row(name, "eligible", prepared, near), prepared.failed
 
 
-def screen(complexes, force=False, mm=True, tether=None, name=NAME):
+def screen(complexes, force=False, mm=True, name=NAME):
     """
     Prepare every complex.
 
@@ -264,7 +262,7 @@ def screen(complexes, force=False, mm=True, tether=None, name=NAME):
     out = job_dir(name)
     prepared = tqdm(
         (
-            _prepare(complex, force=force, mm=mm, tether=tether, out=out)
+            _prepare(complex, force=force, mm=mm, out=out)
             for complex in complexes
         ),
         total=len(complexes),
@@ -278,7 +276,7 @@ def screen(complexes, force=False, mm=True, tether=None, name=NAME):
 
 
 
-def screen_parallel(complexes, workers=None, force=False, mm=True, tether=None, name=NAME):
+def screen_parallel(complexes, workers=None, force=False, mm=True, name=NAME):
     """
     Parallelised. `map` keeps the rows in the order the complexes came in.
     """
@@ -286,7 +284,7 @@ def screen_parallel(complexes, workers=None, force=False, mm=True, tether=None, 
     with ProcessPoolExecutor(max_workers=workers) as pool:
         prepared = tqdm(
             pool.map(
-                partial(_prepare, force=force, mm=mm, tether=tether, out=job_dir(name)),
+                partial(_prepare, force=force, mm=mm, out=job_dir(name)),
                 complexes,
             ),
             total=len(complexes),
@@ -404,8 +402,7 @@ def report(rows):
         print(f'  {label:5s}{banded[0]:8d}{banded[1]:10d}{banded[2]:9d}')
 
 
-def run(complexes=None, name=NAME, mm=True, tether=None, reuse=False, force=False,
-        workers=None, strict=False):
+def run(complexes=None, name=NAME, mm=True, reuse=False, force=False, workers=None, strict=False):
     if reuse:
         rows = read(name, strict)
         _summarise(rows)
@@ -417,7 +414,6 @@ def run(complexes=None, name=NAME, mm=True, tether=None, reuse=False, force=Fals
                 complexes,
                 force=force,
                 mm=mm,
-                tether=tether,
                 name=name,
             )
         else:
@@ -428,7 +424,6 @@ def run(complexes=None, name=NAME, mm=True, tether=None, reuse=False, force=Fals
                 workers=workers,
                 force=force,
                 mm=mm,
-                tether=tether,
                 name=name,
             )
         rows = sorted(rows + ungenerated, key=lambda row: row["name"])
@@ -484,21 +479,12 @@ if __name__ == "__main__":
         help=f"Sweep the generated ensembles at {NEAR_NATIVE} A rather than {LOOSE} A, and keep "
              "the screen in filter_strict.csv."
     )
-    parser.add_argument(
-        "--tether",
-        type=float,
-        default=None,
-        help="Hold each pose's heavy atoms to where DiffDock put them while it relaxes, at this "
-             "strength in kcal/mol/A^2. Free by default, which moves a pose enough to re-rank the "
-             "ensemble. Nothing to relax under `--no-mm`, so nothing to hold.",
-    )
     arguments = parser.parse_args()
 
     run(
         complexes=arguments.complexes,
         name=arguments.name,
         mm=arguments.mm,
-        tether=arguments.tether,
         reuse=arguments.reuse,
         force=arguments.force,
         workers=arguments.workers,

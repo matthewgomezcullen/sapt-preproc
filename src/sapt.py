@@ -39,7 +39,7 @@ SUMMARY_FIELDS = confidence.SUMMARY_FIELDS + [
 ]
 
 RHF_FIELDS = ["elst_rhf", "exch_rhf", "interaction_rhf", "rank_rhf"]
-RHF_SUMMARY_FIELDS = ["top1_rhf", "discrimination_rhf"]
+RHF_SUMMARY_FIELDS = ["top1_rhf", "discrimination_rhf", "spearman_rhf", "moved_rhf"]
 
 RANKINGS = [
     ("top1_sapt", "discrimination_sapt", "ranked on E_int"),
@@ -310,6 +310,7 @@ def summarise(rows, threshold=filter.NEAR_NATIVE, retained=None):
         if not reference:
             continue
         entry["top1_rhf"], entry["discrimination_rhf"] = None, None
+        entry["spearman_rhf"], entry["moved_rhf"] = None, None
         if all(row.get("interaction_rhf") is not None for row in theirs):
             entry["top1_rhf"] = confidence.is_near_native(
                 min(theirs, key=lambda row: row["rank_rhf"]), threshold
@@ -317,6 +318,10 @@ def summarise(rows, threshold=filter.NEAR_NATIVE, retained=None):
             entry["discrimination_rhf"] = report.pairwise_discriminate(
                 [-row["interaction_rhf"] for row in theirs], near
             )
+            entry["spearman_rhf"] = report.spearman_correlate(
+                [row["rank_sapt"] for row in theirs], [row["rank_rhf"] for row in theirs]
+            )
+            entry["moved_rhf"] = sum(1 for row in theirs if row["rank_rhf"] != row["rank_sapt"])
     return summary
 
 
@@ -392,6 +397,27 @@ def run(name=NAME):
     return rows, summary
 
 
+def _departure(summary, spearman, moved, what):
+    """
+    How far a second ranking of the same poses departs from the one on E_int: the poses it moves,
+        and Spearman's rho over the complexes holding poses enough to correlate.
+
+    The poses are counted over the complexes ranked both ways, which is every scored one where the
+        cumulant is what differs and only the referenced ones where correlation is.
+    """
+    ranked = [entry for entry in summary if entry.get(moved) is not None]
+    correlated = [entry for entry in summary if entry.get(spearman) is not None]
+    if not correlated:
+        return
+    print(
+        f"\n{what} moves {sum(entry[moved] for entry in ranked)} of "
+        f"{sum(entry['poses'] for entry in ranked)} poses. Spearman's rho between the two rankings "
+        f"is {report.average(correlated, spearman):.4f} on average and "
+        f"{min(entry[spearman] for entry in correlated):.4f} at its lowest, over the "
+        f"{len(correlated)} of {len(summary)} complexes with poses enough to correlate"
+    )
+
+
 def _report(summary, skipped=(), missing=()):
     """
     Each ranking's top-1 and pairwise discrimination, against a random picker, and how much of the
@@ -409,16 +435,8 @@ def _report(summary, skipped=(), missing=()):
     if both:
         print(f"\nThe {len(both)} of {len(summary)} complexes scored at SAPT(RHF) too")
         report.rankings(both, RHF_RANKINGS)
-    correlated = [entry for entry in summary if entry.get("spearman_separable") is not None]
-    if correlated:
-        moved = sum(entry["moved"] for entry in summary)
-        poses = sum(entry["poses"] for entry in summary)
-        print(
-            f"\nThe cumulant moves {moved} of {poses} poses. Spearman's rho between the two "
-            f"rankings is {report.average(correlated, 'spearman_separable'):.4f} on average and "
-            f"{min(entry['spearman_separable'] for entry in correlated):.4f} at its lowest, over "
-            f"the {len(correlated)} of {len(summary)} complexes with poses enough to correlate"
-        )
+    _departure(summary, "spearman_separable", "moved", "The cumulant")
+    _departure(summary, "spearman_rhf", "moved_rhf", "The protein's correlation")
     retained = report.average(summary, "retention")
     if retained is not None:
         kept = sum(1 for entry in summary if entry.get("retention") is not None)

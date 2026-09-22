@@ -18,14 +18,15 @@ POSE = re.compile(r"^rank(\d+)_confidence(-?\d+\.\d+)\.sdf$")
 
 INTEGERS = [
     "poses", "near_native", "rank_docked", "rank_minimised", "rank_sapt", "rank_rhf",
-    "rank_separable", "moved", "rank_top1",
+    "rank_separable", "moved", "moved_rhf", "rank_top1",
 ]
 DECIMALS = [
     "confidence", "confidence_docked", "confidence_minimised", "rmsd", "rmsd_top1", "fraction",
     "elst", "exch", "cumulant", "interaction", "elst_rhf", "exch_rhf", "interaction_rhf",
     "interaction_separable",
     "discrimination", "discrimination_docked", "discrimination_minimised", "discrimination_sapt",
-    "discrimination_rhf", "discrimination_separable", "spearman_separable", "retention",
+    "discrimination_rhf", "discrimination_separable", "spearman_separable", "spearman_rhf",
+    "retention",
 ]
 BOOLEANS = [
     "top1", "top1_docked", "top1_minimised", "top1_sapt", "top1_rhf", "top1_separable",

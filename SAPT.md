@@ -37,10 +37,6 @@ $$E^{(1)}_{\text{int}} = E^{(1)}_{\text{elst}} + E^{(1)}_{\text{exch}}(S^{2}),$$
 
 each term a contraction of the two monomers' density matrices against integrals spanning both. Poses are then ranked by $E^{(1)}_{\text{int}}$ and the top-ranked one held against the deposited ligand.
 
-**First order only.** Dispersion is an $O(o_A v_A o_B v_B)$ contraction, around $9 \times 10^{9}$ amplitudes for the smallest chosen cutout, and Psi4's SAPT works in a dimer-centred basis, so it would re-solve the protein's SCF for each of the 430 poses rather than once per complex. First order is Fock-build scaling. Whether to add a two-body D3 term as an attractive counterweight is open: the paper found first order alone insufficient to rank distinct *ligands*, though pose ranking is a different task.
-
-**Appendix A is not transcribed.** Every block of $\Gamma$ holding a core index is its separable part (Eq. 28), and the ligand's $\Gamma$ is separable whole. Separating $\Gamma^{aa}$ too leaves one AO expression in the two densities and one cumulant term over the active space (step 4), in place of the ten block expressions the paper's route would need.
-
 ### 1. Monomer densities
 
 $$D^{A}_{\mu\mu'} = 2\sum_{i}^{n_c} C_{\mu i} C_{\mu' i} + \sum_{tt'} C_{\mu t}\, \gamma_{tt'}\, C_{\mu' t'}, \qquad n_c = \frac{N_A - N_{\text{act}}}{2}$$

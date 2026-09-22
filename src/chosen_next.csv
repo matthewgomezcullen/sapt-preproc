@@ -1,8 +1,0 @@
-name,status,heavy_atoms,charge,electrons,ligand_heavy_atoms,ligand_electrons,poses,excluded,near_native,rejection,difficulty,pairs
-7BJJ_TVW,eligible,96,-1,756,10,70,40,0,26,,0.65,364
-7R59_I5F,eligible,130,0,982,13,98,40,0,32,,0.8,256
-6YQW_82I,eligible,103,0,772,11,90,40,0,38,,0.95,76
-7XI7_4RI,eligible,192,-2,1470,20,146,40,0,39,,0.975,39
-7N4W_P4V,eligible,327,0,2512,26,190,15,25,3,,0.2,36
-7WJB_BGC,eligible,308,-4,2316,12,96,30,10,29,,0.9667,29
-7RKW_5TV,eligible,391,1,3008,25,194,7,33,1,,0.1429,6

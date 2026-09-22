@@ -30,3 +30,11 @@ https://arc-software-guide.readthedocs.io/en/latest/python/anaconda_venv.html
 [21:18:22] Scored    pose 12 of 40, rank20_confidence-0.36.sdf: E_int 0.011363 Hartree
 [22:26:19] Scored    pose 13 of 40, rank21_confidence-0.37.sdf: E_int 0.011580 Hartree
 [23:34:19] Scored    pose 14 of 40, rank22_confidence-0.37.sdf: E_int 0.014726 Hartree
+[00:42:25] Scored    pose 15 of 40, rank23_confidence-0.37.sdf: E_int 0.011242 Hartree
+[01:50:06] Scored    pose 16 of 40, rank24_confidence-0.38.sdf: E_int 0.018368 Hartree
+[02:58:06] Scored    pose 17 of 40, rank25_confidence-0.38.sdf: E_int 0.016723 Hartree
+[04:06:12] Scored    pose 18 of 40, rank26_confidence-0.38.sdf: E_int 0.013668 Hartree
+[05:14:13] Scored    pose 19 of 40, rank27_confidence-0.38.sdf: E_int 0.009774 Hartree
+[06:21:02] Scored    pose 20 of 40, rank28_confidence-0.38.sdf: E_int 0.047515 Hartree
+[07:27:38] Scored    pose 21 of 40, rank29_confidence-0.39.sdf: E_int 0.050685 Hartree
+[08:35:33] Scored    pose 22 of 40, rank2_confidence-0.25.sdf: E_int 0.011715 Hartree

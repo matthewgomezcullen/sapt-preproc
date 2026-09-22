@@ -17,3 +17,9 @@ The array stops at task 9, which leaves 5SAK_ZRY 7PRM_81I unrun.
 [21:14:28] Scored    pose 34 of 39, rank4_confidence-0.62.sdf: E_int 0.167782 Hartree
 [22:38:49] Scored    pose 35 of 39, rank5_confidence-0.62.sdf: E_int 0.170323 Hartree
 [00:02:41] Scored    pose 36 of 39, rank6_confidence-0.64.sdf: E_int 0.177246 Hartree
+[01:26:44] Scored    pose 37 of 39, rank7_confidence-0.64.sdf: E_int 0.178784 Hartree
+[02:50:52] Scored    pose 38 of 39, rank8_confidence-0.65.sdf: E_int 0.144375 Hartree
+[04:15:30] Scored    pose 39 of 39, rank9_confidence-0.65.sdf: E_int 0.139224 Hartree
+[04:15:30] Scored     7NGW_UAW's 39 poses
+[04:15:41] Kept      7NGW_UAW_casci.npz 7NGW_UAW.dice.out 7NGW_UAW_encoded.npz 7NGW_UAW_poses.sdf 7NGW_UAW_prepared.npz 7NGW_UAW_rhf.chk 7NGW_UAW_sapt.npz 7NGW_UAW_sapt_rhf.npz 7NGW_UAW_solved.npz and 39 pose SCFs
+[04:15:41] Done

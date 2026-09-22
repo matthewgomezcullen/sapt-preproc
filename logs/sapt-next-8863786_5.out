@@ -19,3 +19,14 @@
 [22:32:46] Scored    pose 6 of 30, rank16_confidence-0.85.sdf: E_int 0.032232 Hartree
 [23:21:12] Scored    pose 7 of 30, rank17_confidence-0.85.sdf: E_int 0.039008 Hartree
 [00:09:19] Scored    pose 8 of 30, rank19_confidence-0.87.sdf: E_int 0.032642 Hartree
+[00:57:14] Scored    pose 9 of 30, rank1_confidence-0.61.sdf: E_int 0.008640 Hartree
+[01:45:34] Scored    pose 10 of 30, rank21_confidence-0.92.sdf: E_int 0.039071 Hartree
+[02:33:12] Scored    pose 11 of 30, rank22_confidence-0.94.sdf: E_int 0.022779 Hartree
+[03:21:15] Scored    pose 12 of 30, rank23_confidence-0.94.sdf: E_int 0.000973 Hartree
+[04:09:04] Scored    pose 13 of 30, rank25_confidence-0.96.sdf: E_int -0.006160 Hartree
+[04:57:08] Scored    pose 14 of 30, rank29_confidence-1.01.sdf: E_int 0.038837 Hartree
+[05:44:43] Scored    pose 15 of 30, rank2_confidence-0.63.sdf: E_int 0.007863 Hartree
+[06:32:44] Scored    pose 16 of 30, rank30_confidence-1.02.sdf: E_int 0.069217 Hartree
+[07:20:27] Scored    pose 17 of 30, rank32_confidence-1.07.sdf: E_int 0.039333 Hartree
+[08:08:07] Scored    pose 18 of 30, rank33_confidence-1.07.sdf: E_int -0.007000 Hartree
+[08:55:58] Scored    pose 19 of 30, rank34_confidence-1.08.sdf: E_int 0.040392 Hartree

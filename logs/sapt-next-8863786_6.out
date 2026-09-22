@@ -8,3 +8,6 @@
 [10:31:28] Running the pipeline for 7RKW_5TV 
 [10:31:35] Prepared   7RKW_5TV, read back
 [22:42:52] Solved     7RKW_5TV's space
+[07:21:48] Encoded    7RKW_5TV's (14e, 14o) Hamiltonian
+[07:21:59] Correlated 7RKW_5TV's active space
+[07:22:12] Solved     7RKW_5TV's 7 poses at RHF

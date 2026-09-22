@@ -49,3 +49,14 @@ https://arc-software-guide.readthedocs.io/en/latest/python/anaconda_venv.html
 [22:56:39] Scored    pose 30 of 40, rank37_confidence-1.91.sdf: E_int 0.020664 Hartree
 [23:35:19] Scored    pose 31 of 40, rank38_confidence-2.02.sdf: E_int 0.026203 Hartree
 [00:14:15] Scored    pose 32 of 40, rank39_confidence-2.04.sdf: E_int 0.036308 Hartree
+[00:52:49] Scored    pose 33 of 40, rank3_confidence-0.73.sdf: E_int 0.023301 Hartree
+[01:29:16] Scored    pose 34 of 40, rank40_confidence-2.19.sdf: E_int 0.009162 Hartree
+[02:08:12] Scored    pose 35 of 40, rank4_confidence-0.73.sdf: E_int 0.028186 Hartree
+[02:46:56] Scored    pose 36 of 40, rank5_confidence-0.73.sdf: E_int 0.039490 Hartree
+[03:25:08] Scored    pose 37 of 40, rank6_confidence-0.80.sdf: E_int 0.023593 Hartree
+[04:04:01] Scored    pose 38 of 40, rank7_confidence-0.85.sdf: E_int 0.036963 Hartree
+[04:42:02] Scored    pose 39 of 40, rank8_confidence-0.88.sdf: E_int 0.023446 Hartree
+[05:21:00] Scored    pose 40 of 40, rank9_confidence-0.92.sdf: E_int 0.027876 Hartree
+[05:21:00] Scored     7OEO_V9Z's 40 poses
+[05:21:00] Kept      7OEO_V9Z_casci.npz 7OEO_V9Z.dice.out 7OEO_V9Z_encoded.npz 7OEO_V9Z_poses.sdf 7OEO_V9Z_prepared.npz 7OEO_V9Z_rhf.chk 7OEO_V9Z_sapt.npz 7OEO_V9Z_sapt_rhf.npz 7OEO_V9Z_solved.npz and 40 pose SCFs
+[05:21:00] Done
